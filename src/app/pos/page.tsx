@@ -1,0 +1,948 @@
+'use client'
+
+import { useState, useEffect, useCallback } from 'react'
+import type { MenuItem, Order } from '@/lib/types'
+import CheckoutModal from '@/components/pos/CheckoutModal'
+import NumPad from '@/components/pos/NumPad'
+import { DEMO_MENU } from '@/lib/demo-data'
+import { loadBarSettings, type BarSettings } from '@/lib/printer'
+
+const TABLES = ['T1', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7', 'T8', 'BAR', 'VIP1', 'VIP2']
+
+// Fix #3: added Shot and Other to match MenuCategory type
+const CATEGORIES = ['All', 'Cocktail', 'Beer', 'Drink', 'Snack', 'Food', 'Shot', 'Other']
+
+type CartItem = {
+  menuId: string; name: string; qty: number; price: number
+  variantLabel?: string
+  itemDiscount?: number  // % discount เฉพาะ item นี้ (0-100)
+}
+
+// Fix #13: store type + value so we can recalculate client-side when subtotal changes
+type AppliedCoupon = {
+  id: string; code: string; name: string
+  type: 'percent' | 'fixed'; value: number
+  discountAmount: number
+}
+
+function baht(n: number) {
+  return '฿' + new Intl.NumberFormat('en').format(Math.round(n))
+}
+
+function cartKey(c: { menuId: string; variantLabel?: string }) {
+  return c.variantLabel ? `${c.menuId}::${c.variantLabel}` : c.menuId
+}
+
+// คำนวณราคารวมหลังหักส่วนลดของ item นั้นๆ
+function itemEffectiveTotal(c: CartItem): number {
+  const gross = c.price * c.qty
+  if (!c.itemDiscount || c.itemDiscount <= 0) return gross
+  return Math.round(gross * (1 - c.itemDiscount / 100))
+}
+
+// สร้าง HTML Check Bill สำหรับให้ลูกค้าดูก่อนชำระเงิน
+function buildTicketHtml({
+  cart, table, memberName, subtotal, discountAmount, total, discountLabel, cfg,
+}: {
+  cart: CartItem[]
+  table: string
+  memberName: string
+  subtotal: number
+  discountAmount: number
+  total: number
+  discountLabel?: string
+  cfg: BarSettings
+}): string {
+  const now     = new Date()
+  const dateStr = now.toLocaleDateString('en-GB')
+  const timeStr = now.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })
+  const vat     = Math.round(total * 7 / 107)
+
+  const itemRows = cart.map(c => {
+    const t = itemEffectiveTotal(c)
+    const d = c.itemDiscount && c.itemDiscount > 0
+    return `<div class="row"><span class="item-name">${c.name}<span class="qty"> ×${c.qty}${d ? ` (-${c.itemDiscount}%)` : ''}</span></span><span>฿${t.toLocaleString()}</span></div>`
+  }).join('')
+
+  const discountRow = discountAmount > 0
+    ? `<div class="row green"><span>Discount${discountLabel ? ` (${discountLabel})` : ''}</span><span>-฿${discountAmount.toLocaleString()}</span></div>`
+    : ''
+
+  return `<!DOCTYPE html>
+<html><head><meta charset="utf-8"><title>Check Bill</title>
+<style>
+  *{margin:0;padding:0;box-sizing:border-box;}
+  body{font-family:'Courier New',Courier,monospace;font-size:12px;width:280px;margin:0 auto;padding:14px 10px;color:#111;background:#fff;}
+  .center{text-align:center;}.bold{font-weight:bold;}.xlarge{font-size:20px;letter-spacing:1px;}
+  .row{display:flex;justify-content:space-between;padding:2px 0;}.item-name{flex:1;}.qty{color:#666;}
+  .sep{border-top:1px dashed #aaa;margin:7px 0;}.sep2{border-top:2px solid #333;margin:7px 0;}
+  .small{font-size:10px;color:#777;}.green{color:#1a7a1a;}.gray{color:#555;}
+  .banner{text-align:center;border:2px dashed #bbb;padding:6px;color:#888;font-size:11px;margin-bottom:8px;letter-spacing:2px;}
+  .total-row{font-size:16px;font-weight:bold;padding:4px 0;}
+  .footer{margin-top:10px;text-align:center;font-size:11px;color:#555;}
+  @media print{body{padding:0;}}
+</style></head>
+<body>
+<div class="banner">── CHECK BILL ──</div>
+<div class="center" style="margin-bottom:8px">
+  <p class="bold xlarge">${cfg.barName}</p>
+  ${cfg.address ? `<p class="small" style="margin-top:2px">${cfg.address}</p>` : ''}
+</div>
+<div class="sep"></div>
+<div class="row"><span>Date: ${dateStr}</span><span>${timeStr}</span></div>
+<div class="row"><span>Table: <strong>${table}</strong></span></div>
+${memberName ? `<div class="row small"><span>Member: ${memberName}</span></div>` : ''}
+<div class="sep"></div>
+${itemRows}
+<div class="sep"></div>
+<div class="row gray"><span>Subtotal</span><span>฿${subtotal.toLocaleString()}</span></div>
+${discountRow}
+<div class="sep2"></div>
+<div class="row total-row"><span>TOTAL</span><span>฿${total.toLocaleString()}</span></div>
+<div class="row small gray"><span>VAT 7% incl.</span><span>฿${vat.toLocaleString()}</span></div>
+<div class="sep"></div>
+<div class="footer">Please check before payment<br><span style="color:#bbb;font-size:10px">── NOT A RECEIPT ──</span></div>
+</body></html>`
+}
+
+export default function POSPage() {
+  const [table, setTable] = useState('T1')
+  const [category, setCategory] = useState('All')
+  const [menu, setMenu] = useState<MenuItem[]>(DEMO_MENU)
+
+  // Fix #2: per-table carts stored in a map keyed by table
+  const [carts, setCarts] = useState<Record<string, CartItem[]>>({})
+  const cart = carts[table] ?? []
+
+  function setCart(updater: CartItem[] | ((prev: CartItem[]) => CartItem[])) {
+    setCarts(prev => {
+      const current = prev[table] ?? []
+      const next = typeof updater === 'function' ? updater(current) : updater
+      return { ...prev, [table]: next }
+    })
+  }
+
+  const [discountType, setDiscountType] = useState<'percent' | 'fixed'>('percent')
+  const [discountValue, setDiscountValue] = useState('')
+  const [memberName, setMemberName] = useState('')
+  const [members, setMembers] = useState<{ id: string; name: string }[]>([])
+  const [couponCode, setCouponCode] = useState('')
+  const [itemDiscountTarget, setItemDiscountTarget] = useState<string | null>(null)
+  const [itemDiscountValue,  setItemDiscountValue]  = useState('')
+  const [appliedCoupon, setAppliedCoupon] = useState<AppliedCoupon | null>(null)
+  const [couponError, setCouponError] = useState('')
+  const [showCheckout, setShowCheckout] = useState(false)
+  const [showNumPad, setShowNumPad] = useState(false)
+  const [orders, setOrders] = useState<Order[]>([])
+  const [showHistory, setShowHistory] = useState(false)
+  const [showAllHistory, setShowAllHistory] = useState(false)
+  const [toast, setToast] = useState<{ msg: string; ok: boolean } | null>(null)
+  const [clock, setClock] = useState('')
+
+  // Fix #4: variant picker state
+  const [variantPicking, setVariantPicking] = useState<MenuItem | null>(null)
+  const [variantSelections, setVariantSelections] = useState<Record<string, string>>({})
+
+  useEffect(() => {
+    const tick = () =>
+      setClock(new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', second: '2-digit' }))
+    tick()
+    const iv = setInterval(tick, 1000)
+    return () => clearInterval(iv)
+  }, [])
+
+  useEffect(() => {
+    fetch('/api/menu')
+      .then((r) => r.json())
+      .then((d) => { if (d.menu?.length) setMenu(d.menu) })
+      .catch(() => {})
+    fetch('/api/members')
+      .then((r) => r.json())
+      .then((d) => { if (d.members?.length) setMembers(d.members) })
+      .catch(() => {})
+  }, [])
+
+  const fetchOrders = useCallback(async () => {
+    try {
+      const r = await fetch('/api/orders')
+      if (r.ok) {
+        const d = await r.json()
+        setOrders(d.orders ?? [])
+      }
+    } catch {}
+  }, [])
+
+  useEffect(() => {
+    fetchOrders()
+    const iv = setInterval(fetchOrders, 15000)
+    return () => clearInterval(iv)
+  }, [fetchOrders])
+
+  const todayStr = new Date().toDateString()
+  const todayOrders = orders.filter((o) => new Date(o.createdAt).toDateString() === todayStr)
+  const todayTotal = todayOrders.reduce((s, o) => s + o.total, 0)
+  // Fix #10: filter history by current table
+  const tableOrders = todayOrders.filter(o => o.tableNo === table)
+  const historyOrders = showAllHistory ? todayOrders : tableOrders
+
+  function showToast(msg: string, ok = true) {
+    setToast({ msg, ok })
+    setTimeout(() => setToast(null), 3500)
+  }
+
+  // Add to cart without variant selection (after modal confirmation or no variants)
+  function addToCartDirect(item: MenuItem, variantLabel?: string, priceAdjust = 0) {
+    const key = variantLabel ? `${item.id}::${variantLabel}` : item.id
+    const finalPrice = item.price + priceAdjust
+    const displayName = variantLabel ? `${item.name} (${variantLabel})` : item.name
+    setCart(prev => {
+      const idx = prev.findIndex(c => cartKey(c) === key)
+      if (idx >= 0) {
+        const next = [...prev]
+        next[idx] = { ...next[idx], qty: next[idx].qty + 1 }
+        return next
+      }
+      return [...prev, { menuId: item.id, name: displayName, qty: 1, price: finalPrice, variantLabel }]
+    })
+  }
+
+  // Fix #4: open variant picker for items with variants; add directly otherwise
+  function addToCart(item: MenuItem) {
+    if (item.variants && item.variants.length > 0) {
+      setVariantPicking(item)
+      setVariantSelections({})
+      return
+    }
+    addToCartDirect(item)
+  }
+
+  function confirmVariant() {
+    if (!variantPicking) return
+    const item = variantPicking
+    if (item.variants?.some(v => v.required && !variantSelections[v.id])) return
+    const labels: string[] = []
+    let priceAdjust = 0
+    item.variants?.forEach(v => {
+      const opt = v.options.find(o => o.id === variantSelections[v.id])
+      if (opt) { labels.push(opt.name); priceAdjust += opt.priceAdjust }
+    })
+    addToCartDirect(item, labels.join(', ') || undefined, priceAdjust)
+    setVariantPicking(null)
+    setVariantSelections({})
+  }
+
+  // Fix #4: changeQty matches by menuId + variantLabel pair
+  function changeQty(menuId: string, delta: number, variantLabel?: string) {
+    setCart(prev =>
+      prev
+        .map(c => c.menuId === menuId && c.variantLabel === variantLabel ? { ...c, qty: c.qty + delta } : c)
+        .filter(c => c.qty > 0)
+    )
+  }
+
+  function clearCart() {
+    setCarts(prev => {
+      const { [table]: _dropped, ...rest } = prev
+      return rest
+    })
+    setDiscountValue('')
+    setMemberName('')
+    setAppliedCoupon(null)
+    setCouponCode('')
+    setCouponError('')
+  }
+
+  function setItemDiscountForItem(key: string, discount: number | undefined) {
+    setCart(prev => prev.map(c => cartKey(c) === key ? { ...c, itemDiscount: discount } : c))
+  }
+
+  async function applyCoupon() {
+    if (!couponCode.trim()) return
+    setCouponError('')
+    try {
+      const r = await fetch('/api/coupons/validate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ code: couponCode.trim(), subtotal, memberName: memberName.trim() || undefined }),
+      })
+      const data = await r.json()
+      if (!r.ok || !data.valid) {
+        setCouponError(data.error ?? 'Invalid coupon')
+        setAppliedCoupon(null)
+      } else {
+        // Fix #13: store type + value for client-side discount recalculation
+        setAppliedCoupon({
+          id: data.couponId, code: data.couponCode, name: data.couponName,
+          type: data.type, value: data.value, discountAmount: data.discountAmount,
+        })
+        setCouponCode('')
+        setCouponError('')
+        // Fix #7: clear manual discount when coupon applied
+        setDiscountValue('')
+      }
+    } catch {
+      setCouponError('Could not validate coupon')
+    }
+  }
+
+  async function openDrawer() {
+    fetch('/api/drawer', { method: 'POST' }).catch(() => {})
+    showToast('Cash drawer opening...')
+  }
+
+  const subtotal = cart.reduce((s, c) => s + itemEffectiveTotal(c), 0)
+  const parsedDiscount = parseFloat(discountValue) || 0
+
+  // Fix #7: manual discount is ignored when coupon is applied
+  const manualDiscountAmount =
+    !appliedCoupon && discountValue !== '' && parsedDiscount > 0
+      ? discountType === 'percent'
+        ? Math.round(subtotal * Math.min(parsedDiscount, 100) / 100)
+        : Math.min(parsedDiscount, subtotal)
+      : 0
+
+  // Fix #13: recalculate coupon discount from current subtotal client-side
+  const couponDiscountAmount = appliedCoupon
+    ? appliedCoupon.type === 'percent'
+      ? Math.round(subtotal * appliedCoupon.value / 100)
+      : Math.min(appliedCoupon.value, subtotal)
+    : 0
+
+  const discountAmount = appliedCoupon ? couponDiscountAmount : manualDiscountAmount
+  const finalTotal = Math.max(0, subtotal - discountAmount)
+
+  // พิมพ์ Check Bill ให้ลูกค้าดูก่อนชำระเงิน (ไม่ต้องเปิด Checkout Modal)
+  function handlePrintTicket() {
+    if (cart.length === 0) return
+    const cfg = loadBarSettings()
+    const discountLabel = appliedCoupon
+      ? appliedCoupon.code
+      : discountType === 'percent' && parsedDiscount > 0
+      ? `${parsedDiscount}%`
+      : undefined
+    const html = buildTicketHtml({
+      cart, table, memberName, subtotal,
+      discountAmount, total: finalTotal, discountLabel, cfg,
+    })
+    const win = window.open('', '_blank', 'width=340,height=700,toolbar=0,menubar=0')
+    if (!win) return
+    win.document.write(html)
+    win.document.close()
+    win.focus()
+    setTimeout(() => win.print(), 600)
+  }
+
+  // Fix #5/B-04: pass couponId so orders API records use atomically
+  async function handleConfirmPayment(method: string, received?: number): Promise<string> {
+    const res = await fetch('/api/orders', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        tableNo: table,
+        items: cart.map((c) => ({
+          menuId: c.menuId,
+          name: c.name,
+          qty: c.qty,
+          price: c.itemDiscount ? Math.round(c.price * (1 - c.itemDiscount / 100)) : c.price,
+          variantLabel: c.variantLabel,
+        })),
+        paymentMethod: method,
+        source: 'pos',
+        discount: discountAmount > 0
+          ? appliedCoupon
+            ? { type: 'fixed' as const, value: discountAmount, amount: discountAmount }
+            : { type: discountType, value: parsedDiscount, amount: discountAmount }
+          : undefined,
+        memberName: memberName.trim() || undefined,
+        couponId: appliedCoupon?.id,
+        couponOrderTotal: finalTotal,
+        couponMemberName: memberName.trim() || undefined,
+      }),
+    })
+
+    if (!res.ok) {
+      const err = await res.json()
+      showToast(err.error ?? 'Failed to save order', false)
+      throw new Error(err.error ?? 'Failed to save order')
+    }
+
+    const data = await res.json()
+
+    if (method === 'cash') {
+      fetch('/api/drawer', { method: 'POST' }).catch(() => {})
+    }
+
+    fetchOrders()
+    return data.order.id as string
+  }
+
+  function handleCheckoutClose() { setShowCheckout(false) }
+  function handleCheckoutComplete() { setShowCheckout(false); clearCart() }
+
+  const filteredMenu = menu.filter(
+    (m) => m.available && (category === 'All' || m.category.toLowerCase() === category.toLowerCase())
+  )
+
+  const dateLabel = new Date().toLocaleDateString('en-GB', {
+    weekday: 'short', day: 'numeric', month: 'short', year: 'numeric',
+  })
+
+  // Fix #3: added Shot and Other icons
+  const CAT_ICONS: Record<string, string> = {
+    All: '🍽️', Cocktail: '🍹', Beer: '🍺', Drink: '🥤',
+    Snack: '🍿', Food: '🍔', Shot: '🥃', Other: '🏷️',
+  }
+
+  return (
+    <div
+      className="flex-1 bg-[#FAF8F4] text-stone-900 flex flex-col overflow-hidden"
+      style={{ userSelect: 'none' }}
+    >
+      {/* Toast */}
+      {toast && (
+        <div className={`fixed top-4 right-4 z-50 px-5 py-3 rounded-xl shadow-lg font-semibold text-sm pointer-events-none ${
+          toast.ok ? 'bg-emerald-500 text-white' : 'bg-red-500 text-white'
+        }`}>
+          {toast.ok ? '✓' : '✗'} {toast.msg}
+        </div>
+      )}
+
+      {/* Checkout modal */}
+      {showCheckout && (
+        <CheckoutModal
+          cart={cart}
+          table={table}
+          note=""
+          discount={{ type: discountType, value: parsedDiscount, amount: discountAmount, couponCode: appliedCoupon?.code }}
+          memberName={memberName.trim()}
+          onConfirm={handleConfirmPayment}
+          onClose={handleCheckoutClose}
+          onComplete={handleCheckoutComplete}
+        />
+      )}
+
+      {/* Fix #4: Variant picker modal */}
+      {variantPicking && (
+        <div
+          className="fixed inset-0 z-40 bg-black/60 flex items-center justify-center p-4"
+          onClick={() => { setVariantPicking(null); setVariantSelections({}) }}
+        >
+          <div
+            className="bg-white rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden"
+            onClick={e => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between px-5 py-4 border-b border-stone-100">
+              <div>
+                <h2 className="font-bold text-stone-900">{variantPicking.name}</h2>
+                <p className="text-xs text-stone-400 mt-0.5">Base price {baht(variantPicking.price)}</p>
+              </div>
+              <button
+                onClick={() => { setVariantPicking(null); setVariantSelections({}) }}
+                className="text-stone-400 hover:text-stone-700 text-xl leading-none"
+              >✕</button>
+            </div>
+            <div className="p-4 flex flex-col gap-4 overflow-y-auto max-h-[50vh]">
+              {variantPicking.variants?.map(v => (
+                <div key={v.id}>
+                  <p className="text-xs font-bold text-stone-500 uppercase tracking-wide mb-2">
+                    {v.name}
+                    {v.required && <span className="text-red-400 ml-1 normal-case font-normal">*required</span>}
+                  </p>
+                  <div className="grid grid-cols-2 gap-2">
+                    {v.options.map(opt => (
+                      <button
+                        key={opt.id}
+                        onClick={() => setVariantSelections(s => ({ ...s, [v.id]: opt.id }))}
+                        className={`py-2.5 px-3 rounded-xl text-sm font-semibold border transition active:scale-95 text-left ${
+                          variantSelections[v.id] === opt.id
+                            ? 'bg-stone-900 text-white border-stone-900'
+                            : 'bg-stone-50 text-stone-700 border-stone-200 hover:border-stone-400'
+                        }`}
+                      >
+                        <span>{opt.name}</span>
+                        {opt.priceAdjust !== 0 && (
+                          <span className="block text-xs opacity-70 mt-0.5">
+                            {opt.priceAdjust > 0 ? '+' : ''}{baht(opt.priceAdjust)}
+                          </span>
+                        )}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+            <div className="px-4 pb-4 pt-3 border-t border-stone-100">
+              {variantPicking.variants?.some(v => v.required && !variantSelections[v.id]) && (
+                <p className="text-xs text-amber-600 text-center mb-2">Select all required options *</p>
+              )}
+              <button
+                onClick={confirmVariant}
+                disabled={variantPicking.variants?.some(v => v.required && !variantSelections[v.id])}
+                className="w-full py-3 rounded-xl bg-stone-900 text-white font-bold transition active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                Add to Order →
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Fix #10: History modal — filtered by table by default, toggle for all */}
+      {showHistory && (
+        <div
+          className="fixed inset-0 z-40 bg-black/60 flex items-center justify-center p-4"
+          onClick={() => setShowHistory(false)}
+        >
+          <div
+            className="bg-white rounded-2xl w-full max-w-xl max-h-[80vh] flex flex-col shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between px-5 py-4 border-b border-stone-100">
+              <div>
+                <h2 className="text-lg font-bold text-stone-900">
+                  {showAllHistory ? "Today's Orders" : `Table ${table} — Today`}
+                </h2>
+                <p className="text-xs text-stone-400 mt-0.5">{dateLabel}</p>
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setShowAllHistory(p => !p)}
+                  className={`text-xs px-3 py-1.5 rounded-lg font-semibold transition ${
+                    showAllHistory
+                      ? 'bg-stone-900 text-white'
+                      : 'bg-stone-100 text-stone-600 hover:bg-stone-200'
+                  }`}
+                >
+                  {showAllHistory ? 'All Tables' : 'This Table'}
+                </button>
+                <button
+                  onClick={() => setShowHistory(false)}
+                  className="text-stone-400 hover:text-stone-700 text-3xl leading-none w-10 h-10 flex items-center justify-center"
+                >×</button>
+              </div>
+            </div>
+
+            <div className="flex-1 overflow-y-auto p-4 flex flex-col gap-2">
+              {historyOrders.length === 0 ? (
+                <div className="py-12 text-center text-stone-300">
+                  <p className="text-4xl mb-3">📋</p>
+                  <p>{showAllHistory ? 'No orders today' : `No orders for ${table} today`}</p>
+                </div>
+              ) : (
+                historyOrders.map((o) => (
+                  <div key={o.id} className="bg-stone-50 border border-stone-100 rounded-xl px-4 py-3 flex items-start justify-between gap-3">
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="font-bold text-amber-600">{o.tableNo}</span>
+                        <span className="text-xs text-stone-400 font-mono">#{o.id.slice(-6)}</span>
+                        <span className="text-xs bg-stone-200 text-stone-500 rounded px-1.5 py-0.5 uppercase">{o.source}</span>
+                        {o.paymentMethod && (
+                          <span className="text-xs bg-blue-100 text-blue-600 rounded px-1.5 py-0.5 uppercase">{o.paymentMethod}</span>
+                        )}
+                        {o.discount && o.discount.amount > 0 && (
+                          <span className="text-xs bg-emerald-100 text-emerald-700 rounded px-1.5 py-0.5">-{baht(o.discount.amount)}</span>
+                        )}
+                      </div>
+                      <p className="text-sm text-stone-500 mt-1 truncate">
+                        {o.items.map((i) => `${i.name} ×${i.qty}`).join(', ')}
+                      </p>
+                      {o.memberName && <p className="text-xs text-stone-400 mt-0.5">👤 {o.memberName}</p>}
+                    </div>
+                    <div className="text-right shrink-0">
+                      <p className="font-bold text-amber-600">{baht(o.total)}</p>
+                      <p className="text-xs text-stone-400 mt-0.5">
+                        {new Date(o.createdAt).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}
+                      </p>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+
+            <div className="px-5 py-4 border-t border-stone-100 flex items-center justify-between">
+              <span className="text-sm text-stone-500">
+                {historyOrders.length} order{historyOrders.length !== 1 ? 's' : ''}
+                {!showAllHistory && ` · ${table}`}
+              </span>
+              <span className="font-bold text-amber-600 text-lg">
+                {baht(historyOrders.reduce((s, o) => s + o.total, 0))}
+              </span>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Header ── */}
+      <div className="flex items-center gap-2 px-3 py-2 bg-white border-b border-stone-200 shrink-0 shadow-sm">
+        {/* Fix #11: "BAR" → "SIAM" */}
+        <span className="text-stone-900 font-black text-base mr-1 shrink-0">🍹 SIAM</span>
+
+        {/* Table tabs — amber dot on tables with items in cart */}
+        <div className="flex gap-1 overflow-x-auto flex-1 py-0.5">
+          {TABLES.map((t) => {
+            const hasItems = (carts[t] ?? []).length > 0
+            return (
+              <button
+                key={t}
+                onClick={() => setTable(t)}
+                className={`relative px-3 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition shrink-0 active:scale-95 ${
+                  table === t
+                    ? 'bg-stone-900 text-white shadow-sm'
+                    : 'bg-stone-100 text-stone-600 hover:bg-stone-200'
+                }`}
+              >
+                {t}
+                {hasItems && t !== table && (
+                  <span className="absolute top-1 right-1 w-1.5 h-1.5 bg-amber-500 rounded-full" />
+                )}
+              </button>
+            )
+          })}
+        </div>
+
+        {/* Clock + Drawer */}
+        <div className="flex items-center gap-2 ml-1 shrink-0">
+          <span className="font-mono text-sm text-stone-400 hidden md:block">{clock}</span>
+          <button
+            onClick={openDrawer}
+            className="bg-stone-100 hover:bg-stone-200 active:scale-95 text-stone-700 transition text-sm font-semibold px-3 py-2 rounded-xl flex items-center gap-1.5"
+          >
+            💰 <span className="hidden sm:inline">Open Drawer</span>
+          </button>
+        </div>
+      </div>
+
+      {/* ── Main ── */}
+      <div className="flex flex-1 overflow-hidden">
+
+        {/* Menu Panel */}
+        <div className="flex flex-col flex-3 overflow-hidden border-r border-stone-200">
+
+          {/* Fix #3: category filter now includes Shot and Other */}
+          <div className="flex gap-1.5 px-3 py-2.5 bg-white border-b border-stone-100 shrink-0 overflow-x-auto">
+            {CATEGORIES.map((cat) => (
+              <button
+                key={cat}
+                onClick={() => setCategory(cat)}
+                className={`px-3.5 py-2 rounded-xl text-xs font-semibold whitespace-nowrap transition shrink-0 flex items-center gap-1.5 active:scale-95 ${
+                  category === cat
+                    ? 'bg-stone-900 text-white font-bold shadow-sm'
+                    : 'bg-stone-100 text-stone-600 hover:bg-stone-200'
+                }`}
+              >
+                <span>{CAT_ICONS[cat]}</span> {cat}
+              </button>
+            ))}
+          </div>
+
+          {/* Menu grid */}
+          <div className="flex-1 overflow-y-auto p-3">
+            {filteredMenu.length === 0 ? (
+              <div className="flex items-center justify-center h-32 text-stone-300 text-sm">
+                No items in this category
+              </div>
+            ) : (
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
+                {filteredMenu.map((item) => {
+                  // Fix #4: aggregate qty across all variants of this item for badge
+                  const inCartQty = cart.filter(c => c.menuId === item.id).reduce((s, c) => s + c.qty, 0)
+                  const inCart = inCartQty > 0
+                  const hasVariants = (item.variants?.length ?? 0) > 0
+                  return (
+                    <button
+                      key={item.id}
+                      onClick={() => addToCart(item)}
+                      className={`relative rounded-2xl p-3 text-left transition active:scale-95 ${
+                        inCart
+                          ? 'bg-amber-50 border-2 border-amber-400 shadow-sm'
+                          : 'bg-white border border-stone-100 shadow-sm hover:shadow-md hover:border-stone-300'
+                      }`}
+                    >
+                      {inCart && (
+                        <span className="absolute top-2 right-2 bg-amber-500 text-white text-xs font-black w-5 h-5 rounded-full flex items-center justify-center">
+                          {inCartQty}
+                        </span>
+                      )}
+                      {/* Variant indicator badge */}
+                      {hasVariants && (
+                        <span className="absolute top-2 left-2 bg-stone-200 text-stone-500 text-[9px] font-bold rounded px-1 py-0.5">opt</span>
+                      )}
+                      <p className="font-bold text-sm leading-snug pr-6 text-stone-900">{item.name}</p>
+                      <p className="text-xs text-stone-400 mt-0.5 leading-tight">{item.nameTh}</p>
+                      <p className={`font-black text-base mt-2 ${inCart ? 'text-amber-600' : 'text-amber-500'}`}>
+                        {baht(item.price)}
+                      </p>
+                    </button>
+                  )
+                })}
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Cart Panel */}
+        <div className="flex flex-col flex-2 bg-white overflow-hidden min-w-60 border-l border-stone-100">
+
+          {/* Cart header */}
+          <div className="flex items-center justify-between px-4 py-3 border-b border-stone-100 bg-stone-50 shrink-0">
+            <div>
+              <h2 className="font-bold text-base text-stone-900">
+                Order — <span className="text-amber-500">{table}</span>
+              </h2>
+              <p className="text-xs text-stone-400 mt-0.5">
+                {cart.length} item{cart.length !== 1 ? 's' : ''}
+              </p>
+            </div>
+            {cart.length > 0 && (
+              <button
+                onClick={clearCart}
+                className="text-xs text-stone-400 hover:text-red-500 transition px-2 py-1 rounded-lg hover:bg-red-50"
+              >
+                Clear
+              </button>
+            )}
+          </div>
+
+          {/* Cart items */}
+          <div className="flex-1 overflow-y-auto px-4 py-3 flex flex-col gap-1">
+            {cart.length === 0 ? (
+              <div className="flex-1 flex flex-col items-center justify-center text-stone-300 py-10">
+                <p className="text-5xl mb-3">🛒</p>
+                <p className="text-sm">Tap items to add</p>
+              </div>
+            ) : (
+              cart.map((item) => {
+                const key = cartKey(item)
+                const hasDiscount = !!item.itemDiscount && item.itemDiscount > 0
+                return (
+                  <div key={key} className="flex items-center gap-1.5 py-2 border-b border-stone-100">
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium leading-snug text-stone-800">{item.name}</p>
+                      {item.variantLabel && (
+                        <p className="text-[10px] text-stone-400 leading-tight mt-0.5">{item.variantLabel}</p>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-1 shrink-0">
+                      <button
+                        onClick={() => changeQty(item.menuId, -1, item.variantLabel)}
+                        className="w-7 h-7 rounded-full bg-stone-100 hover:bg-stone-200 active:scale-95 flex items-center justify-center text-base font-bold text-stone-600 transition"
+                      >−</button>
+                      <span className="w-5 text-center font-bold text-sm text-stone-900">{item.qty}</span>
+                      <button
+                        onClick={() => changeQty(item.menuId, 1, item.variantLabel)}
+                        className="w-7 h-7 rounded-full bg-stone-900 hover:bg-stone-800 active:scale-95 flex items-center justify-center text-base font-bold text-white transition"
+                      >+</button>
+                    </div>
+                    {/* ราคา — แสดงขีดทับถ้ามีส่วนลด */}
+                    <div className="flex flex-col items-end shrink-0 min-w-[52px]">
+                      {hasDiscount ? (
+                        <>
+                          <span className="text-[10px] text-stone-300 line-through leading-none">{baht(item.price * item.qty)}</span>
+                          <span className="text-amber-600 text-sm font-bold leading-tight">{baht(itemEffectiveTotal(item))}</span>
+                        </>
+                      ) : (
+                        <span className="text-amber-600 text-sm font-bold">{baht(item.price * item.qty)}</span>
+                      )}
+                    </div>
+                    {/* ปุ่ม % ส่วนลดต่อ item */}
+                    {hasDiscount ? (
+                      <button
+                        onClick={() => setItemDiscountForItem(key, undefined)}
+                        className="text-[10px] bg-emerald-100 text-emerald-700 rounded-full px-1.5 py-0.5 font-bold shrink-0 active:scale-95"
+                      >
+                        {item.itemDiscount}%✕
+                      </button>
+                    ) : (
+                      <button
+                        onClick={() => { setItemDiscountTarget(key); setItemDiscountValue('') }}
+                        className="w-6 h-6 rounded-full text-[11px] font-bold text-stone-300 hover:text-stone-500 hover:bg-stone-100 flex items-center justify-center shrink-0 transition"
+                      >%</button>
+                    )}
+                  </div>
+                )
+              })
+            )}
+          </div>
+
+          {/* Cart footer */}
+          <div className="px-4 pt-3 pb-4 border-t border-stone-100 flex flex-col gap-2.5 shrink-0 bg-stone-50/60">
+
+            {/* Subtotal */}
+            <div className="flex items-baseline justify-between">
+              <span className="text-stone-400 text-xs">Subtotal</span>
+              <span className="text-stone-600 font-semibold text-sm">{baht(subtotal)}</span>
+            </div>
+
+            {/* Fix #7: manual discount hidden when coupon is applied */}
+            {!appliedCoupon && (
+              <div className="flex items-start gap-1.5">
+                <span className="text-stone-400 text-xs w-14 shrink-0 pt-1.5">Discount</span>
+                <div className="flex rounded-lg overflow-hidden border border-stone-200 shrink-0">
+                  <button
+                    onClick={() => setDiscountType('percent')}
+                    className={`px-2.5 py-1 text-xs font-bold transition ${
+                      discountType === 'percent' ? 'bg-stone-900 text-white' : 'bg-white text-stone-400 hover:text-stone-600'
+                    }`}
+                  >%</button>
+                  <button
+                    onClick={() => setDiscountType('fixed')}
+                    className={`px-2.5 py-1 text-xs font-bold transition ${
+                      discountType === 'fixed' ? 'bg-stone-900 text-white' : 'bg-white text-stone-400 hover:text-stone-600'
+                    }`}
+                  >฿</button>
+                </div>
+                <div className="flex-1 min-w-0 flex flex-col gap-0.5">
+                  <button
+                    onClick={() => setShowNumPad(true)}
+                    className="w-full bg-white border border-stone-200 rounded-lg px-2 py-1 text-sm text-right hover:border-stone-400 transition"
+                  >
+                    <span className={discountValue ? 'text-stone-900' : 'text-stone-300'}>
+                      {discountValue || '0'}
+                    </span>
+                  </button>
+                  {/* Fix #12: max discount hint */}
+                  {discountType === 'percent' && parsedDiscount > 100 && (
+                    <p className="text-[10px] text-amber-600 text-right">Capped at 100%</p>
+                  )}
+                </div>
+                {manualDiscountAmount > 0 && (
+                  <span className="text-emerald-600 text-xs font-bold shrink-0 pt-1.5">-{baht(manualDiscountAmount)}</span>
+                )}
+              </div>
+            )}
+
+            {/* Coupon code */}
+            <div className="flex flex-col gap-1">
+              {appliedCoupon ? (
+                <div className="flex items-center gap-1.5 bg-emerald-50 border border-emerald-200 rounded-xl px-3 py-2">
+                  <span className="text-emerald-700 text-xs flex-1 font-bold">
+                    🎟 {appliedCoupon.code} · -{baht(couponDiscountAmount)}
+                    {appliedCoupon.type === 'percent' && (
+                      <span className="text-emerald-500 ml-1">({appliedCoupon.value}%)</span>
+                    )}
+                  </span>
+                  <button
+                    onClick={() => setAppliedCoupon(null)}
+                    className="text-stone-400 hover:text-red-500 text-xs transition"
+                  >✕</button>
+                </div>
+              ) : (
+                <div className="flex items-center gap-1.5">
+                  <input
+                    value={couponCode}
+                    onChange={e => { setCouponCode(e.target.value.toUpperCase()); setCouponError('') }}
+                    onKeyDown={e => e.key === 'Enter' && applyCoupon()}
+                    placeholder="🎟 Coupon code..."
+                    className="flex-1 min-w-0 bg-white border border-stone-200 rounded-xl px-3 py-2 text-xs text-stone-700 placeholder-stone-300 outline-none focus:border-stone-400 transition"
+                    style={{ userSelect: 'text' }}
+                  />
+                  <button
+                    onClick={applyCoupon}
+                    disabled={!couponCode.trim()}
+                    className="text-xs px-3 py-2 rounded-xl bg-stone-100 hover:bg-stone-200 text-stone-600 font-semibold transition disabled:opacity-30 shrink-0"
+                  >Apply</button>
+                </div>
+              )}
+              {couponError && <p className="text-xs text-red-500 px-1">{couponError}</p>}
+            </div>
+
+            {/* Total */}
+            <div className="flex items-baseline justify-between border-t border-stone-200 pt-2">
+              <span className="text-stone-700 text-sm font-semibold">Total</span>
+              <span className="text-2xl font-black text-stone-900">{baht(finalTotal)}</span>
+            </div>
+
+            {/* Member — select จาก DB */}
+            <select
+              value={memberName}
+              onChange={e => setMemberName(e.target.value)}
+              className="w-full bg-white border border-stone-200 rounded-xl px-3 py-2.5 text-sm text-stone-700 outline-none focus:border-stone-400 transition appearance-none"
+            >
+              <option value="">👤 No member</option>
+              {members.map(m => (
+                <option key={m.id} value={m.name}>{m.name}</option>
+              ))}
+            </select>
+
+            {/* TICKET + CHECKOUT buttons */}
+            <div className="flex gap-2">
+              <button
+                onClick={handlePrintTicket}
+                disabled={cart.length === 0}
+                className={`px-4 py-4 rounded-2xl font-bold text-sm transition active:scale-95 whitespace-nowrap ${
+                  cart.length > 0
+                    ? 'bg-white border-2 border-stone-900 text-stone-900 hover:bg-stone-50'
+                    : 'bg-stone-50 border border-stone-200 text-stone-300 cursor-not-allowed'
+                }`}
+              >
+                🧾 TICKET
+              </button>
+              <button
+                onClick={() => setShowCheckout(true)}
+                disabled={cart.length === 0}
+                className={`flex-1 py-4 rounded-2xl font-black text-base tracking-wide transition active:scale-95 ${
+                  cart.length > 0
+                    ? 'bg-stone-900 hover:bg-stone-800 text-white shadow-md shadow-stone-300/50'
+                    : 'bg-stone-100 text-stone-300 cursor-not-allowed'
+                }`}
+              >
+                {cart.length > 0 ? `CHECKOUT  ${baht(finalTotal)} →` : 'SELECT ITEMS'}
+              </button>
+            </div>
+
+            {/* History link */}
+            <button
+              onClick={() => { setShowHistory(true); setShowAllHistory(false) }}
+              className="text-xs text-stone-400 hover:text-stone-600 transition text-center py-0.5"
+            >
+              {table}: {tableOrders.length} orders · All today: {todayOrders.length}
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* Order-level Discount NumPad */}
+      {showNumPad && (
+        <NumPad
+          label="Discount"
+          value={discountValue}
+          onChange={setDiscountValue}
+          onClose={() => setShowNumPad(false)}
+          allowDecimal={discountType === 'percent'}
+          suffix={discountType === 'percent' ? '%' : '฿'}
+        />
+      )}
+
+      {/* Per-item Discount NumPad */}
+      {itemDiscountTarget && (
+        <NumPad
+          label="Item Discount %"
+          value={itemDiscountValue}
+          onChange={setItemDiscountValue}
+          onClose={() => {
+            const v = parseFloat(itemDiscountValue)
+            if (!isNaN(v) && v > 0) {
+              setItemDiscountForItem(itemDiscountTarget, Math.min(Math.round(v), 100))
+            }
+            setItemDiscountTarget(null)
+            setItemDiscountValue('')
+          }}
+          allowDecimal={false}
+          suffix="%"
+        />
+      )}
+
+      {/* Status bar */}
+      <div className="flex items-center justify-between px-4 py-1.5 bg-white border-t border-stone-100 text-xs text-stone-400 shrink-0">
+        <span>SIAM AMSTERDAM POS v1.0</span>
+        <span>
+          Today:{' '}
+          <span className="text-amber-600 font-semibold">{baht(todayTotal)}</span>
+          {' · '}
+          {todayOrders.length} orders
+        </span>
+        <span className="font-mono">{dateLabel}</span>
+      </div>
+    </div>
+  )
+}

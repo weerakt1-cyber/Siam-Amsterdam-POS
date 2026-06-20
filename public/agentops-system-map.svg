@@ -1,0 +1,37 @@
+<svg width="1200" height="620" viewBox="0 0 1200 620" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect width="1200" height="620" fill="#FBFCFB"/>
+  <rect x="70" y="70" width="1060" height="480" rx="18" fill="#F1F6F2" stroke="#DCE7DE" stroke-width="2"/>
+  <rect x="115" y="145" width="210" height="130" rx="14" fill="#FFFFFF" stroke="#C9D8CD" stroke-width="2"/>
+  <rect x="375" y="145" width="210" height="130" rx="14" fill="#FFFFFF" stroke="#C9D8CD" stroke-width="2"/>
+  <rect x="635" y="145" width="210" height="130" rx="14" fill="#FFFFFF" stroke="#C9D8CD" stroke-width="2"/>
+  <rect x="895" y="145" width="210" height="130" rx="14" fill="#FFFFFF" stroke="#C9D8CD" stroke-width="2"/>
+  <rect x="245" y="340" width="230" height="120" rx="14" fill="#FFFFFF" stroke="#C9D8CD" stroke-width="2"/>
+  <rect x="515" y="340" width="230" height="120" rx="14" fill="#FFFFFF" stroke="#C9D8CD" stroke-width="2"/>
+  <rect x="785" y="340" width="230" height="120" rx="14" fill="#FFFFFF" stroke="#C9D8CD" stroke-width="2"/>
+  <path d="M325 210H375" stroke="#276749" stroke-width="5" stroke-linecap="round"/>
+  <path d="M585 210H635" stroke="#276749" stroke-width="5" stroke-linecap="round"/>
+  <path d="M845 210H895" stroke="#276749" stroke-width="5" stroke-linecap="round"/>
+  <path d="M480 275V340" stroke="#276749" stroke-width="5" stroke-linecap="round"/>
+  <path d="M740 275V340" stroke="#276749" stroke-width="5" stroke-linecap="round"/>
+  <circle cx="220" cy="118" r="18" fill="#276749"/>
+  <circle cx="480" cy="118" r="18" fill="#2F5F98"/>
+  <circle cx="740" cy="118" r="18" fill="#B27719"/>
+  <circle cx="1000" cy="118" r="18" fill="#A64343"/>
+  <text x="115" y="105" fill="#17211C" font-family="Arial, sans-serif" font-size="28" font-weight="800">AgentOps MVP Flow</text>
+  <text x="145" y="195" fill="#17211C" font-family="Arial, sans-serif" font-size="22" font-weight="800">Facebook Posts</text>
+  <text x="145" y="230" fill="#68716D" font-family="Arial, sans-serif" font-size="16">Manual import</text>
+  <text x="405" y="195" fill="#17211C" font-family="Arial, sans-serif" font-size="22" font-weight="800">AI Extraction</text>
+  <text x="405" y="230" fill="#68716D" font-family="Arial, sans-serif" font-size="16">Price, zone, terms</text>
+  <text x="665" y="195" fill="#17211C" font-family="Arial, sans-serif" font-size="22" font-weight="800">Lead Scoring</text>
+  <text x="665" y="230" fill="#68716D" font-family="Arial, sans-serif" font-size="16">Hot / Warm / Cold</text>
+  <text x="925" y="195" fill="#17211C" font-family="Arial, sans-serif" font-size="22" font-weight="800">Close Deal</text>
+  <text x="925" y="230" fill="#68716D" font-family="Arial, sans-serif" font-size="16">Contract draft</text>
+  <text x="285" y="390" fill="#17211C" font-family="Arial, sans-serif" font-size="21" font-weight="800">Google Sheets</text>
+  <text x="285" y="423" fill="#68716D" font-family="Arial, sans-serif" font-size="16">Shortlist database</text>
+  <text x="555" y="390" fill="#17211C" font-family="Arial, sans-serif" font-size="21" font-weight="800">Follow-up Scripts</text>
+  <text x="555" y="423" fill="#68716D" font-family="Arial, sans-serif" font-size="16">Ready replies</text>
+  <text x="825" y="390" fill="#17211C" font-family="Arial, sans-serif" font-size="21" font-weight="800">Proof Data</text>
+  <text x="825" y="423" fill="#68716D" font-family="Arial, sans-serif" font-size="16">Deck-ready metrics</text>
+  <rect x="115" y="500" width="990" height="1" fill="#DCE7DE"/>
+  <text x="115" y="528" fill="#68716D" font-family="Arial, sans-serif" font-size="16">Designed for solo real estate agents: reduce repeated search, screen buyer intent, and create closing paperwork faster.</text>
+</svg>
