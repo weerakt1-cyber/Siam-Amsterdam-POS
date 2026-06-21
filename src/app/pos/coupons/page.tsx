@@ -19,15 +19,15 @@ function couponStatus(c: Coupon): 'active' | 'inactive' | 'expired' | 'full' {
 }
 
 const STATUS_STYLE: Record<string, string> = {
-  active:   'bg-emerald-500/20 text-emerald-400 border-emerald-500/30',
-  inactive: 'bg-gray-100 text-gray-400 border-gray-200',
-  expired:  'bg-red-500/20 text-red-400 border-red-500/30',
-  full:     'bg-amber-500/20 text-amber-400 border-amber-500/30',
+  active:   'bg-emerald-100 text-emerald-700 border-emerald-200',
+  inactive: 'bg-gray-100 text-gray-500 border-gray-200',
+  expired:  'bg-red-100 text-red-600 border-red-200',
+  full:     'bg-amber-100 text-amber-700 border-amber-200',
 }
 
 const TYPE_STYLE: Record<CouponType, { label: string; color: string; icon: string }> = {
-  percent: { label: '% Off',   color: 'bg-blue-900/40 text-blue-300',    icon: '🏷️' },
-  fixed:   { label: '฿ Off',   color: 'bg-purple-900/40 text-purple-300', icon: '💵' },
+  percent: { label: '% Off', color: 'bg-gray-100 text-gray-700', icon: '🏷️' },
+  fixed:   { label: '฿ Off', color: 'bg-gray-100 text-gray-700', icon: '💵' },
 }
 
 function usagePercent(c: Coupon): number {
@@ -321,8 +321,8 @@ export default function CouponsPage() {
                       onClick={toggleActive}
                       className={`text-xs px-3 py-1.5 rounded-lg font-bold transition ${
                         selected.active
-                          ? 'bg-red-900/30 text-red-400 hover:bg-red-900/50'
-                          : 'bg-emerald-900/30 text-emerald-400 hover:bg-emerald-900/50'
+                          ? 'bg-red-100 text-red-600 hover:bg-red-200'
+                          : 'bg-emerald-100 text-emerald-700 hover:bg-emerald-200'
                       }`}
                     >
                       {selected.active ? 'Deactivate' : 'Activate'}
@@ -342,13 +342,13 @@ export default function CouponsPage() {
             {!isCreating && selected && (
               <div className="grid grid-cols-3 gap-3">
                 <div className="bg-white border border-gray-200 rounded-2xl p-3 text-center">
-                  <p className="text-2xl font-black text-amber-400">{selected.usedCount}</p>
+                  <p className="text-2xl font-black text-gray-900">{selected.usedCount}</p>
                   <p className="text-xs text-gray-400 mt-0.5">
                     {selected.maxUses > 0 ? `of ${selected.maxUses} uses` : 'total uses'}
                   </p>
                 </div>
                 <div className="bg-white border border-gray-200 rounded-2xl p-3 text-center">
-                  <p className="text-2xl font-black text-emerald-400">{baht(totalSavings)}</p>
+                  <p className="text-2xl font-black text-gray-900">{baht(totalSavings)}</p>
                   <p className="text-xs text-gray-400 mt-0.5">total savings given</p>
                 </div>
                 <div className={`rounded-2xl border p-3 text-center ${STATUS_STYLE[couponStatus(selected)]}`}>
@@ -393,7 +393,7 @@ export default function CouponsPage() {
                   value={form.code}
                   onChange={e => setForm(f => ({ ...f, code: e.target.value.toUpperCase().replace(/\s/g, '') }))}
                   placeholder="e.g. HAPPY10"
-                  className="w-full bg-gray-100 border border-gray-200 rounded-xl px-3 py-2.5 text-sm font-mono font-bold text-amber-300 tracking-widest outline-none focus:border-amber-500/60 transition"
+                  className="w-full bg-gray-100 border border-gray-200 rounded-xl px-3 py-2.5 text-sm font-mono font-bold text-gray-900 tracking-widest outline-none focus:border-amber-500/60 transition"
                 />
               </div>
 
@@ -430,7 +430,7 @@ export default function CouponsPage() {
                   </label>
                   <button
                     onClick={() => { setNumPadVal(form.value); setNumPadTarget('value') }}
-                    className={`w-full text-left bg-gray-100 border border-gray-200 rounded-xl px-3 py-2.5 text-lg font-black hover:border-amber-500/40 transition ${form.value ? 'text-amber-400' : 'text-gray-400'}`}
+                    className={`w-full text-left bg-gray-100 border border-gray-200 rounded-xl px-3 py-2.5 text-lg font-black hover:border-amber-500/40 transition ${form.value ? 'text-gray-900' : 'text-gray-400'}`}
                   >
                     {form.value ? (form.type === 'percent' ? `${form.value}%` : `฿${form.value}`) : 'Tap to set'}
                   </button>
@@ -529,7 +529,7 @@ export default function CouponsPage() {
                   value={testCode}
                   onChange={e => { setTestCode(e.target.value.toUpperCase()); setTestResult(null) }}
                   placeholder="Enter code..."
-                  className="flex-1 bg-gray-100 border border-gray-200 rounded-xl px-3 py-2 text-sm font-mono font-bold text-amber-300 outline-none focus:border-amber-500/60 transition"
+                  className="flex-1 bg-gray-100 border border-gray-200 rounded-xl px-3 py-2 text-sm font-mono font-bold text-gray-900 outline-none focus:border-amber-500/60 transition"
                 />
                 <input
                   value={testAmount}
@@ -545,7 +545,7 @@ export default function CouponsPage() {
                 </button>
               </div>
               {testResult && (
-                <p className={`text-sm font-semibold px-3 py-2 rounded-xl ${testResult.ok ? 'bg-emerald-900/30 text-emerald-400' : 'bg-red-900/30 text-red-400'}`}>
+                <p className={`text-sm font-semibold px-3 py-2 rounded-xl ${testResult.ok ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-600'}`}>
                   {testResult.msg}
                 </p>
               )}
@@ -572,7 +572,7 @@ export default function CouponsPage() {
                           </p>
                         </div>
                         <div className="text-right shrink-0">
-                          <p className="text-sm font-bold text-emerald-400">-{baht(u.discountAmount)}</p>
+                          <p className="text-sm font-bold text-gray-900">-{baht(u.discountAmount)}</p>
                           <p className="text-xs text-gray-400">order {baht(u.orderTotal)}</p>
                         </div>
                       </div>
@@ -632,7 +632,7 @@ function Toggle({ label, value, onChange, onColor }: { label: string; value: boo
       <div className={`w-9 h-5 rounded-full transition-colors relative shrink-0 ${value ? onColor : 'bg-gray-300'}`}>
         <div className={`absolute top-0.5 w-4 h-4 rounded-full bg-white shadow transition-all ${value ? 'left-4' : 'left-0.5'}`} />
       </div>
-      <span className={`text-xs font-semibold ${value ? 'text-white' : 'text-gray-400'}`}>{label}</span>
+      <span className="text-xs font-semibold text-gray-700">{label}</span>
     </button>
   )
 }
