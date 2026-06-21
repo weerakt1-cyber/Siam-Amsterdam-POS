@@ -34,9 +34,9 @@ export default function NumPad({ label, value, onChange, onClose, allowDecimal =
   }
 
   const ROWS = [
-    ['7', '8', '9'],
-    ['4', '5', '6'],
     ['1', '2', '3'],
+    ['4', '5', '6'],
+    ['7', '8', '9'],
     [allowDecimal ? '.' : 'C', '0', '⌫'],
   ]
 

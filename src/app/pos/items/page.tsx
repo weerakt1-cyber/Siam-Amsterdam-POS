@@ -1,13 +1,14 @@
 ﻿'use client'
 
 import { useState, useEffect, useRef, useCallback } from 'react'
-import type { MenuItem, MenuCategory, Variant, VariantOption } from '@/lib/types'
+import type { MenuItem, Variant, VariantOption } from '@/lib/types'
 import NumPad from '@/components/pos/NumPad'
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
-const CATEGORIES: { value: MenuCategory | 'all'; label: string; color: string }[] = [
-  { value: 'all',      label: 'All',      color: 'bg-gray-200 text-gray-700' },
+type CatEntry = { value: string; label: string; color: string }
+
+const DEFAULT_CATEGORIES: CatEntry[] = [
   { value: 'cocktail', label: 'Cocktail', color: 'bg-purple-600 text-gray-900' },
   { value: 'beer',     label: 'Beer',     color: 'bg-amber-600 text-gray-900' },
   { value: 'drink',    label: 'Drink',    color: 'bg-cyan-600 text-gray-900' },
@@ -17,28 +18,47 @@ const CATEGORIES: { value: MenuCategory | 'all'; label: string; color: string }[
   { value: 'other',    label: 'Other',    color: 'bg-gray-300 text-gray-700' },
 ]
 
-const CAT_BADGE: Record<MenuCategory, string> = {
+const COLOR_SWATCHES = [
+  { label: 'amber',   bg: 'bg-amber-500',   classes: 'bg-amber-600 text-gray-900' },
+  { label: 'purple',  bg: 'bg-purple-500',  classes: 'bg-purple-600 text-gray-900' },
+  { label: 'cyan',    bg: 'bg-cyan-500',    classes: 'bg-cyan-600 text-gray-900' },
+  { label: 'lime',    bg: 'bg-lime-500',    classes: 'bg-lime-600 text-gray-900' },
+  { label: 'red',     bg: 'bg-red-500',     classes: 'bg-red-600 text-gray-900' },
+  { label: 'pink',    bg: 'bg-pink-500',    classes: 'bg-pink-600 text-gray-900' },
+  { label: 'indigo',  bg: 'bg-indigo-500',  classes: 'bg-indigo-600 text-gray-900' },
+  { label: 'teal',    bg: 'bg-teal-500',    classes: 'bg-teal-600 text-gray-900' },
+  { label: 'rose',    bg: 'bg-rose-500',    classes: 'bg-rose-600 text-gray-900' },
+  { label: 'green',   bg: 'bg-green-500',   classes: 'bg-green-600 text-gray-900' },
+]
+
+const CAT_BADGE_DEFAULT: Record<string, string> = {
   cocktail: 'bg-purple-900/60 text-purple-300',
   beer:     'bg-amber-900/60  text-amber-300',
   drink:    'bg-cyan-900/60   text-cyan-300',
   snack:    'bg-lime-900/60   text-lime-300',
   food:     'bg-red-900/60    text-red-300',
   shot:     'bg-orange-900/60 text-orange-300',
-  other:    'bg-gray-100     text-gray-400',
+  other:    'bg-gray-100      text-gray-400',
 }
+
+function catBadge(category: string): string {
+  return CAT_BADGE_DEFAULT[category] ?? 'bg-gray-700/60 text-gray-300'
+}
+
+const LS_CATS_KEY = 'pos_custom_categories'
 
 const UNITS = ['glass', 'bottle', 'draft', 'can', 'shot', 'piece', 'plate', 'set', 'portion']
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-type Tab = 'items' | 'coupons'
+type Tab = 'items' | 'coupons' | 'categories'
 
 type FormState = {
   name: string
   nameTh: string
   sku: string
   description: string
-  category: MenuCategory
+  category: string
   price: string
   cost: string
   unit: string
@@ -251,7 +271,33 @@ function VariantEditor({
 export default function ItemsPage() {
   const [tab, setTab] = useState<Tab>('items')
   const [items, setItems] = useState<MenuItem[]>([])
-  const [filterCat, setFilterCat] = useState<MenuCategory | 'all'>('all')
+  const [filterCat, setFilterCat] = useState<string>('all')
+
+  // Custom categories stored in localStorage
+  const [customCats, setCustomCats] = useState<CatEntry[]>(() => {
+    try { return JSON.parse(localStorage.getItem(LS_CATS_KEY) ?? '[]') } catch { return [] }
+  })
+  const [newCatName, setNewCatName] = useState('')
+  const [newCatColor, setNewCatColor] = useState(COLOR_SWATCHES[0].classes)
+
+  const allCategories: CatEntry[] = [...DEFAULT_CATEGORIES, ...customCats]
+  const categoriesWithAll: CatEntry[] = [{ value: 'all', label: 'All', color: 'bg-gray-200 text-gray-700' }, ...allCategories]
+
+  function addCustomCat() {
+    const val = newCatName.trim().toLowerCase().replace(/\s+/g, '_')
+    if (!val || allCategories.some(c => c.value === val)) return
+    const entry: CatEntry = { value: val, label: newCatName.trim(), color: newCatColor }
+    const updated = [...customCats, entry]
+    setCustomCats(updated)
+    localStorage.setItem(LS_CATS_KEY, JSON.stringify(updated))
+    setNewCatName('')
+  }
+
+  function deleteCustomCat(val: string) {
+    const updated = customCats.filter(c => c.value !== val)
+    setCustomCats(updated)
+    localStorage.setItem(LS_CATS_KEY, JSON.stringify(updated))
+  }
   const [search, setSearch] = useState('')
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [isCreating, setIsCreating] = useState(false)
@@ -426,23 +472,115 @@ export default function ItemsPage() {
         </div>
         {/* Tabs */}
         <div className="flex gap-1">
-          {(['items', 'coupons'] as const).map((t) => (
+          {([
+            { id: 'items',      label: 'Menu Items' },
+            { id: 'categories', label: 'Categories' },
+            { id: 'coupons',    label: 'Coupons'    },
+          ] as const).map((t) => (
             <button
-              key={t}
-              onClick={() => setTab(t)}
-              className={`px-4 py-2 text-sm font-semibold capitalize border-b-2 transition ${
-                tab === t
+              key={t.id}
+              onClick={() => setTab(t.id)}
+              className={`px-4 py-2 text-sm font-semibold border-b-2 transition ${
+                tab === t.id
                   ? 'border-amber-500 text-amber-400'
                   : 'border-transparent text-gray-500 hover:text-gray-700'
               }`}
             >
-              {t === 'items' ? 'Menu Items' : 'Coupons'}
+              {t.label}
             </button>
           ))}
         </div>
       </div>
 
-      {tab === 'coupons' ? (
+      {tab === 'categories' ? (
+        /* ── Categories Manager ── */
+        <div className="flex-1 overflow-y-auto p-6 max-w-xl">
+          <h2 className="text-base font-bold text-gray-700 mb-5">Manage Categories</h2>
+
+          {/* Built-in categories */}
+          <div className="mb-6">
+            <p className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-3">Built-in (cannot delete)</p>
+            <div className="flex flex-wrap gap-2">
+              {DEFAULT_CATEGORIES.map(c => (
+                <span key={c.value} className={`px-3 py-1.5 rounded-xl text-sm font-bold ${c.color}`}>
+                  {c.label}
+                </span>
+              ))}
+            </div>
+          </div>
+
+          {/* Custom categories */}
+          <div className="mb-6">
+            <p className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-3">
+              Custom ({customCats.length})
+            </p>
+            {customCats.length === 0 ? (
+              <p className="text-sm text-gray-400">No custom categories yet.</p>
+            ) : (
+              <div className="flex flex-col gap-2">
+                {customCats.map(c => (
+                  <div key={c.value} className="flex items-center justify-between bg-white border border-gray-200 rounded-xl px-4 py-2.5">
+                    <div className="flex items-center gap-3">
+                      <span className={`px-3 py-1 rounded-lg text-sm font-bold ${c.color}`}>{c.label}</span>
+                      <span className="text-xs text-gray-400 font-mono">{c.value}</span>
+                    </div>
+                    <button
+                      onClick={() => deleteCustomCat(c.value)}
+                      className="text-xs text-red-400 hover:text-red-600 transition px-2 py-1 rounded-lg hover:bg-red-50"
+                    >
+                      Delete
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Add new category */}
+          <div className="bg-white border border-gray-200 rounded-2xl p-4 flex flex-col gap-4">
+            <p className="text-xs font-bold text-gray-400 uppercase tracking-widest">+ Add Category</p>
+            <div>
+              <label className="text-xs text-gray-500 mb-1 block">Category Name</label>
+              <input
+                value={newCatName}
+                onChange={e => setNewCatName(e.target.value)}
+                onKeyDown={e => e.key === 'Enter' && addCustomCat()}
+                placeholder="e.g. Mocktail, Wine, Dessert..."
+                className="w-full bg-gray-100 border border-gray-200 rounded-xl px-3 py-2.5 text-sm text-gray-900 outline-none focus:border-amber-500/60 transition"
+              />
+            </div>
+            <div>
+              <label className="text-xs text-gray-500 mb-2 block">Color</label>
+              <div className="flex flex-wrap gap-2">
+                {COLOR_SWATCHES.map(s => (
+                  <button
+                    key={s.label}
+                    onClick={() => setNewCatColor(s.classes)}
+                    className={`w-7 h-7 rounded-full ${s.bg} transition ring-2 ring-offset-2 ${
+                      newCatColor === s.classes ? 'ring-gray-700' : 'ring-transparent'
+                    }`}
+                  />
+                ))}
+              </div>
+              {newCatName && (
+                <div className="mt-3">
+                  <span className="text-xs text-gray-400 mr-2">Preview:</span>
+                  <span className={`px-3 py-1 rounded-lg text-sm font-bold ${newCatColor}`}>
+                    {newCatName}
+                  </span>
+                </div>
+              )}
+            </div>
+            <button
+              onClick={addCustomCat}
+              disabled={!newCatName.trim()}
+              className="w-full py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-black font-bold text-sm transition active:scale-95 disabled:opacity-40"
+            >
+              Add Category
+            </button>
+          </div>
+        </div>
+      ) : tab === 'coupons' ? (
         /* ── Coupons placeholder ── */
         <div className="flex-1 flex items-center justify-center p-6">
           <div className="text-center max-w-sm">
@@ -475,10 +613,10 @@ export default function ItemsPage() {
 
             {/* Category filter */}
             <div className="flex gap-1 p-2 border-b border-gray-200 overflow-x-auto shrink-0">
-              {CATEGORIES.map((c) => (
+              {categoriesWithAll.map((c) => (
                 <button
                   key={c.value}
-                  onClick={() => setFilterCat(c.value as MenuCategory | 'all')}
+                  onClick={() => setFilterCat(c.value)}
                   className={`px-2 py-1 rounded-lg text-[10px] font-bold whitespace-nowrap transition shrink-0 ${
                     filterCat === c.value ? c.color : 'bg-gray-100 text-gray-500 hover:bg-gray-100'
                   }`}
@@ -515,7 +653,7 @@ export default function ItemsPage() {
                       <div className="flex-1 min-w-0">
                         <p className="text-sm font-semibold truncate">{item.name}</p>
                         <div className="flex items-center gap-1.5 mt-0.5">
-                          <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded ${CAT_BADGE[item.category]}`}>
+                          <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded ${catBadge(item.category)}`}>
                             {item.category.toUpperCase()}
                           </span>
                           {item.sku && <span className="text-[9px] text-gray-400 font-mono">{item.sku}</span>}
@@ -665,10 +803,10 @@ export default function ItemsPage() {
                       <label className="text-xs text-gray-500 mb-1 block">Category *</label>
                       <select
                         value={form.category}
-                        onChange={(e) => setField('category', e.target.value as MenuCategory)}
+                        onChange={(e) => setField('category', e.target.value)}
                         className="w-full bg-gray-100 border border-gray-200 rounded-xl px-3 py-2.5 text-sm text-gray-900 outline-none focus:border-amber-500/60 transition cursor-pointer"
                       >
-                        {CATEGORIES.filter(c => c.value !== 'all').map(c => (
+                        {allCategories.map(c => (
                           <option key={c.value} value={c.value}>{c.label}</option>
                         ))}
                       </select>

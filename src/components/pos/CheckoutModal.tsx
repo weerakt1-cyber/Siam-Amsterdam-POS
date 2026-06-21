@@ -30,16 +30,18 @@ function baht(n: number) {
   return '฿' + new Intl.NumberFormat('en').format(Math.round(n))
 }
 
-// สร้าง 3 ตัวเลือกแบงค์จากยอดชำระ (exact + 2 แบงค์ถัดไป)
+// คำนวณ 3 จำนวนเงินที่ลูกค้ามีโอกาสจ่ายมากที่สุด ตามธนบัตรไทย
 function cashOptions(total: number): number[] {
   const t = Math.ceil(total)
-  const NOTES = [50, 100, 500, 1000, 2000, 5000, 10000]
-  const opts: number[] = [t]
-  for (const note of NOTES) {
-    if (note > t && opts.length < 3) opts.push(note)
+  const opts = new Set<number>()
+  // ถ้ายอดหารด้วย 50 ลงตัว = จ่ายพอดีได้จริง
+  if (t % 50 === 0) opts.add(t)
+  // ปัดขึ้นตามแต่ละธนบัตรหลัก
+  for (const note of [50, 100, 500, 1000, 2000]) {
+    opts.add(Math.ceil(t / note) * note)
   }
-  while (opts.length < 3) opts.push(opts[opts.length - 1] * 2)
-  return opts
+  // เรียงจากน้อยไปมาก เอา 3 ตัวแรก
+  return [...opts].sort((a, b) => a - b).slice(0, 3)
 }
 
 function printWindow(html: string) {

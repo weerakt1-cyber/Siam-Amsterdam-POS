@@ -313,7 +313,7 @@ export default function CouponsPage() {
                   <>
                     <button
                       onClick={() => copyCode(selected.code)}
-                      className="text-xs px-3 py-1.5 rounded-lg bg-gray-100 hover:bg-gray-300 text-gray-600 hover:text-white font-semibold transition"
+                      className="text-xs px-3 py-1.5 rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-600 hover:text-gray-900 font-semibold transition"
                     >
                       📋 Copy
                     </button>
@@ -443,8 +443,7 @@ export default function CouponsPage() {
                   <label className="text-xs text-gray-500 mb-1 block">Min Order (฿, 0 = none)</label>
                   <button
                     onClick={() => { setNumPadVal(form.minOrder); setNumPadTarget('minOrder') }}
-                    className="w-full text-left bg-gray-100 border border-gray-200 rounded-xl px-3 py-2.5 text-sm hover:border-amber-500/40 transition"
-                    style={{ color: form.minOrder ? 'white' : 'rgba(255,255,255,0.25)' }}
+                    className={`w-full text-left bg-gray-100 border border-gray-200 rounded-xl px-3 py-2.5 text-sm hover:border-amber-500/40 transition ${form.minOrder ? 'text-gray-900 font-semibold' : 'text-gray-400'}`}
                   >
                     {form.minOrder ? `฿${form.minOrder}` : 'No minimum'}
                   </button>
@@ -453,8 +452,7 @@ export default function CouponsPage() {
                   <label className="text-xs text-gray-500 mb-1 block">Max Uses (0 = unlimited)</label>
                   <button
                     onClick={() => { setNumPadVal(form.maxUses); setNumPadTarget('maxUses') }}
-                    className="w-full text-left bg-gray-100 border border-gray-200 rounded-xl px-3 py-2.5 text-sm hover:border-amber-500/40 transition"
-                    style={{ color: form.maxUses ? 'white' : 'rgba(255,255,255,0.25)' }}
+                    className={`w-full text-left bg-gray-100 border border-gray-200 rounded-xl px-3 py-2.5 text-sm hover:border-amber-500/40 transition ${form.maxUses ? 'text-gray-900 font-semibold' : 'text-gray-400'}`}
                   >
                     {form.maxUses ? `${form.maxUses} uses` : 'Unlimited'}
                   </button>
@@ -515,7 +513,7 @@ export default function CouponsPage() {
                 {isCreating && (
                   <button
                     onClick={() => { setIsCreating(false); setSelectedId(null) }}
-                    className="px-4 py-2.5 rounded-xl border border-gray-200 text-gray-500 hover:text-white font-semibold text-sm transition"
+                    className="px-4 py-2.5 rounded-xl border border-gray-200 text-gray-500 hover:bg-gray-100 hover:text-gray-900 font-semibold text-sm transition"
                   >
                     Cancel
                   </button>
@@ -541,7 +539,7 @@ export default function CouponsPage() {
                 />
                 <button
                   onClick={handleTest}
-                  className="px-4 py-2 rounded-xl bg-gray-100 hover:bg-gray-300 text-sm font-bold text-white/70 hover:text-white transition active:scale-95"
+                  className="px-4 py-2 rounded-xl bg-gray-100 hover:bg-gray-200 text-sm font-bold text-gray-600 hover:text-gray-900 transition active:scale-95"
                 >
                   Test
                 </button>
