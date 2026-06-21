@@ -1,3 +1,5 @@
+export const dynamic = "force-dynamic"
+
 import { NextRequest, NextResponse } from 'next/server'
 import { getInventoryItem, updateInventoryItem, deleteInventoryItem } from '@/lib/store'
 

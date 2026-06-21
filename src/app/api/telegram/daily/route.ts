@@ -1,3 +1,5 @@
+﻿export const dynamic = "force-dynamic"
+
 import { NextResponse } from 'next/server'
 import { getOrdersByDate, getReport } from '@/lib/store'
 import { isTelegramConfigured, sendDailySummary, type EndOfDayData } from '@/lib/telegram'
@@ -25,18 +27,18 @@ export async function POST() {
 
   if (orders.length === 0) {
     return NextResponse.json(
-      { ok: false, error: 'No orders today — nothing to summarise' },
+      { ok: false, error: 'No orders today â€” nothing to summarise' },
       { status: 404 }
     )
   }
 
-  // ── Sales totals ──────────────────────────────────────────────────────────────
+  // â”€â”€ Sales totals â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   const totalRevenue  = orders.reduce((s, o) => s + (o.total    ?? 0), 0)
   const totalSubtotal = orders.reduce((s, o) => s + (o.subtotal ?? 0), 0)
   const totalDiscount = Math.max(0, totalSubtotal - totalRevenue)
   const avgOrder      = orders.length > 0 ? totalRevenue / orders.length : 0
 
-  // ── Payment breakdown ─────────────────────────────────────────────────────────
+  // â”€â”€ Payment breakdown â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   const paymentBreakdown: Record<string, { orders: number; revenue: number }> = {}
   for (const o of orders) {
     const m = o.paymentMethod ?? 'cash'
@@ -45,7 +47,7 @@ export async function POST() {
     paymentBreakdown[m].revenue += o.total ?? 0
   }
 
-  // ── Top items ─────────────────────────────────────────────────────────────────
+  // â”€â”€ Top items â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   const itemMap: Record<string, { qty: number; revenue: number }> = {}
   for (const order of orders) {
     for (const item of order.items ?? []) {
@@ -58,16 +60,16 @@ export async function POST() {
     .map(([name, v]) => ({ name, ...v }))
     .sort((a, b) => b.qty - a.qty)
 
-  // ── Cash drawer reconciliation ────────────────────────────────────────────────
+  // â”€â”€ Cash drawer reconciliation â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   const cashSales = paymentBreakdown['cash']?.revenue ?? 0
   const cashIns   = report.cashIns.reduce((s, e) => s + e.amount, 0)
   const expenses  = report.expenses.reduce((s, e) => s + e.amount, 0)
   const expectedCash = report.openingCash + cashSales + cashIns - expenses
 
-  // ── Other stats ────────────────────────────────────────────────────────────────
+  // â”€â”€ Other stats â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   const memberOrders = orders.filter(o => o.memberName).length
 
-  // ── Build date label ──────────────────────────────────────────────────────────
+  // â”€â”€ Build date label â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   const dateLabel = new Date().toLocaleDateString('en-GB', {
     weekday: 'long', day: 'numeric', month: 'long', year: 'numeric',
   })
@@ -92,7 +94,7 @@ export async function POST() {
 
   if (!ok) {
     return NextResponse.json(
-      { ok: false, error: 'Failed to send message — check token and chat ID' },
+      { ok: false, error: 'Failed to send message â€” check token and chat ID' },
       { status: 500 }
     )
   }

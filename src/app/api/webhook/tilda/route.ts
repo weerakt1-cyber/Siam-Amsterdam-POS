@@ -1,10 +1,12 @@
+﻿export const dynamic = "force-dynamic"
+
 import { NextRequest, NextResponse } from 'next/server'
 import { createOrder, getMenu } from '@/lib/store'
 import { appendOrderToSheet } from '@/lib/sheets'
 import type { OrderItem } from '@/lib/types'
 
-// รับ webhook จาก Tilda (form submit / ecommerce order)
-// รองรับทั้ง application/json และ application/x-www-form-urlencoded
+// à¸£à¸±à¸š webhook à¸ˆà¸²à¸ Tilda (form submit / ecommerce order)
+// à¸£à¸­à¸‡à¸£à¸±à¸šà¸—à¸±à¹‰à¸‡ application/json à¹à¸¥à¸° application/x-www-form-urlencoded
 export async function POST(req: NextRequest) {
   try {
     const contentType = req.headers.get('content-type') ?? ''
@@ -23,16 +25,16 @@ export async function POST(req: NextRequest) {
       raw['tablenum'] ??
       raw['table_no'] ??
       raw['table'] ??
-      raw['โต๊ะ'] ??
+      raw['à¹‚à¸•à¹Šà¸°'] ??
       raw['tildauid']?.slice(-2) ??
       'Online'
 
-    const note = raw['note'] ?? raw['หมายเหตุ'] ?? raw['comment'] ?? ''
+    const note = raw['note'] ?? raw['à¸«à¸¡à¸²à¸¢à¹€à¸«à¸•à¸¸'] ?? raw['comment'] ?? ''
 
     const menu = await getMenu()
     const items: OrderItem[] = []
 
-    // ลอง parse จาก Tilda ecommerce format (JSON array ใน field "products")
+    // à¸¥à¸­à¸‡ parse à¸ˆà¸²à¸ Tilda ecommerce format (JSON array à¹ƒà¸™ field "products")
     const productsRaw = raw['products'] ?? raw['cart'] ?? ''
     if (productsRaw) {
       try {
@@ -53,11 +55,11 @@ export async function POST(req: NextRequest) {
           })
         }
       } catch {
-        // ถ้า parse ไม่ได้ ข้ามไป
+        // à¸–à¹‰à¸² parse à¹„à¸¡à¹ˆà¹„à¸”à¹‰ à¸‚à¹‰à¸²à¸¡à¹„à¸›
       }
     }
 
-    // Fallback: ดู field qty_<menuId> แบบ custom Tilda form
+    // Fallback: à¸”à¸¹ field qty_<menuId> à¹à¸šà¸š custom Tilda form
     if (items.length === 0) {
       for (const menuItem of menu) {
         const qty = Number(raw[`qty_${menuItem.id}`] ?? raw[menuItem.name.toLowerCase()] ?? 0)
@@ -76,7 +78,7 @@ export async function POST(req: NextRequest) {
 
     const order = await createOrder({ tableNo, items, note, source: 'tilda' })
 
-    // ส่งข้อมูลไปยัง Google Sheets (non-blocking)
+    // à¸ªà¹ˆà¸‡à¸‚à¹‰à¸­à¸¡à¸¹à¸¥à¹„à¸›à¸¢à¸±à¸‡ Google Sheets (non-blocking)
     appendOrderToSheet(order).catch((err) =>
       console.error('[Tilda webhook] Sheets append failed:', err)
     )
@@ -88,7 +90,7 @@ export async function POST(req: NextRequest) {
   }
 }
 
-// Tilda ตรวจสอบ webhook ด้วย GET ก่อน activate
+// Tilda à¸•à¸£à¸§à¸ˆà¸ªà¸­à¸š webhook à¸”à¹‰à¸§à¸¢ GET à¸à¹ˆà¸­à¸™ activate
 export async function GET() {
-  return NextResponse.json({ status: 'OK', service: 'BAR-ORDER POS — Tilda Webhook Endpoint' })
+  return NextResponse.json({ status: 'OK', service: 'BAR-ORDER POS â€” Tilda Webhook Endpoint' })
 }

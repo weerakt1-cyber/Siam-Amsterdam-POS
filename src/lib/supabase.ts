@@ -8,4 +8,8 @@ if (!url || !key) {
   console.warn('[Supabase] SUPABASE_URL or key not set — DB calls will fail')
 }
 
-export const supabase = createClient(url, key)
+// ใช้ placeholder เพื่อไม่ให้ createClient โยน error ตอน build time (env vars ยังไม่มี)
+export const supabase = createClient(
+  url || 'https://placeholder.supabase.co',
+  key || 'placeholder-key-build-time-only'
+)

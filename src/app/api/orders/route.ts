@@ -1,3 +1,5 @@
+﻿export const dynamic = "force-dynamic"
+
 import { NextRequest, NextResponse } from 'next/server'
 import { getOrders, getMenu, createOrder, recordCouponUse } from '@/lib/store'
 import { appendOrderToSheet } from '@/lib/sheets'
@@ -53,7 +55,7 @@ export async function POST(req: NextRequest) {
       memberName:    memberName ? String(memberName) : undefined,
     })
 
-    // B-04: Atomic coupon recording — record in the same request as order creation
+    // B-04: Atomic coupon recording â€” record in the same request as order creation
     if (couponId) {
       try {
         const discountAmt = discount?.amount ?? 0
@@ -68,8 +70,8 @@ export async function POST(req: NextRequest) {
       console.error('[Orders API] Sheets append failed:', err)
     )
 
-    // แจ้งเตือน Telegram (non-blocking)
-    // ดึง couponCode จาก discount body เพราะ Order type ไม่เก็บ field นี้
+    // à¹à¸ˆà¹‰à¸‡à¹€à¸•à¸·à¸­à¸™ Telegram (non-blocking)
+    // à¸”à¸¶à¸‡ couponCode à¸ˆà¸²à¸ discount body à¹€à¸žà¸£à¸²à¸° Order type à¹„à¸¡à¹ˆà¹€à¸à¹‡à¸š field à¸™à¸µà¹‰
     const notifyCoupon = discount && typeof discount === 'object' && 'couponCode' in discount
       ? String((discount as Record<string, unknown>).couponCode ?? '')
       : undefined

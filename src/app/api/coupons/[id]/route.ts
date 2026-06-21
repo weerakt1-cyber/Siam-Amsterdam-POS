@@ -1,3 +1,5 @@
+export const dynamic = "force-dynamic"
+
 import { NextRequest, NextResponse } from 'next/server'
 import { getCoupon, updateCoupon, deleteCoupon, getCouponUses } from '@/lib/store'
 

@@ -1,3 +1,5 @@
+﻿export const dynamic = "force-dynamic"
+
 import { NextRequest, NextResponse } from 'next/server'
 import { getMenu, createMenuItem } from '@/lib/store'
 import type { MenuCategory } from '@/lib/types'

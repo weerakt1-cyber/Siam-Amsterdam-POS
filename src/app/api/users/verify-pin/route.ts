@@ -1,3 +1,5 @@
+﻿export const dynamic = "force-dynamic"
+
 import { NextRequest, NextResponse } from 'next/server'
 import { verifyStaffPin, getStaffMember } from '@/lib/store'
 
@@ -7,7 +9,7 @@ export async function POST(req: NextRequest) {
     if (!id || !pin) return NextResponse.json({ error: 'id and pin required' }, { status: 400 })
     const valid = await verifyStaffPin(String(id), String(pin))
     if (!valid) return NextResponse.json({ valid: false })
-    // คืน public profile เมื่อ PIN ถูกต้อง
+    // à¸„à¸·à¸™ public profile à¹€à¸¡à¸·à¹ˆà¸­ PIN à¸–à¸¹à¸à¸•à¹‰à¸­à¸‡
     const user = await getStaffMember(String(id))
     if (!user) return NextResponse.json({ valid: false })
     // eslint-disable-next-line @typescript-eslint/no-unused-vars

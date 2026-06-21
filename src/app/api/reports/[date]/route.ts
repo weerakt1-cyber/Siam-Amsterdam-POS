@@ -1,3 +1,5 @@
+export const dynamic = "force-dynamic"
+
 import { NextRequest, NextResponse } from 'next/server'
 import { getReport, setOpeningCash, addCashIn, removeCashIn, addExpense, removeExpense, getOrdersByDate } from '@/lib/store'
 

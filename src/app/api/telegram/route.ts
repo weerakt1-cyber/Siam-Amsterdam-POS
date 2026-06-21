@@ -1,7 +1,9 @@
+﻿export const dynamic = "force-dynamic"
+
 import { NextResponse } from 'next/server'
 import { isTelegramConfigured, getBotInfo, sendOrderAlert } from '@/lib/telegram'
 
-// GET — ตรวจสอบ config + bot status
+// GET â€” à¸•à¸£à¸§à¸ˆà¸ªà¸­à¸š config + bot status
 export async function GET() {
   const configured = isTelegramConfigured()
   if (!configured) {
@@ -21,11 +23,11 @@ export async function GET() {
   })
 }
 
-// POST — ส่ง test message
+// POST â€” à¸ªà¹ˆà¸‡ test message
 export async function POST() {
   if (!isTelegramConfigured()) {
     return NextResponse.json(
-      { ok: false, error: 'ยังไม่ได้ตั้งค่า TELEGRAM_BOT_TOKEN และ TELEGRAM_CHAT_ID' },
+      { ok: false, error: 'à¸¢à¸±à¸‡à¹„à¸¡à¹ˆà¹„à¸”à¹‰à¸•à¸±à¹‰à¸‡à¸„à¹ˆà¸² TELEGRAM_BOT_TOKEN à¹à¸¥à¸° TELEGRAM_CHAT_ID' },
       { status: 400 }
     )
   }
@@ -36,8 +38,8 @@ export async function POST() {
     memberName:     'Test Member',
     couponCode:     'HAPPY10',
     items: [
-      { name: 'Mojito โมฮิโต้',       qty: 2, price: 200 },
-      { name: 'Heineken ไฮเนเก้น',    qty: 1, price: 80  },
+      { name: 'Mojito à¹‚à¸¡à¸®à¸´à¹‚à¸•à¹‰',       qty: 2, price: 200 },
+      { name: 'Heineken à¹„à¸®à¹€à¸™à¹€à¸à¹‰à¸™',    qty: 1, price: 80  },
     ],
     subtotal:       480,
     discountAmount: 48,
@@ -48,7 +50,7 @@ export async function POST() {
   })
   if (!ok) {
     return NextResponse.json(
-      { ok: false, error: 'ส่งข้อความล้มเหลว — ตรวจสอบ token และ chat ID' },
+      { ok: false, error: 'à¸ªà¹ˆà¸‡à¸‚à¹‰à¸­à¸„à¸§à¸²à¸¡à¸¥à¹‰à¸¡à¹€à¸«à¸¥à¸§ â€” à¸•à¸£à¸§à¸ˆà¸ªà¸­à¸š token à¹à¸¥à¸° chat ID' },
       { status: 500 }
     )
   }

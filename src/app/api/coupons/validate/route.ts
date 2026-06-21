@@ -1,3 +1,5 @@
+﻿export const dynamic = "force-dynamic"
+
 import { NextRequest, NextResponse } from 'next/server'
 import { validateCoupon, recordCouponUse } from '@/lib/store'
 
@@ -10,7 +12,7 @@ export async function POST(req: NextRequest) {
     const result = await validateCoupon(code, Number(subtotal) || 0, memberName)
     if (!result.valid) return NextResponse.json({ valid: false, error: result.error }, { status: 422 })
 
-    // record=true เมื่อออเดอร์ถูก confirm แล้ว
+    // record=true à¹€à¸¡à¸·à¹ˆà¸­à¸­à¸­à¹€à¸”à¸­à¸£à¹Œà¸–à¸¹à¸ confirm à¹à¸¥à¹‰à¸§
     if (record && result.coupon) {
       await recordCouponUse(result.coupon.id, result.discountAmount, Number(orderTotal) || 0, memberName)
     }
