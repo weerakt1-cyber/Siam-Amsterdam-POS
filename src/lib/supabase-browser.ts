@@ -7,6 +7,13 @@ export function getSupabaseBrowser() {
   if (_client) return _client
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://placeholder.supabase.co'
   const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'placeholder-anon-key'
+  if (url.includes('placeholder.supabase.co')) {
+    // NEXT_PUBLIC_SUPABASE_URL/ANON_KEY missing at build time — every auth/DB call
+    // from the browser will fail. Set them in Vercel (Production scope) and trigger
+    // a build that does NOT reuse the build cache, since NEXT_PUBLIC_ values are
+    // inlined at build time and a cached chunk can keep serving the old value.
+    console.error('[Supabase] NEXT_PUBLIC_SUPABASE_URL is not set — using placeholder, auth/DB calls will fail')
+  }
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   _client = createClient<any>(url, key)
   return _client

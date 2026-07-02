@@ -14,11 +14,15 @@ function getSupabaseAdmin() {
 
 export async function GET(req: NextRequest) {
   const supabaseAdmin = getSupabaseAdmin()
-  const appUrl     = process.env.NEXT_PUBLIC_APP_URL ?? ''
+  // Derive from the actual incoming request rather than NEXT_PUBLIC_APP_URL —
+  // this is guaranteed to match the redirect_uri the client sent LINE (built from
+  // location.origin in auth/page.tsx) and avoids sending users to a stale/wrong
+  // domain if that env var is ever missing or misconfigured.
+  const appUrl     = req.nextUrl.origin
   const clientId   = process.env.LINE_CLIENT_ID
   const clientSec  = process.env.LINE_CLIENT_SECRET
 
-  if (!clientId || !clientSec || !appUrl) {
+  if (!clientId || !clientSec) {
     return NextResponse.redirect(`${appUrl}/auth?error=line_not_configured`)
   }
 
