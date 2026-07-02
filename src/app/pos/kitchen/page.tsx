@@ -63,6 +63,11 @@ function OrderCard({ order, onUpdate }: { order: Order; onUpdate: (id: string, s
               👤 {order.memberName}
             </span>
           )}
+          {order.customerName && (
+            <span className="text-[10px] bg-amber-700/50 text-amber-200 px-2 py-0.5 rounded-full font-semibold">
+              🙋 {order.customerName}
+            </span>
+          )}
         </div>
         <span className={`text-sm tabular-nums ${timerClass}`}>
           ⏱ {elapsed(order.createdAt)}

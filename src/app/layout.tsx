@@ -16,8 +16,18 @@ const notoSansThai = Noto_Sans_Thai({
 });
 
 export const metadata: Metadata = {
-  title: "BAR-ORDER System",
-  description: "Bar POS + Tilda webhook integration for order management.",
+  title: "Siam Amsterdam POS",
+  description: "Bar POS — Siam Amsterdam | BAR · LOUNGE · ROOFTOP",
+  manifest: "/manifest.json",
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "black-translucent",
+    title: "SIAM POS",
+  },
+  icons: {
+    icon: "/icons/icon-192.png",
+    apple: "/icons/apple-touch-icon.png",
+  },
 };
 
 export default function RootLayout({

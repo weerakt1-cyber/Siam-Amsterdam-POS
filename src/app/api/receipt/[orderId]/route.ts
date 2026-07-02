@@ -2,6 +2,9 @@ export const dynamic = "force-dynamic"
 
 import { NextRequest, NextResponse } from 'next/server'
 import { getOrder } from '@/lib/store'
+import QRCode from 'qrcode'
+
+const MAPS_REVIEW_URL = 'https://www.google.com/maps/place/Bar+Siam+Amsterdam/@12.9634159,100.8876897,16.96z/data=!4m8!3m7!1s0x31029569141e1951:0x8eadca38f19041b6!8m2!3d12.9639884!4d100.889355!9m1!1b1!16s%2Fg%2F11tg260j3m'
 
 function baht(n: number) {
   return '฿' + new Intl.NumberFormat('en').format(Math.round(n))
@@ -16,6 +19,7 @@ export async function GET(_: NextRequest, { params }: { params: Promise<{ orderI
   const dateStr = now.toLocaleDateString('en-GB')
   const timeStr = now.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })
   const vatIncluded = Math.round(order.total * 7 / 107)
+  const qrDataUrl = await QRCode.toDataURL(MAPS_REVIEW_URL, { width: 160, margin: 1, errorCorrectionLevel: 'L' })
 
   const PAY_LABEL: Record<string, string> = {
     cash: '💵 Cash', card: '💳 Card', promptpay: '📱 QR PromptPay',
@@ -64,6 +68,12 @@ ${order.discount && order.discount.amount > 0 ? `
 <div class="row small"><span>VAT 7% (incl.)</span><span>${baht(vatIncluded)}</span></div>
 ${order.paymentMethod ? `<div class="row" style="margin-top:4px"><span class="bold">${PAY_LABEL[order.paymentMethod] ?? order.paymentMethod.toUpperCase()}</span></div>` : ''}
 ${order.note ? `<div class="sep"></div><div class="small">Note: ${order.note}</div>` : ''}
+<div class="sep"></div>
+<div class="center" style="margin:10px 0 6px">
+  <p style="font-size:11px;font-weight:bold;margin-bottom:5px">⭐ Rate us on Google Maps!</p>
+  <img src="${qrDataUrl}" style="width:140px;height:140px;display:block;margin:0 auto" alt="Google Maps Review QR Code">
+  <p class="small" style="margin-top:4px;color:#555">Scan to leave a review 🙏</p>
+</div>
 <div class="sep"></div>
 <div class="footer">Thank you for visiting!<br><span style="font-size:10px;color:#bbb">SIAM AMSTERDAM POS</span></div>
 </body></html>`

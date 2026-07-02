@@ -1,18 +1,28 @@
-// ESC/POS thermal printer — Capacitor native plugin (Android/iOS)
-// ใช้ capacitor-thermal-printer สำหรับ Bluetooth Classic/SPP (Xprinter XP58)
-// ตก fallback เป็น Web Bluetooth BLE เมื่อรันใน browser (dev mode)
+// ESC/POS thermal printer — multi-transport
+// Bluetooth: Capacitor native plugin (Android APK only)
+// LAN/Wi-Fi: TCP port 9100 via /api/printer/send (browser + Android APK)
 
 import type { PluginListenerHandle } from '@capacitor/core'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
+export type ReceiptTemplate = 'classic' | 'modern' | 'minimal'
+
+export type PrinterConnectionType = 'bluetooth' | 'lan'
+
 export type BarSettings = {
-  barName: string
-  address: string
-  phone:   string
-  taxId:   string
-  footer:  string
-  width:   32 | 48   // 32 = 58mm, 48 = 80mm
+  barName:                string
+  address:                string
+  phone:                  string
+  taxId:                  string
+  footer:                 string
+  width:                  32 | 48   // 32 = 58mm, 48 = 80mm
+  promptpayNumber:        string    // e.g. 0637317929
+  receiptTemplate:        ReceiptTemplate
+  logoDataUrl?:           string    // base64 data URL for custom logo
+  printerConnectionType?: PrinterConnectionType
+  printerLanIp?:          string    // e.g. 192.168.1.105
+  printerLanPort?:        number    // default 9100
 }
 
 export type PrinterDevice = {
@@ -21,12 +31,17 @@ export type PrinterDevice = {
 }
 
 export const DEFAULT_BAR_SETTINGS: BarSettings = {
-  barName: '🍹 BAR',
-  address: 'Bangkok, Thailand',
-  phone:   '',
-  taxId:   '',
-  footer:  'ขอบคุณที่ใช้บริการ\nThank you! Come again 🙏',
-  width:   32,
+  barName:                '🍹 BAR',
+  address:                'Bangkok, Thailand',
+  phone:                  '',
+  taxId:                  '',
+  footer:                 'ขอบคุณที่ใช้บริการ\nThank you! Come again 🙏',
+  promptpayNumber:        '0637317929',
+  width:                  32,
+  receiptTemplate:        'classic',
+  printerConnectionType:  'bluetooth',
+  printerLanIp:           '',
+  printerLanPort:         9100,
 }
 
 const LS_KEY = 'pos_bar_settings'
@@ -158,6 +173,8 @@ export async function checkPrinterConnected(): Promise<boolean> {
   return printer.isConnected()
 }
 
+const MAPS_REVIEW_URL = 'https://www.google.com/maps/place/Bar+Siam+Amsterdam/@12.9634159,100.8876897,16.96z/data=!4m8!3m7!1s0x31029569141e1951:0x8eadca38f19041b6!8m2!3d12.9639884!4d100.889355!9m1!1b1!16s%2Fg%2F11tg260j3m'
+
 // ─── ESC/POS constants ────────────────────────────────────────────────────────
 
 const ESC = 0x1b
@@ -201,6 +218,21 @@ function col2(left: string, right: string, w: number): string {
 }
 
 function divider(w: number, c = '-'): string { return c.repeat(w) }
+
+// Build ESC/POS QR code bytes (GS ( k commands, model 2, error correction L)
+function buildQRBytes(url: string, moduleSize = 6): Uint8Array {
+  const data = enc.encode(url)
+  const storeLen = data.length + 3
+  const pL = storeLen & 0xFF
+  const pH = (storeLen >> 8) & 0xFF
+  return b(
+    [GS, 0x28, 0x6B, 0x04, 0x00, 0x31, 0x41, 0x32, 0x00],          // model 2
+    [GS, 0x28, 0x6B, 0x03, 0x00, 0x31, 0x43, moduleSize],            // module size
+    [GS, 0x28, 0x6B, 0x03, 0x00, 0x31, 0x45, 0x30],                  // error correction L
+    [GS, 0x28, 0x6B, pL, pH, 0x31, 0x50, 0x30], data,                // store data
+    [GS, 0x28, 0x6B, 0x03, 0x00, 0x31, 0x51, 0x30],                  // print
+  )
+}
 
 // ─── Receipt data ─────────────────────────────────────────────────────────────
 
@@ -273,6 +305,10 @@ export function buildReceiptBytes(d: ReceiptData, cfg: BarSettings): Uint8Array 
     d.note ? b(divider(W) + '\nNote: ' + d.note + '\n') : new Uint8Array(0),
     b(divider(W) + '\n'),
     b(C.CENTER),
+    b(divider(W) + '\n'),
+    b('Rate us on Google Maps!\n'),
+    buildQRBytes(MAPS_REVIEW_URL, 6),
+    b('\n'),
     ...footerLines.map(line => b(line + '\n')),
     b(C.LEFT, '\n\n\n'),
     b(C.CUT),
@@ -285,7 +321,7 @@ export function buildReceiptBytes(d: ReceiptData, cfg: BarSettings): Uint8Array 
   return result
 }
 
-// ─── Print receipt ─────────────────────────────────────────────────────────────
+// ─── Bluetooth: print + cash drawer ──────────────────────────────────────────
 
 export async function printReceiptBluetooth(d: ReceiptData, cfg: BarSettings): Promise<void> {
   const printer = await getPlugin()
@@ -293,11 +329,47 @@ export async function printReceiptBluetooth(d: ReceiptData, cfg: BarSettings): P
   await printer.begin().raw(Array.from(bytes)).write()
 }
 
-// ─── Cash drawer kick ──────────────────────────────────────────────────────────
-// ESC p 0 25 250 — เปิด cash drawer ผ่าน RJ11/RJ12 port ของปริ้นเตอร์
-// ต้องเชื่อมต่อ Bluetooth printer ก่อนเรียก
 export async function openCashDrawerBluetooth(): Promise<void> {
   const printer = await getPlugin()
-  // 0x1B 0x70 = ESC p, 0x00 = pin 0, 0x19 = 25ms on, 0xFA = 250ms off
+  // ESC p 0 25ms 250ms — kick cash drawer via RJ11/RJ12
   await printer.begin().raw([0x1B, 0x70, 0x00, 0x19, 0xFA]).write()
+}
+
+// ─── LAN: send raw bytes via /api/printer/send (TCP proxy) ───────────────────
+
+export async function sendBytesViaLan(bytes: Uint8Array, ip: string, port = 9100): Promise<void> {
+  const res = await fetch('/api/printer/send', {
+    method:  'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body:    JSON.stringify({ ip, port, bytes: Array.from(bytes) }),
+  })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error((err as { error?: string }).error ?? `LAN print failed (HTTP ${res.status})`)
+  }
+}
+
+// ─── Universal: route to Bluetooth or LAN based on cfg ───────────────────────
+
+export async function printReceipt(d: ReceiptData, cfg: BarSettings): Promise<void> {
+  const bytes = buildReceiptBytes(d, cfg)
+  if ((cfg.printerConnectionType ?? 'bluetooth') === 'lan') {
+    if (!cfg.printerLanIp) throw new Error('ยังไม่ได้ตั้งค่า IP ปริ้นเตอร์ — ไปที่ Settings → Printer')
+    await sendBytesViaLan(bytes, cfg.printerLanIp, cfg.printerLanPort ?? 9100)
+  } else {
+    const printer = await getPlugin()
+    await printer.begin().raw(Array.from(bytes)).write()
+  }
+}
+
+export async function openCashDrawer(cfg: BarSettings): Promise<void> {
+  // ESC p 0 25ms 250ms
+  const drawerBytes = new Uint8Array([0x1B, 0x70, 0x00, 0x19, 0xFA])
+  if ((cfg.printerConnectionType ?? 'bluetooth') === 'lan') {
+    if (!cfg.printerLanIp) return
+    await sendBytesViaLan(drawerBytes, cfg.printerLanIp, cfg.printerLanPort ?? 9100)
+  } else {
+    const printer = await getPlugin()
+    await printer.begin().raw(Array.from(drawerBytes)).write()
+  }
 }

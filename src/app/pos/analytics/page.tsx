@@ -1,22 +1,36 @@
-﻿'use client'
+'use client'
 
 import { useState, useEffect, useCallback } from 'react'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-type Period = '7d' | '30d' | 'all'
+type Period = '7d' | '30d' | 'all' | 'mom'
+
+type Comparison = {
+  prevRevenue:    number
+  prevOrders:     number
+  prevAvgOrder:   number
+  revenueChange:  number
+  ordersChange:   number
+  avgOrderChange: number
+  prevTopItems:   { menuId: string; name: string; revenue: number; qty: number; rank: number }[]
+  weeklyTrend:    { label: string; curr: number; prev: number; currOrders: number; prevOrders: number }[]
+  currMonthLabel: string
+  prevMonthLabel: string
+}
 
 type AnalyticsData = {
-  period: Period
-  stats: { revenue: number; orders: number; avgOrder: number; today: { revenue: number; orders: number } }
-  dailyTrend: { date: string; label: string; revenue: number; orders: number }[]
-  topItems: { name: string; nameTh: string; menuId: string; qty: number; revenue: number }[]
-  byPayment: { method: string; count: number; revenue: number }[]
-  bySource: { source: string; count: number; revenue: number }[]
-  byHour: number[]
-  byCategory: { category: string; revenue: number; qty: number }[]
-  memberStats: { withMember: number; withoutMember: number; memberRevenue: number; nonMemberRevenue: number }
+  period:        Period
+  stats:         { revenue: number; orders: number; avgOrder: number; today: { revenue: number; orders: number } }
+  dailyTrend:    { date: string; label: string; revenue: number; orders: number }[]
+  topItems:      { name: string; nameTh: string; menuId: string; qty: number; revenue: number }[]
+  byPayment:     { method: string; count: number; revenue: number }[]
+  bySource:      { source: string; count: number; revenue: number }[]
+  byHour:        number[]
+  byCategory:    { category: string; revenue: number; qty: number }[]
+  memberStats:   { withMember: number; withoutMember: number; memberRevenue: number; nonMemberRevenue: number }
   discountStats: { totalDiscount: number; ordersWithDiscount: number; totalOrders: number }
+  comparison?:   Comparison
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -28,38 +42,44 @@ const pct = (n: number, total: number) =>
   total > 0 ? Math.round((n / total) * 100) : 0
 
 const PAY_COLORS: Record<string, string> = {
-  cash: 'bg-amber-500',
-  card: 'bg-emerald-500',
-  promptpay: 'bg-purple-500',
-  unknown: 'bg-slate-500',
+  cash:         'bg-amber-500',
+  card:         'bg-emerald-500',
+  promptpay:    'bg-purple-500',
+  credit_card:  'bg-blue-500',
+  promptpay_qr: 'bg-violet-500',
+  wechat_pay:   'bg-green-500',
+  unknown:      'bg-slate-500',
 }
 const PAY_LABELS: Record<string, string> = {
-  cash: 'Cash',
-  card: 'Card',
-  promptpay: 'PromptPay',
-  unknown: 'Unknown',
+  cash:         'Cash',
+  card:         'EDC Card',
+  promptpay:    'PromptPay',
+  credit_card:  'Credit Card',
+  promptpay_qr: 'PromptPay QR',
+  wechat_pay:   'WeChat/Alipay',
+  unknown:      'Unknown',
 }
 const SRC_COLORS: Record<string, string> = {
-  pos: 'bg-amber-500',
-  tilda: 'bg-teal-500',
+  pos:    'bg-amber-500',
+  qr:     'bg-teal-500',
   manual: 'bg-slate-500',
 }
 const SRC_LABELS: Record<string, string> = {
-  pos: 'POS (Staff)',
-  tilda: 'Tilda (QR)',
+  pos:    'POS (Staff)',
+  qr:     'QR Self-Order',
   manual: 'Manual',
 }
 const CAT_COLORS: Record<string, string> = {
-  Cocktails: 'bg-amber-500',
-  Beer: 'bg-yellow-500',
-  'Draft Beer': 'bg-orange-500',
-  Drinks: 'bg-sky-500',
-  Food: 'bg-rose-500',
-  Snacks: 'bg-emerald-500',
-  Other: 'bg-slate-500',
+  Cocktail: 'bg-amber-500',
+  Beer:     'bg-yellow-500',
+  Drink:    'bg-sky-500',
+  Snack:    'bg-emerald-500',
+  Food:     'bg-rose-500',
+  Shot:     'bg-violet-500',
+  Other:    'bg-slate-500',
 }
 
-// ─── Chart components ─────────────────────────────────────────────────────────
+// ─── Base UI components ───────────────────────────────────────────────────────
 
 function Card({ children, className = '' }: { children: React.ReactNode; className?: string }) {
   return (
@@ -73,7 +93,9 @@ function SectionTitle({ children }: { children: React.ReactNode }) {
   return <h3 className="text-xs font-bold text-stone-400 uppercase tracking-wider mb-3">{children}</h3>
 }
 
-// แผนภูมิแท่งแนวตั้ง — สำหรับ Revenue Trend
+// ─── Chart components ─────────────────────────────────────────────────────────
+
+// Single-color vertical bar (7d / 30d / all)
 function VertBar({ data, height = 140 }: {
   data: { label: string; value: number; sub?: string }[]
   height?: number
@@ -95,7 +117,51 @@ function VertBar({ data, height = 140 }: {
   )
 }
 
-// แผนภูมิแท่งแนวนอน
+// Grouped bar chart for MoM — amber = current month, gray = previous month
+function GroupedBar({ data, height = 140, currLabel, prevLabel }: {
+  data: { label: string; curr: number; prev: number; currOrders: number; prevOrders: number }[]
+  height?: number
+  currLabel?: string
+  prevLabel?: string
+}) {
+  const max  = Math.max(...data.flatMap(d => [d.curr, d.prev]), 1)
+  const barH = height - 30
+  return (
+    <div className="space-y-2">
+      <div className="flex gap-4 text-[10px] text-stone-500">
+        <span className="flex items-center gap-1.5">
+          <span className="w-3 h-2 rounded-sm bg-amber-500 inline-block" />
+          {currLabel ?? 'This month'}
+        </span>
+        <span className="flex items-center gap-1.5">
+          <span className="w-3 h-2 rounded-sm bg-stone-300 inline-block" />
+          {prevLabel ?? 'Last month'}
+        </span>
+      </div>
+      <div className="flex items-end gap-1" style={{ height: barH }}>
+        {data.map((d, i) => (
+          <div key={i} className="flex-1 flex flex-col items-center min-w-0">
+            <div className="w-full flex items-end gap-px" style={{ height: barH - 16 }}>
+              <div
+                className="flex-1 rounded-t bg-amber-500 transition-all"
+                style={{ height: `${Math.max(d.curr > 0 ? 3 : 1, (d.curr / max) * (barH - 16))}px` }}
+                title={`${d.label} (${currLabel ?? 'curr'}): ${baht(d.curr)} · ${d.currOrders} orders`}
+              />
+              <div
+                className="flex-1 rounded-t bg-stone-300 transition-all"
+                style={{ height: `${Math.max(d.prev > 0 ? 3 : 1, (d.prev / max) * (barH - 16))}px` }}
+                title={`${d.label} (${prevLabel ?? 'prev'}): ${baht(d.prev)} · ${d.prevOrders} orders`}
+              />
+            </div>
+            <span className="text-[8px] text-stone-400 text-center mt-1 w-full truncate">{d.label}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+// Horizontal bar
 function HBar({ label, value, maxValue, color = 'bg-amber-500', sub }: {
   label: string; value: number; maxValue: number; color?: string; sub?: string
 }) {
@@ -116,7 +182,7 @@ function HBar({ label, value, maxValue, color = 'bg-amber-500', sub }: {
   )
 }
 
-// แผนผัง 24 ชั่วโมง — Peak Hours heatmap
+// Peak-hours heatmap
 function HeatHour({ data }: { data: number[] }) {
   const max = Math.max(...data, 1)
   return (
@@ -146,14 +212,100 @@ function HeatHour({ data }: { data: number[] }) {
   )
 }
 
+// ─── MoM-specific components ──────────────────────────────────────────────────
+
+// Small delta arrow badge used on KPI cards
+function DeltaBadge({ change }: { change: number }) {
+  if (change === 0) return <span className="text-[9px] text-stone-400">— flat</span>
+  const up = change > 0
+  return (
+    <span className={`inline-flex items-center gap-0.5 text-[9px] font-bold ${up ? 'text-emerald-600' : 'text-red-500'}`}>
+      {up ? '↑' : '↓'} {up ? '+' : ''}{change.toFixed(1)}% vs last mo
+    </span>
+  )
+}
+
+// Headline callout: "Revenue ↑ ฿8,200 (+18%) · Orders ↑ 12 (+8%)"
+function MomCallout({ stats, comparison }: { stats: AnalyticsData['stats']; comparison: Comparison }) {
+  const revDiff = stats.revenue - comparison.prevRevenue
+  const ordDiff = stats.orders  - comparison.prevOrders
+  const revUp   = revDiff >= 0
+  const ordUp   = ordDiff >= 0
+  return (
+    <div className={`rounded-xl px-4 py-3 border ${revUp ? 'bg-emerald-50 border-emerald-200' : 'bg-red-50 border-red-200'}`}>
+      <div className="flex flex-wrap items-center gap-x-5 gap-y-1.5">
+        <span className="text-xs font-bold text-stone-700">
+          {comparison.currMonthLabel}
+          <span className="font-normal text-stone-400 mx-1.5">vs</span>
+          {comparison.prevMonthLabel}
+        </span>
+        <span className={`text-xs font-semibold ${revUp ? 'text-emerald-700' : 'text-red-600'}`}>
+          Revenue {revUp ? '↑' : '↓'} {baht(Math.abs(revDiff))}
+          <span className="font-normal opacity-75 ml-1">({revUp ? '+' : ''}{comparison.revenueChange.toFixed(1)}%)</span>
+        </span>
+        <span className={`text-xs font-semibold ${ordUp ? 'text-emerald-700' : 'text-red-600'}`}>
+          Orders {ordUp ? '↑' : '↓'} {Math.abs(ordDiff)}
+          <span className="font-normal opacity-75 ml-1">({ordUp ? '+' : ''}{comparison.ordersChange.toFixed(1)}%)</span>
+        </span>
+        <span className={`text-xs font-semibold ${comparison.avgOrderChange >= 0 ? 'text-emerald-700' : 'text-red-600'}`}>
+          Avg {comparison.avgOrderChange >= 0 ? '↑' : '↓'} {baht(Math.abs(stats.avgOrder - comparison.prevAvgOrder))}
+          <span className="font-normal opacity-75 ml-1">({comparison.avgOrderChange >= 0 ? '+' : ''}{comparison.avgOrderChange.toFixed(1)}%)</span>
+        </span>
+      </div>
+    </div>
+  )
+}
+
+// Rank-change badge on top items: ↑2 ↓1 NEW
+function RankBadge({ menuId, currentRank, prevTopItems }: {
+  menuId:       string
+  currentRank:  number
+  prevTopItems: Comparison['prevTopItems']
+}) {
+  const prev = prevTopItems.find(i => i.menuId === menuId)
+  if (!prev) {
+    return (
+      <span className="text-[8px] font-bold bg-emerald-100 text-emerald-600 px-1 py-0.5 rounded-full leading-none shrink-0">
+        NEW
+      </span>
+    )
+  }
+  const delta = prev.rank - currentRank   // positive = moved up in rankings
+  if (delta === 0) return null
+  return (
+    <span className={`text-[8px] font-bold px-1 py-0.5 rounded-full leading-none shrink-0 ${
+      delta > 0 ? 'bg-emerald-100 text-emerald-600' : 'bg-red-100 text-red-500'
+    }`}>
+      {delta > 0 ? `↑${delta}` : `↓${Math.abs(delta)}`}
+    </span>
+  )
+}
+
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
+type TierStats = { bronze: number; silver: number; gold: number }
+
 export default function AnalyticsPage() {
-  const [period, setPeriod] = useState<Period>('7d')
-  const [topBy, setTopBy] = useState<'revenue' | 'qty'>('revenue')
-  const [data, setData] = useState<AnalyticsData | null>(null)
-  const [loading, setLoading] = useState(true)
+  const [period, setPeriod]           = useState<Period>('7d')
+  const [topBy, setTopBy]             = useState<'revenue' | 'qty'>('revenue')
+  const [data, setData]               = useState<AnalyticsData | null>(null)
+  const [loading, setLoading]         = useState(true)
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null)
+  const [tierStats, setTierStats]     = useState<TierStats | null>(null)
+
+  useEffect(() => {
+    fetch('/api/members')
+      .then(r => r.json())
+      .then((d: { members?: { tier?: string }[] }) => {
+        const members = d.members ?? []
+        setTierStats({
+          bronze: members.filter(m => m.tier === 'bronze' || !m.tier).length,
+          silver: members.filter(m => m.tier === 'silver').length,
+          gold:   members.filter(m => m.tier === 'gold').length,
+        })
+      })
+      .catch(() => {})
+  }, [])
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -170,15 +322,16 @@ export default function AnalyticsPage() {
 
   useEffect(() => { load() }, [load])
 
-  // รีเฟรชทุก 60 วินาที
+  // Auto-refresh every 60 s
   useEffect(() => {
     const t = setInterval(load, 60000)
     return () => clearInterval(t)
   }, [load])
 
   const PERIODS: { key: Period; label: string }[] = [
-    { key: '7d', label: '7 Days' },
+    { key: '7d',  label: '7 Days' },
     { key: '30d', label: '30 Days' },
+    { key: 'mom', label: 'MoM' },
     { key: 'all', label: 'All Time' },
   ]
 
@@ -192,6 +345,9 @@ export default function AnalyticsPage() {
   const topItemMax = topBy === 'revenue'
     ? Math.max(...sortedTopItems.map(i => i.revenue), 1)
     : Math.max(...sortedTopItems.map(i => i.qty), 1)
+
+  const isMoM      = period === 'mom'
+  const comparison = data?.comparison ?? null
 
   return (
     <div className="flex-1 flex flex-col overflow-hidden bg-stone-50 h-full">
@@ -207,7 +363,6 @@ export default function AnalyticsPage() {
           )}
         </div>
         <div className="flex items-center gap-2">
-          {/* Period tabs */}
           <div className="flex bg-stone-100 rounded-xl p-0.5 gap-0.5">
             {PERIODS.map(p => (
               <button
@@ -236,48 +391,121 @@ export default function AnalyticsPage() {
       {/* Scrollable content */}
       <div className="flex-1 overflow-y-auto p-4 space-y-4">
 
+        {/* ── MoM headline callout ───────────────────────────────────────── */}
+        {isMoM && data && comparison && (
+          <MomCallout stats={data.stats} comparison={comparison} />
+        )}
+        {isMoM && loading && !data && (
+          <div className="h-10 bg-stone-100 rounded-xl animate-pulse" />
+        )}
+
         {/* ── KPI Summary Cards ──────────────────────────────────────────── */}
         <div className="grid grid-cols-5 gap-3">
-          {[
-            { icon: '💰', label: 'Revenue', value: baht(data?.stats.revenue ?? 0), sub: `${data?.stats.orders ?? 0} orders` },
-            { icon: '🧾', label: 'Avg Order', value: baht(data?.stats.avgOrder ?? 0), sub: 'per transaction' },
-            { icon: '📅', label: "Today's Rev", value: baht(data?.stats.today.revenue ?? 0), sub: `${data?.stats.today.orders ?? 0} orders` },
-            { icon: '👥', label: 'Member Orders', value: `${data?.memberStats.withMember ?? 0}`, sub: data ? `${pct(data.memberStats.withMember, data.stats.orders)}% of total` : '—' },
-            { icon: '🎟️', label: 'Total Saved', value: baht(data?.discountStats.totalDiscount ?? 0), sub: `${data?.discountStats.ordersWithDiscount ?? 0} orders` },
-          ].map((c, i) => (
-            <Card key={i} className={loading ? 'opacity-50' : ''}>
-              <div className="flex items-center gap-2 mb-1">
-                <span className="text-base">{c.icon}</span>
-                <span className="text-xs text-stone-400">{c.label}</span>
-              </div>
-              <div className="text-lg font-bold text-stone-900 leading-tight">{c.value}</div>
-              <div className="text-xs text-stone-400 mt-0.5">{c.sub}</div>
-            </Card>
-          ))}
+
+          {/* Revenue */}
+          <Card className={loading ? 'opacity-50' : ''}>
+            <div className="flex items-center gap-2 mb-1">
+              <span className="text-base">💰</span>
+              <span className="text-xs text-stone-400">Revenue</span>
+            </div>
+            <div className="text-lg font-bold text-stone-900 leading-tight">{baht(data?.stats.revenue ?? 0)}</div>
+            <div className="text-xs text-stone-400 mt-0.5">{data?.stats.orders ?? 0} orders</div>
+            {isMoM && comparison && <div className="mt-1"><DeltaBadge change={comparison.revenueChange} /></div>}
+          </Card>
+
+          {/* Avg Order */}
+          <Card className={loading ? 'opacity-50' : ''}>
+            <div className="flex items-center gap-2 mb-1">
+              <span className="text-base">🧾</span>
+              <span className="text-xs text-stone-400">Avg Order</span>
+            </div>
+            <div className="text-lg font-bold text-stone-900 leading-tight">{baht(data?.stats.avgOrder ?? 0)}</div>
+            <div className="text-xs text-stone-400 mt-0.5">per transaction</div>
+            {isMoM && comparison && <div className="mt-1"><DeltaBadge change={comparison.avgOrderChange} /></div>}
+          </Card>
+
+          {/* Today's Rev / Orders MoM */}
+          <Card className={loading ? 'opacity-50' : ''}>
+            <div className="flex items-center gap-2 mb-1">
+              <span className="text-base">📅</span>
+              <span className="text-xs text-stone-400">{isMoM ? 'Orders (MoM)' : "Today's Rev"}</span>
+            </div>
+            {isMoM ? (
+              <>
+                <div className="text-lg font-bold text-stone-900 leading-tight">{data?.stats.orders ?? 0}</div>
+                <div className="text-xs text-stone-400 mt-0.5">this month</div>
+                {comparison && <div className="mt-1"><DeltaBadge change={comparison.ordersChange} /></div>}
+              </>
+            ) : (
+              <>
+                <div className="text-lg font-bold text-stone-900 leading-tight">{baht(data?.stats.today.revenue ?? 0)}</div>
+                <div className="text-xs text-stone-400 mt-0.5">{data?.stats.today.orders ?? 0} orders</div>
+              </>
+            )}
+          </Card>
+
+          {/* Member Orders */}
+          <Card className={loading ? 'opacity-50' : ''}>
+            <div className="flex items-center gap-2 mb-1">
+              <span className="text-base">👥</span>
+              <span className="text-xs text-stone-400">Member Orders</span>
+            </div>
+            <div className="text-lg font-bold text-stone-900 leading-tight">{data?.memberStats.withMember ?? 0}</div>
+            <div className="text-xs text-stone-400 mt-0.5">
+              {data ? `${pct(data.memberStats.withMember, data.stats.orders)}% of total` : '—'}
+            </div>
+          </Card>
+
+          {/* Total Saved */}
+          <Card className={loading ? 'opacity-50' : ''}>
+            <div className="flex items-center gap-2 mb-1">
+              <span className="text-base">🎟️</span>
+              <span className="text-xs text-stone-400">Total Saved</span>
+            </div>
+            <div className="text-lg font-bold text-stone-900 leading-tight">{baht(data?.discountStats.totalDiscount ?? 0)}</div>
+            <div className="text-xs text-stone-400 mt-0.5">{data?.discountStats.ordersWithDiscount ?? 0} orders</div>
+          </Card>
         </div>
 
-        {/* ── Revenue Trend (14 days) ────────────────────────────────────── */}
+        {/* ── Revenue Trend ─────────────────────────────────────────────────── */}
         <Card>
-          <SectionTitle>Revenue Trend — Last 14 Days</SectionTitle>
-          {data ? (
-            <div className="space-y-2">
-              <VertBar
-                data={data.dailyTrend.map(d => ({ label: d.label, value: d.revenue, sub: String(d.orders) }))}
-                height={140}
-              />
-              {/* Revenue + orders annotation row */}
-              <div className="flex gap-0.5">
-                {data.dailyTrend.map((d, i) => (
-                  <div key={i} className="flex-1 text-center">
-                    {d.orders > 0 && (
-                      <span className="text-[7px] text-stone-400">{d.orders}</span>
-                    )}
-                  </div>
-                ))}
-              </div>
-            </div>
+          {isMoM ? (
+            <>
+              <SectionTitle>
+                Weekly Revenue — {comparison?.currMonthLabel ?? 'This Month'} vs {comparison?.prevMonthLabel ?? 'Last Month'}
+              </SectionTitle>
+              {data && comparison ? (
+                <GroupedBar
+                  data={comparison.weeklyTrend}
+                  height={140}
+                  currLabel={comparison.currMonthLabel}
+                  prevLabel={comparison.prevMonthLabel}
+                />
+              ) : (
+                <div className="h-36 bg-stone-100 rounded animate-pulse" />
+              )}
+            </>
           ) : (
-            <div className="h-36 bg-stone-100 rounded animate-pulse" />
+            <>
+              <SectionTitle>Revenue Trend — Last 14 Days</SectionTitle>
+              {data ? (
+                <div className="space-y-2">
+                  <VertBar
+                    data={data.dailyTrend.map(d => ({ label: d.label, value: d.revenue, sub: String(d.orders) }))}
+                    height={140}
+                  />
+                  <div className="flex gap-0.5">
+                    {data.dailyTrend.map((d, i) => (
+                      <div key={i} className="flex-1 text-center">
+                        {d.orders > 0 && <span className="text-[7px] text-stone-400">{d.orders}</span>}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ) : (
+                <div className="h-36 bg-stone-100 rounded animate-pulse" />
+              )}
+            </>
           )}
         </Card>
 
@@ -287,7 +515,7 @@ export default function AnalyticsPage() {
           {/* Top Items */}
           <Card className="col-span-3">
             <div className="flex items-center justify-between mb-3">
-              <SectionTitle>Top Items</SectionTitle>
+              <SectionTitle>Top Items{isMoM ? ' — This Month' : ''}</SectionTitle>
               <div className="flex bg-stone-100 rounded-lg p-0.5 gap-0.5">
                 {(['revenue', 'qty'] as const).map(k => (
                   <button
@@ -309,8 +537,17 @@ export default function AnalyticsPage() {
                     <span className="text-xs font-bold text-stone-300 w-4 text-right shrink-0">{i + 1}</span>
                     <div className="flex-1 min-w-0">
                       <div className="flex justify-between items-baseline mb-1">
-                        <span className="text-sm text-stone-800 truncate">{item.name}</span>
-                        <div className="flex items-baseline gap-2 shrink-0">
+                        <div className="flex items-center gap-1.5 min-w-0">
+                          <span className="text-sm text-stone-800 truncate">{item.name}</span>
+                          {isMoM && comparison && topBy === 'revenue' && (
+                            <RankBadge
+                              menuId={item.menuId}
+                              currentRank={i + 1}
+                              prevTopItems={comparison.prevTopItems}
+                            />
+                          )}
+                        </div>
+                        <div className="flex items-baseline gap-2 shrink-0 ml-2">
                           <span className="text-xs text-stone-400">{item.qty} pcs</span>
                           <span className="text-sm font-semibold text-amber-400">{baht(item.revenue)}</span>
                         </div>
@@ -339,7 +576,6 @@ export default function AnalyticsPage() {
 
           {/* Payment Methods + Sources */}
           <Card className="col-span-2 space-y-5">
-            {/* Payment Methods */}
             <div>
               <SectionTitle>Payment Methods</SectionTitle>
               {data ? (
@@ -354,7 +590,6 @@ export default function AnalyticsPage() {
                       sub={`${pct(p.revenue, totalPayRevenue)}% · ${p.count}`}
                     />
                   ))}
-                  {/* Stacked bar */}
                   {data.byPayment.length > 0 && (
                     <div className="flex h-2 rounded-full overflow-hidden gap-px mt-1">
                       {data.byPayment.map(p => (
@@ -377,7 +612,6 @@ export default function AnalyticsPage() {
 
             <div className="border-t border-stone-200" />
 
-            {/* Order Sources */}
             <div>
               <SectionTitle>Order Sources</SectionTitle>
               {data ? (
@@ -416,7 +650,7 @@ export default function AnalyticsPage() {
 
         {/* ── Peak Hours Heatmap ─────────────────────────────────────────── */}
         <Card>
-          <SectionTitle>Peak Hours — Orders by Hour</SectionTitle>
+          <SectionTitle>Peak Hours — Orders by Hour{isMoM ? ' (This Month)' : ''}</SectionTitle>
           {data ? (
             <div className="space-y-2">
               <HeatHour data={data.byHour} />
@@ -427,9 +661,8 @@ export default function AnalyticsPage() {
                 <span>6pm</span>
                 <span>11pm</span>
               </div>
-              {/* Peak hour annotation */}
               {data.byHour.some(h => h > 0) && (() => {
-                const peak = data.byHour.indexOf(Math.max(...data.byHour))
+                const peak  = data.byHour.indexOf(Math.max(...data.byHour))
                 const total = data.byHour.reduce((s, v) => s + v, 0)
                 return (
                   <p className="text-xs text-stone-400 text-center pt-1">
@@ -448,7 +681,6 @@ export default function AnalyticsPage() {
         {/* ── Category + Members + Discounts ────────────────────────────── */}
         <div className="grid grid-cols-5 gap-4 pb-4">
 
-          {/* Category Revenue */}
           <Card className="col-span-2">
             <SectionTitle>Revenue by Category</SectionTitle>
             {data ? (
@@ -472,12 +704,10 @@ export default function AnalyticsPage() {
             )}
           </Card>
 
-          {/* Member Stats */}
           <Card className="col-span-2">
             <SectionTitle>Member vs Non-member</SectionTitle>
             {data ? (
               <div className="space-y-4">
-                {/* Bar comparison */}
                 <div className="space-y-3">
                   <HBar
                     label="Member Orders"
@@ -494,7 +724,6 @@ export default function AnalyticsPage() {
                     sub={`${data.memberStats.withoutMember} orders`}
                   />
                 </div>
-                {/* Stats row */}
                 <div className="grid grid-cols-2 gap-3 pt-1 border-t border-stone-200">
                   <div className="text-center">
                     <div className="text-xl font-bold text-amber-400">
@@ -519,7 +748,6 @@ export default function AnalyticsPage() {
             )}
           </Card>
 
-          {/* Discount Stats */}
           <Card className="col-span-1">
             <SectionTitle>Discounts</SectionTitle>
             {data ? (
@@ -550,14 +778,11 @@ export default function AnalyticsPage() {
                     </span>
                   </div>
                 </div>
-                {/* Progress bar showing discount rate */}
-                <div>
-                  <div className="h-1.5 bg-stone-100 rounded-full overflow-hidden">
-                    <div
-                      className="h-full bg-amber-500 rounded-full transition-all"
-                      style={{ width: `${pct(data.discountStats.ordersWithDiscount, data.discountStats.totalOrders)}%` }}
-                    />
-                  </div>
+                <div className="h-1.5 bg-stone-100 rounded-full overflow-hidden">
+                  <div
+                    className="h-full bg-amber-500 rounded-full transition-all"
+                    style={{ width: `${pct(data.discountStats.ordersWithDiscount, data.discountStats.totalOrders)}%` }}
+                  />
                 </div>
               </div>
             ) : (
@@ -567,6 +792,53 @@ export default function AnalyticsPage() {
             )}
           </Card>
         </div>
+
+        {/* ── Loyalty Tier Breakdown ─────────────────────────────────────── */}
+        <Card className="pb-4">
+          <SectionTitle>Loyalty Tier Breakdown</SectionTitle>
+          {tierStats ? (() => {
+            const total = tierStats.bronze + tierStats.silver + tierStats.gold
+            const tiers = [
+              { name: 'Gold',   count: tierStats.gold,   pill: 'bg-amber-400 text-amber-900', bar: 'bg-amber-400', badge: '🥇', mult: '2×' },
+              { name: 'Silver', count: tierStats.silver, pill: 'bg-slate-300 text-slate-900', bar: 'bg-slate-400', badge: '🥈', mult: '1.5×' },
+              { name: 'Bronze', count: tierStats.bronze, pill: 'bg-amber-800 text-amber-100', bar: 'bg-amber-800', badge: '🥉', mult: '1×' },
+            ]
+            return (
+              <div className="space-y-3">
+                <div className="grid grid-cols-3 gap-4">
+                  {tiers.map(t => (
+                    <div key={t.name} className="text-center">
+                      <div className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold ${t.pill} mb-2`}>
+                        {t.badge} {t.name}
+                      </div>
+                      <div className="text-2xl font-black text-stone-900">{t.count}</div>
+                      <div className="text-[10px] text-stone-400">{t.mult} pts · {total > 0 ? pct(t.count, total) : 0}%</div>
+                    </div>
+                  ))}
+                </div>
+                <div className="flex h-2 rounded-full overflow-hidden">
+                  {total === 0 ? (
+                    <div className="flex-1 bg-stone-100 rounded-full" />
+                  ) : (
+                    tiers.map(t => t.count > 0 ? (
+                      <div
+                        key={t.name}
+                        className={`h-full transition-all ${t.bar}`}
+                        style={{ width: `${pct(t.count, total)}%` }}
+                      />
+                    ) : null)
+                  )}
+                </div>
+                <p className="text-xs text-stone-400 text-center">
+                  {total} total members · Bronze 0–4,999 pts · Silver 5,000–19,999 · Gold 20,000+
+                </p>
+              </div>
+            )
+          })() : (
+            <div className="h-16 bg-stone-100 rounded animate-pulse" />
+          )}
+        </Card>
+
       </div>
     </div>
   )

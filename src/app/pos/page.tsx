@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from 'react'
 import type { MenuItem, Order } from '@/lib/types'
 import CheckoutModal from '@/components/pos/CheckoutModal'
 import NumPad from '@/components/pos/NumPad'
+import SplitBillModal from '@/components/pos/SplitBillModal'
 import { DEMO_MENU } from '@/lib/demo-data'
 import { loadBarSettings, type BarSettings } from '@/lib/printer'
 
@@ -16,6 +17,7 @@ type CartItem = {
   menuId: string; name: string; qty: number; price: number
   variantLabel?: string
   itemDiscount?: number  // % discount เฉพาะ item นี้ (0-100)
+  fromOrderId?: string   // ติดแท็กถ้าดึงมาจาก QR self-order — แก้ qty/discount ไม่ได้, ลบได้ทั้งกลุ่มเท่านั้น
 }
 
 // Fix #13: store type + value so we can recalculate client-side when subtotal changes
@@ -29,7 +31,8 @@ function baht(n: number) {
   return '฿' + new Intl.NumberFormat('en').format(Math.round(n))
 }
 
-function cartKey(c: { menuId: string; variantLabel?: string }) {
+function cartKey(c: { menuId: string; variantLabel?: string; fromOrderId?: string }) {
+  if (c.fromOrderId) return `qr::${c.fromOrderId}::${c.menuId}${c.variantLabel ? `::${c.variantLabel}` : ''}`
   return c.variantLabel ? `${c.menuId}::${c.variantLabel}` : c.menuId
 }
 
@@ -124,20 +127,29 @@ export default function POSPage() {
 
   const [discountType, setDiscountType] = useState<'percent' | 'fixed'>('percent')
   const [discountValue, setDiscountValue] = useState('')
+  const [search, setSearch] = useState('')
   const [memberName, setMemberName] = useState('')
-  const [members, setMembers] = useState<{ id: string; name: string }[]>([])
+  const [members, setMembers] = useState<{ id: string; name: string; points: number; tier?: string }[]>([])
   const [couponCode, setCouponCode] = useState('')
   const [itemDiscountTarget, setItemDiscountTarget] = useState<string | null>(null)
   const [itemDiscountValue,  setItemDiscountValue]  = useState('')
   const [appliedCoupon, setAppliedCoupon] = useState<AppliedCoupon | null>(null)
   const [couponError, setCouponError] = useState('')
   const [showCheckout, setShowCheckout] = useState(false)
+  const [showSplitBill, setShowSplitBill] = useState(false)
+  const [showOpenTickets, setShowOpenTickets] = useState(false)
+  const [payingTicket, setPayingTicket] = useState<Order | null>(null)
+  const [pointsToRedeem, setPointsToRedeem] = useState(0)
+  const [voidConfirmId, setVoidConfirmId] = useState<string | null>(null)
   const [showNumPad, setShowNumPad] = useState(false)
   const [orders, setOrders] = useState<Order[]>([])
   const [showHistory, setShowHistory] = useState(false)
   const [showAllHistory, setShowAllHistory] = useState(false)
   const [toast, setToast] = useState<{ msg: string; ok: boolean } | null>(null)
   const [clock, setClock] = useState('')
+  const [bizName, setBizName] = useState('Siam Amsterdam')
+  const [coupons, setCoupons] = useState<{ id: string; code: string; name: string; type: string; value: number }[]>([])
+  const [lowStockMap, setLowStockMap] = useState<Record<string, string[]>>({})
 
   // Fix #4: variant picker state
   const [variantPicking, setVariantPicking] = useState<MenuItem | null>(null)
@@ -152,13 +164,46 @@ export default function POSPage() {
   }, [])
 
   useEffect(() => {
-    fetch('/api/menu')
-      .then((r) => r.json())
-      .then((d) => { if (d.menu?.length) setMenu(d.menu) })
+    const t = new URLSearchParams(window.location.search).get('table')
+    if (t) setTable(t.toUpperCase())
+  }, [])
+
+  useEffect(() => {
+    setBizName(loadBarSettings().barName || 'Siam Amsterdam')
+    fetch('/api/coupons')
+      .then(r => r.json())
+      .then(d => setCoupons((d.coupons ?? []).filter((c: { active: boolean }) => c.active)))
       .catch(() => {})
+  }, [])
+
+  useEffect(() => {
+    // Fetch menu + ingredients + inventory in parallel; compute low-stock map
+    Promise.all([
+      fetch('/api/menu').then(r => r.json()),
+      fetch('/api/menu/ingredients').then(r => r.json()),
+      fetch('/api/inventory').then(r => r.json()),
+    ]).then(([menuData, ingData, invData]) => {
+      if (menuData.menu?.length) setMenu(menuData.menu)
+      const invMap: Record<string, { name: string; currentStock: number; lowStockThreshold: number }> =
+        Object.fromEntries((invData.items ?? []).map((i: { id: string; name: string; currentStock: number; lowStockThreshold: number }) => [i.id, i]))
+      const map: Record<string, string[]> = {}
+      for (const ing of (ingData.ingredients ?? []) as { menuItemId: string; inventoryItemId: string }[]) {
+        const inv = invMap[ing.inventoryItemId]
+        if (inv && inv.currentStock <= inv.lowStockThreshold) {
+          if (!map[ing.menuItemId]) map[ing.menuItemId] = []
+          map[ing.menuItemId].push(inv.name)
+        }
+      }
+      setLowStockMap(map)
+    }).catch(() => {})
     fetch('/api/members')
       .then((r) => r.json())
-      .then((d) => { if (d.members?.length) setMembers(d.members) })
+      .then((d) => {
+        if (d.members?.length)
+          setMembers(d.members.map((m: { id: string; name: string; points?: number; tier?: string }) => ({
+            id: m.id, name: m.name, points: m.points ?? 0, tier: m.tier ?? 'bronze',
+          })))
+      })
       .catch(() => {})
   }, [])
 
@@ -231,13 +276,28 @@ export default function POSPage() {
     setVariantSelections({})
   }
 
-  // Fix #4: changeQty matches by menuId + variantLabel pair
-  function changeQty(menuId: string, delta: number, variantLabel?: string) {
+  // Fix #4: changeQty matches by menuId + variantLabel + fromOrderId pair
+  function changeQty(menuId: string, delta: number, variantLabel?: string, fromOrderId?: string) {
     setCart(prev =>
       prev
-        .map(c => c.menuId === menuId && c.variantLabel === variantLabel ? { ...c, qty: c.qty + delta } : c)
+        .map(c => c.menuId === menuId && c.variantLabel === variantLabel && c.fromOrderId === fromOrderId ? { ...c, qty: c.qty + delta } : c)
         .filter(c => c.qty > 0)
     )
+  }
+
+  // ดึงรายการจากออเดอร์ QR เข้าตะกร้า (ล็อกแก้ qty/discount ไม่ได้ — ถอดออกได้ทั้งกลุ่มเท่านั้น)
+  function mergeQrOrder(order: Order) {
+    setCart(prev => [
+      ...prev,
+      ...order.items.map(item => ({
+        menuId: item.menuId, name: item.name, qty: item.qty, price: item.price,
+        variantLabel: item.variantLabel, fromOrderId: order.id,
+      })),
+    ])
+  }
+
+  function unmergeQrOrder(orderId: string) {
+    setCart(prev => prev.filter(c => c.fromOrderId !== orderId))
   }
 
   function clearCart() {
@@ -250,20 +310,35 @@ export default function POSPage() {
     setAppliedCoupon(null)
     setCouponCode('')
     setCouponError('')
+    setPointsToRedeem(0)
+  }
+
+  async function handleVoidOrder(orderId: string) {
+    try {
+      const r = await fetch(`/api/orders/${orderId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: 'cancelled' }),
+      })
+      if (r.ok) { await fetchOrders(); showToast('Order voided') }
+      else showToast('Failed to void order', false)
+    } catch { showToast('Failed to void order', false) }
+    setVoidConfirmId(null)
   }
 
   function setItemDiscountForItem(key: string, discount: number | undefined) {
     setCart(prev => prev.map(c => cartKey(c) === key ? { ...c, itemDiscount: discount } : c))
   }
 
-  async function applyCoupon() {
-    if (!couponCode.trim()) return
+  async function applyCoupon(codeOverride?: string) {
+    const code = (codeOverride ?? couponCode).trim()
+    if (!code) return
     setCouponError('')
     try {
       const r = await fetch('/api/coupons/validate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ code: couponCode.trim(), subtotal, memberName: memberName.trim() || undefined }),
+        body: JSON.stringify({ code, subtotal, memberName: memberName.trim() || undefined }),
       })
       const data = await r.json()
       if (!r.ok || !data.valid) {
@@ -290,6 +365,15 @@ export default function POSPage() {
     showToast('Cash drawer opening...')
   }
 
+  const mergedOrderIds = new Set(cart.filter(c => c.fromOrderId).map(c => c.fromOrderId!))
+  // All open (unpaid) orders for this table — includes already-merged ones (for the modal)
+  const allOpenTableOrders = orders.filter(o =>
+    o.tableNo === table &&
+    ['pending', 'accepted', 'ready', 'delivered'].includes(o.status)
+  )
+  // Subset that haven't been pulled into the cart yet (for badge count)
+  const pendingTableOrders = allOpenTableOrders.filter(o => !mergedOrderIds.has(o.id))
+
   const subtotal = cart.reduce((s, c) => s + itemEffectiveTotal(c), 0)
   const parsedDiscount = parseFloat(discountValue) || 0
 
@@ -309,7 +393,15 @@ export default function POSPage() {
     : 0
 
   const discountAmount = appliedCoupon ? couponDiscountAmount : manualDiscountAmount
-  const finalTotal = Math.max(0, subtotal - discountAmount)
+
+  // Points redemption — 1 point = ฿1, applied after coupon/manual discount
+  const selectedMember = members.find(m => m.name === memberName) ?? null
+  const memberAvailablePoints = selectedMember?.points ?? 0
+  const afterCouponManual = Math.max(0, subtotal - discountAmount)
+  const actualPointsDiscount = pointsToRedeem > 0
+    ? Math.min(pointsToRedeem, memberAvailablePoints, afterCouponManual)
+    : 0
+  const finalTotal = Math.max(0, afterCouponManual - actualPointsDiscount)
 
   // พิมพ์ Check Bill ให้ลูกค้าดูก่อนชำระเงิน (ไม่ต้องเปิด Checkout Modal)
   function handlePrintTicket() {
@@ -322,7 +414,7 @@ export default function POSPage() {
       : undefined
     const html = buildTicketHtml({
       cart, table, memberName, subtotal,
-      discountAmount, total: finalTotal, discountLabel, cfg,
+      discountAmount: discountAmount + actualPointsDiscount, total: finalTotal, discountLabel, cfg,
     })
     const win = window.open('', '_blank', 'width=340,height=700,toolbar=0,menubar=0')
     if (!win) return
@@ -333,55 +425,146 @@ export default function POSPage() {
   }
 
   // Fix #5/B-04: pass couponId so orders API records use atomically
+  // รายการที่ดึงมาจาก QR order จะถูก "settle" โดย PATCH order เดิมเป็น paid (รักษา stock deduction +
+  // source แยกตามออเดอร์จริง) ส่วนรายการที่พนักงานเพิ่มเองจะสร้างเป็น POS order ใหม่ตามปกติ
+  // — กันไม่ให้นับยอดซ้ำสองรอบ
   async function handleConfirmPayment(method: string, received?: number): Promise<string> {
-    const res = await fetch('/api/orders', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        tableNo: table,
-        items: cart.map((c) => ({
-          menuId: c.menuId,
-          name: c.name,
-          qty: c.qty,
-          price: c.itemDiscount ? Math.round(c.price * (1 - c.itemDiscount / 100)) : c.price,
-          variantLabel: c.variantLabel,
-        })),
-        paymentMethod: method,
-        source: 'pos',
-        discount: discountAmount > 0
-          ? appliedCoupon
-            ? { type: 'fixed' as const, value: discountAmount, amount: discountAmount }
-            : { type: discountType, value: parsedDiscount, amount: discountAmount }
-          : undefined,
-        memberName: memberName.trim() || undefined,
-        couponId: appliedCoupon?.id,
-        couponOrderTotal: finalTotal,
-        couponMemberName: memberName.trim() || undefined,
-      }),
-    })
+    const manualItems = cart.filter(c => !c.fromOrderId)
+    let representativeId = ''
 
-    if (!res.ok) {
-      const err = await res.json()
-      showToast(err.error ?? 'Failed to save order', false)
-      throw new Error(err.error ?? 'Failed to save order')
+    for (const orderId of mergedOrderIds) {
+      const r = await fetch(`/api/orders/${orderId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: 'paid', paymentMethod: method }),
+      })
+      if (r.ok) {
+        const d = await r.json()
+        representativeId = d.order?.id ?? representativeId
+      }
     }
 
-    const data = await res.json()
+    if (manualItems.length > 0) {
+      const res = await fetch('/api/orders', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          tableNo: table,
+          items: manualItems.map((c) => ({
+            menuId: c.menuId,
+            name: c.name,
+            qty: c.qty,
+            price: c.itemDiscount ? Math.round(c.price * (1 - c.itemDiscount / 100)) : c.price,
+            variantLabel: c.variantLabel,
+          })),
+          paymentMethod: method,
+          source: 'pos',
+          discount: (discountAmount + actualPointsDiscount) > 0
+            ? { type: 'fixed' as const, value: discountAmount + actualPointsDiscount, amount: discountAmount + actualPointsDiscount }
+            : undefined,
+          memberName: memberName.trim() || undefined,
+          couponId: appliedCoupon?.id,
+          couponOrderTotal: finalTotal,
+          couponMemberName: memberName.trim() || undefined,
+        }),
+      })
+
+      if (!res.ok) {
+        const err = await res.json()
+        showToast(err.error ?? 'Failed to save order', false)
+        throw new Error(err.error ?? 'Failed to save order')
+      }
+
+      const data = await res.json()
+      representativeId = data.order.id
+    }
 
     if (method === 'cash') {
       fetch('/api/drawer', { method: 'POST' }).catch(() => {})
     }
 
+    // Deduct redeemed points from member
+    if (actualPointsDiscount > 0 && selectedMember?.id) {
+      const newPoints = Math.max(0, selectedMember.points - actualPointsDiscount)
+      fetch(`/api/members/${selectedMember.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ points: newPoints }),
+      }).catch(() => {})
+      setMembers(prev => prev.map(m => m.id === selectedMember.id ? { ...m, points: newPoints } : m))
+      setPointsToRedeem(0)
+    }
+
     fetchOrders()
-    return data.order.id as string
+    return representativeId
+  }
+
+  // พักบิล — ส่งรายการที่เพิ่มเองเข้าครัว/บาร์ทันที (เหมือน QR order) แต่ยังไม่เก็บเงิน
+  // จะไปโผล่ใน panel "บิลที่ค้างอยู่" รอบหน้าที่เปิดโต๊ะนี้ ดึงกลับมาจ่ายทีหลังได้
+  async function handleHoldBill() {
+    const manualItems = cart.filter(c => !c.fromOrderId)
+    if (manualItems.length === 0) return
+    try {
+      const res = await fetch('/api/orders', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          tableNo: table,
+          hold: true,
+          source: 'pos',
+          items: manualItems.map((c) => ({
+            menuId: c.menuId,
+            name: c.name,
+            qty: c.qty,
+            price: c.itemDiscount ? Math.round(c.price * (1 - c.itemDiscount / 100)) : c.price,
+            variantLabel: c.variantLabel,
+          })),
+        }),
+      })
+      if (!res.ok) {
+        const err = await res.json()
+        showToast(err.error ?? 'Hold bill failed', false)
+        return
+      }
+      clearCart()
+      await fetchOrders()
+      showToast('Bill held — sent to kitchen/bar ✓')
+    } catch {
+      showToast('Hold bill failed — network error', false)
+    }
+  }
+
+  // Pay a single open ticket on its own — bypasses the shared table cart entirely,
+  // so separate customers at the same table can each pay for just their own order.
+  async function handleSingleTicketPayment(method: string, received?: number): Promise<string> {
+    if (!payingTicket) throw new Error('No ticket selected')
+    const r = await fetch(`/api/orders/${payingTicket.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status: 'paid', paymentMethod: method }),
+    })
+    if (!r.ok) {
+      const err = await r.json()
+      showToast(err.error ?? 'Failed to process payment', false)
+      throw new Error(err.error ?? 'Failed to process payment')
+    }
+    const d = await r.json()
+    if (method === 'cash') fetch('/api/drawer', { method: 'POST' }).catch(() => {})
+    await fetchOrders()
+    return d.order?.id ?? payingTicket.id
   }
 
   function handleCheckoutClose() { setShowCheckout(false) }
   function handleCheckoutComplete() { setShowCheckout(false); clearCart() }
 
-  const filteredMenu = menu.filter(
-    (m) => m.available && (category === 'All' || m.category.toLowerCase() === category.toLowerCase())
-  )
+  const filteredMenu = menu.filter((m) => {
+    if (!m.available) return false
+    if (search.trim()) {
+      const q = search.trim().toLowerCase()
+      return m.name.toLowerCase().includes(q) || m.nameTh.toLowerCase().includes(q)
+    }
+    return category === 'All' || m.category.toLowerCase() === category.toLowerCase()
+  })
 
   const dateLabel = new Date().toLocaleDateString('en-GB', {
     weekday: 'short', day: 'numeric', month: 'short', year: 'numeric',
@@ -413,11 +596,42 @@ export default function POSPage() {
           cart={cart}
           table={table}
           note=""
-          discount={{ type: discountType, value: parsedDiscount, amount: discountAmount, couponCode: appliedCoupon?.code }}
+          discount={{ type: discountType, value: parsedDiscount, amount: discountAmount + actualPointsDiscount, couponCode: appliedCoupon?.code }}
           memberName={memberName.trim()}
+          memberTier={selectedMember?.tier as 'bronze' | 'silver' | 'gold' | undefined}
           onConfirm={handleConfirmPayment}
           onClose={handleCheckoutClose}
           onComplete={handleCheckoutComplete}
+        />
+      )}
+
+      {/* Split Bill modal */}
+      {showSplitBill && (
+        <SplitBillModal
+          table={table}
+          total={finalTotal}
+          onConfirm={handleConfirmPayment}
+          onClose={() => setShowSplitBill(false)}
+          onComplete={() => { setShowSplitBill(false); clearCart() }}
+        />
+      )}
+
+      {/* Single-ticket checkout — pays one open ticket standalone, independent of the shared table cart */}
+      {payingTicket && (
+        <CheckoutModal
+          cart={payingTicket.items.map(i => ({
+            menuId: i.menuId, name: i.name, qty: i.qty, price: i.price, variantLabel: i.variantLabel,
+          }))}
+          table={payingTicket.tableNo}
+          note={payingTicket.note ?? ''}
+          discount={payingTicket.discount
+            ? { type: payingTicket.discount.type, value: payingTicket.discount.value, amount: payingTicket.discount.amount }
+            : { type: 'fixed', value: 0, amount: 0 }}
+          memberName={payingTicket.memberName ?? ''}
+          memberTier={members.find(m => m.name === payingTicket.memberName)?.tier as 'bronze' | 'silver' | 'gold' | undefined}
+          onConfirm={handleSingleTicketPayment}
+          onClose={() => setPayingTicket(null)}
+          onComplete={() => { setPayingTicket(null); fetchOrders() }}
         />
       )}
 
@@ -536,7 +750,10 @@ export default function POSPage() {
                         <span className="font-bold text-amber-600">{o.tableNo}</span>
                         <span className="text-xs text-stone-400 font-mono">#{o.id.slice(-6)}</span>
                         <span className="text-xs bg-stone-200 text-stone-500 rounded px-1.5 py-0.5 uppercase">{o.source}</span>
-                        {o.paymentMethod && (
+                        {o.status === 'cancelled' && (
+                          <span className="text-xs bg-red-100 text-red-600 rounded px-1.5 py-0.5 font-bold">VOIDED</span>
+                        )}
+                        {o.paymentMethod && o.status !== 'cancelled' && (
                           <span className="text-xs bg-blue-100 text-blue-600 rounded px-1.5 py-0.5 uppercase">{o.paymentMethod}</span>
                         )}
                         {o.discount && o.discount.amount > 0 && (
@@ -549,10 +766,37 @@ export default function POSPage() {
                       {o.memberName && <p className="text-xs text-stone-400 mt-0.5">👤 {o.memberName}</p>}
                     </div>
                     <div className="text-right shrink-0">
-                      <p className="font-bold text-amber-600">{baht(o.total)}</p>
+                      <p className={`font-bold ${o.status === 'cancelled' ? 'text-stone-300 line-through' : 'text-amber-600'}`}>
+                        {baht(o.total)}
+                      </p>
                       <p className="text-xs text-stone-400 mt-0.5">
                         {new Date(o.createdAt).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}
                       </p>
+                      {o.status === 'paid' && (
+                        voidConfirmId === o.id ? (
+                          <div className="flex gap-1 mt-1.5 justify-end">
+                            <button
+                              onClick={() => handleVoidOrder(o.id)}
+                              className="text-[10px] font-bold text-red-600 bg-red-50 border border-red-200 px-2 py-0.5 rounded-lg"
+                            >
+                              Confirm Void
+                            </button>
+                            <button
+                              onClick={() => setVoidConfirmId(null)}
+                              className="text-[10px] text-stone-400 hover:text-stone-600 px-1.5 py-0.5"
+                            >
+                              Cancel
+                            </button>
+                          </div>
+                        ) : (
+                          <button
+                            onClick={() => setVoidConfirmId(o.id)}
+                            className="text-[10px] text-stone-300 hover:text-red-400 transition mt-1 block ml-auto"
+                          >
+                            Void
+                          </button>
+                        )
+                      )}
                     </div>
                   </div>
                 ))
@@ -572,10 +816,174 @@ export default function POSPage() {
         </div>
       )}
 
+      {/* ── Open Tickets Modal ── */}
+      {showOpenTickets && (
+        <div
+          className="fixed inset-0 z-40 bg-black/60 flex items-center justify-center p-4"
+          onClick={() => setShowOpenTickets(false)}
+        >
+          <div
+            className="bg-white rounded-2xl w-full max-w-lg max-h-[85vh] flex flex-col shadow-2xl"
+            onClick={e => e.stopPropagation()}
+          >
+            {/* Header */}
+            <div className="flex items-center justify-between px-5 py-4 border-b border-stone-100 shrink-0">
+              <div>
+                <h2 className="text-lg font-bold text-stone-900">Open Tickets</h2>
+                <p className="text-xs text-stone-400 mt-0.5">
+                  Table {table} · {allOpenTableOrders.length} open ticket{allOpenTableOrders.length !== 1 ? 's' : ''}
+                  {mergedOrderIds.size > 0 && ` · ${mergedOrderIds.size} added to current bill`}
+                </p>
+                <p className="text-[10px] text-stone-400 mt-1">
+                  Tap a ticket to pay it separately · use <span className="font-semibold text-amber-600">Add to Bill</span> to combine orders for one payment
+                </p>
+              </div>
+              <button
+                onClick={() => setShowOpenTickets(false)}
+                className="text-stone-400 hover:text-stone-700 text-3xl leading-none w-10 h-10 flex items-center justify-center"
+              >×</button>
+            </div>
+
+            {/* Ticket list */}
+            <div className="flex-1 overflow-y-auto p-4 flex flex-col gap-3">
+              {allOpenTableOrders.length === 0 ? (
+                <div className="py-12 text-center text-stone-300">
+                  <p className="text-4xl mb-3">🎫</p>
+                  <p className="text-sm">No open tickets for Table {table}</p>
+                </div>
+              ) : (
+                allOpenTableOrders.map(o => {
+                  const isMerged = mergedOrderIds.has(o.id)
+                  const statusLabel =
+                    o.status === 'delivered' ? '✓ Served'
+                    : o.status === 'ready'    ? '⚡ Ready'
+                    : o.status === 'accepted' ? '👨‍🍳 In Progress'
+                    : '⏳ Pending'
+                  return (
+                    <div
+                      key={o.id}
+                      onClick={() => { if (!isMerged) setPayingTicket(o) }}
+                      className={`rounded-xl border overflow-hidden transition ${
+                        isMerged
+                          ? 'border-amber-300 bg-amber-50/60'
+                          : 'border-stone-200 bg-white hover:border-amber-400 hover:shadow-md cursor-pointer active:scale-[0.99]'
+                      }`}
+                    >
+                      {/* Ticket header */}
+                      <div className="flex items-center justify-between px-4 py-2.5 border-b border-inherit">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full ${
+                            o.source === 'qr' ? 'bg-teal-100 text-teal-700' : 'bg-blue-100 text-blue-700'
+                          }`}>
+                            {o.source === 'qr' ? '📱 QR' : '🖥 POS'}
+                          </span>
+                          <span className="text-xs font-mono text-stone-400">#{o.id.slice(-6)}</span>
+                          <span className={`text-xs font-medium ${
+                            o.status === 'delivered' ? 'text-emerald-600'
+                            : o.status === 'ready' ? 'text-blue-600'
+                            : o.status === 'accepted' ? 'text-amber-600'
+                            : 'text-stone-400'
+                          }`}>{statusLabel}</span>
+                          {isMerged && (
+                            <span className="text-[9px] font-bold bg-amber-200 text-amber-800 px-1.5 py-0.5 rounded-full">In Bill</span>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-1 shrink-0">
+                          <span className="font-bold text-amber-600">{baht(o.total)}</span>
+                          {!isMerged && <span className="text-stone-300 text-sm">›</span>}
+                        </div>
+                      </div>
+
+                      {/* Items */}
+                      <div className="px-4 py-2.5 flex flex-col gap-1">
+                        {o.items.map((item, idx) => (
+                          <div key={idx} className="flex justify-between text-sm">
+                            <span className="text-stone-700 truncate flex-1 mr-4">
+                              {item.name}
+                              {item.variantLabel && <span className="text-stone-400 ml-1">({item.variantLabel})</span>}
+                              <span className="text-stone-400"> ×{item.qty}</span>
+                            </span>
+                            <span className="text-stone-500 shrink-0">{baht(item.price * item.qty)}</span>
+                          </div>
+                        ))}
+                        {o.note && <p className="text-xs text-stone-400 mt-0.5 italic">Note: {o.note}</p>}
+                      </div>
+
+                      {/* Action */}
+                      <div className="px-4 pb-3" onClick={e => e.stopPropagation()}>
+                        {isMerged ? (
+                          <div className="flex items-center justify-between">
+                            <span className="text-xs text-amber-700 font-semibold">✓ Added to current bill</span>
+                            <button
+                              onClick={() => unmergeQrOrder(o.id)}
+                              className="text-xs text-stone-400 hover:text-red-500 transition font-medium"
+                            >
+                              Remove
+                            </button>
+                          </div>
+                        ) : (
+                          <div className="flex gap-2">
+                            <button
+                              onClick={() => setPayingTicket(o)}
+                              className="flex-1 py-2 rounded-xl bg-stone-900 hover:bg-stone-800 active:scale-95 text-white font-bold text-sm transition"
+                            >
+                              💳 Pay This Order
+                            </button>
+                            <button
+                              onClick={() => mergeQrOrder(o)}
+                              className="flex-1 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 active:scale-95 text-black font-bold text-sm transition"
+                            >
+                              + Add to Bill
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )
+                })
+              )}
+            </div>
+
+            {/* Footer */}
+            <div className="px-5 py-3.5 border-t border-stone-100 flex items-center justify-between bg-stone-50/80 shrink-0">
+              <div className="text-sm text-stone-500">
+                {(() => {
+                  const unmerged = allOpenTableOrders.filter(o => !mergedOrderIds.has(o.id)).length
+                  const mergedTotal = allOpenTableOrders.filter(o => mergedOrderIds.has(o.id)).reduce((s, o) => s + o.total, 0)
+                  return (
+                    <span>
+                      {unmerged > 0 ? `${unmerged} not added` : 'All added'}
+                      {mergedOrderIds.size > 0 && <span className="ml-2 text-amber-600 font-semibold">+{baht(mergedTotal)} merged</span>}
+                    </span>
+                  )
+                })()}
+              </div>
+              <div className="flex gap-2">
+                {pendingTableOrders.length > 0 && (
+                  <button
+                    onClick={() => pendingTableOrders.forEach(o => mergeQrOrder(o))}
+                    className="px-4 py-2 rounded-xl border-2 border-amber-400 text-amber-700 font-bold text-sm hover:bg-amber-50 transition active:scale-95"
+                  >
+                    Add All
+                  </button>
+                )}
+                <button
+                  onClick={() => setShowOpenTickets(false)}
+                  className="px-4 py-2 rounded-xl bg-stone-900 text-white font-bold text-sm transition active:scale-95"
+                >
+                  Done
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* ── Header ── */}
       <div className="flex items-center gap-2 px-3 py-2 bg-white border-b border-stone-200 shrink-0 shadow-sm">
-        {/* Fix #11: "BAR" → "SIAM" */}
-        <span className="text-stone-900 font-black text-base mr-1 shrink-0">🍹 SIAM</span>
+        <span className="font-black text-sm text-stone-900 mr-2 shrink-0 whitespace-nowrap leading-none tracking-tight">
+          {bizName}
+        </span>
 
         {/* Table tabs — amber dot on tables with items in cart */}
         <div className="flex gap-1 overflow-x-auto flex-1 py-0.5">
@@ -618,60 +1026,112 @@ export default function POSPage() {
         {/* Menu Panel */}
         <div className="flex flex-col flex-3 overflow-hidden border-r border-stone-200">
 
-          {/* Fix #3: category filter now includes Shot and Other */}
-          <div className="flex gap-1.5 px-3 py-2.5 bg-white border-b border-stone-100 shrink-0 overflow-x-auto">
-            {CATEGORIES.map((cat) => (
-              <button
-                key={cat}
-                onClick={() => setCategory(cat)}
-                className={`px-3.5 py-2 rounded-xl text-xs font-semibold whitespace-nowrap transition shrink-0 flex items-center gap-1.5 active:scale-95 ${
-                  category === cat
-                    ? 'bg-stone-900 text-white font-bold shadow-sm'
-                    : 'bg-stone-100 text-stone-600 hover:bg-stone-200'
-                }`}
-              >
-                <span>{CAT_ICONS[cat]}</span> {cat}
-              </button>
-            ))}
+          {/* Category filter + Search */}
+          <div className="flex flex-col shrink-0 bg-white border-b border-stone-100">
+            <div className="flex gap-1.5 px-3 pt-2.5 pb-2 overflow-x-auto">
+              {CATEGORIES.map((cat) => (
+                <button
+                  key={cat}
+                  onClick={() => { setCategory(cat); setSearch('') }}
+                  className={`px-3.5 py-2 rounded-xl text-xs font-semibold whitespace-nowrap transition shrink-0 flex items-center gap-1.5 active:scale-95 ${
+                    category === cat && !search
+                      ? 'bg-stone-900 text-white font-bold shadow-sm'
+                      : 'bg-stone-100 text-stone-600 hover:bg-stone-200'
+                  }`}
+                >
+                  <span>{CAT_ICONS[cat]}</span> {cat}
+                </button>
+              ))}
+            </div>
+            <div className="px-3 pb-2.5 relative">
+              <span className="absolute left-5 top-1/2 -translate-y-1/2 text-stone-300 text-sm pointer-events-none">🔍</span>
+              <input
+                type="text"
+                value={search}
+                onChange={e => setSearch(e.target.value)}
+                placeholder="Search menu..."
+                className="w-full bg-stone-50 border border-stone-200 rounded-xl pl-8 pr-8 py-2 text-sm text-stone-900 placeholder-stone-300 outline-none focus:border-amber-400 focus:bg-white transition"
+              />
+              {search && (
+                <button
+                  onClick={() => setSearch('')}
+                  className="absolute right-5 top-1/2 -translate-y-1/2 text-stone-300 hover:text-stone-600 text-base leading-none transition"
+                >✕</button>
+              )}
+            </div>
           </div>
 
           {/* Menu grid */}
           <div className="flex-1 overflow-y-auto p-3">
             {filteredMenu.length === 0 ? (
-              <div className="flex items-center justify-center h-32 text-stone-300 text-sm">
-                No items in this category
+              <div className="flex flex-col items-center justify-center h-32 text-stone-300 text-sm gap-2">
+                <span className="text-3xl">{search ? '🔍' : '🍽️'}</span>
+                <p>{search ? `No results for "${search}"` : 'No items in this category'}</p>
               </div>
             ) : (
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
                 {filteredMenu.map((item) => {
-                  // Fix #4: aggregate qty across all variants of this item for badge
                   const inCartQty = cart.filter(c => c.menuId === item.id).reduce((s, c) => s + c.qty, 0)
-                  const inCart = inCartQty > 0
+                  const inCart    = inCartQty > 0
                   const hasVariants = (item.variants?.length ?? 0) > 0
+                  const hasImage  = !!item.image
+
                   return (
                     <button
                       key={item.id}
                       onClick={() => addToCart(item)}
-                      className={`relative rounded-2xl p-3 text-left transition active:scale-95 ${
+                      className={`relative rounded-2xl text-left transition active:scale-95 overflow-hidden flex flex-col ${
                         inCart
                           ? 'bg-amber-50 border-2 border-amber-400 shadow-sm'
                           : 'bg-white border border-stone-100 shadow-sm hover:shadow-md hover:border-stone-300'
                       }`}
                     >
-                      {inCart && (
+                      {/* Image (when available) */}
+                      {hasImage && (
+                        <div className="w-full aspect-[3/2] overflow-hidden bg-stone-100 shrink-0">
+                          <img
+                            src={item.image!}
+                            alt={item.name}
+                            className="w-full h-full object-cover"
+                          />
+                          {/* In-cart qty badge on image */}
+                          {inCart && (
+                            <span className="absolute top-2 right-2 bg-amber-500 text-white text-xs font-black w-6 h-6 rounded-full flex items-center justify-center shadow-md">
+                              {inCartQty}
+                            </span>
+                          )}
+                          {hasVariants && !inCart && (
+                            <span className="absolute top-2 right-2 bg-black/50 text-white text-[9px] font-bold rounded-full px-1.5 py-0.5 backdrop-blur-sm">opt</span>
+                          )}
+                        </div>
+                      )}
+
+                      {/* Text content */}
+                      <div className={`flex flex-col flex-1 ${hasImage ? 'p-2.5' : 'p-3'}`}>
+                        <p className={`font-bold leading-snug text-stone-900 ${hasImage ? 'text-xs' : 'text-sm'}`}>{item.name}</p>
+                        <p className="text-[10px] text-stone-400 mt-0.5 leading-tight truncate">{item.nameTh}</p>
+                        <p className={`font-black mt-1.5 ${hasImage ? 'text-sm' : 'text-base mt-2'} ${inCart ? 'text-amber-600' : 'text-amber-500'}`}>
+                          {baht(item.price)}
+                        </p>
+                      </div>
+
+                      {/* Badges (no-image layout) */}
+                      {!hasImage && inCart && (
                         <span className="absolute top-2 right-2 bg-amber-500 text-white text-xs font-black w-5 h-5 rounded-full flex items-center justify-center">
                           {inCartQty}
                         </span>
                       )}
-                      {/* Variant indicator badge */}
-                      {hasVariants && (
-                        <span className="absolute top-2 left-2 bg-stone-200 text-stone-500 text-[9px] font-bold rounded px-1 py-0.5">opt</span>
+                      {!hasImage && hasVariants && !inCart && (
+                        <span className="absolute top-2 right-2 bg-stone-200 text-stone-500 text-[9px] font-bold rounded px-1 py-0.5">opt</span>
                       )}
-                      <p className="font-bold text-sm leading-snug pr-6 text-stone-900">{item.name}</p>
-                      <p className="text-xs text-stone-400 mt-0.5 leading-tight">{item.nameTh}</p>
-                      <p className={`font-black text-base mt-2 ${inCart ? 'text-amber-600' : 'text-amber-500'}`}>
-                        {baht(item.price)}
-                      </p>
+
+                      {/* Low stock dot */}
+                      {lowStockMap[item.id] && (
+                        <span
+                          title={`Running low: ${lowStockMap[item.id].join(', ')}`}
+                          className="absolute bottom-2 left-2 w-2 h-2 bg-amber-500 rounded-full shadow-sm"
+                        />
+                      )}
                     </button>
                   )
                 })}
@@ -686,11 +1146,22 @@ export default function POSPage() {
           {/* Cart header */}
           <div className="flex items-center justify-between px-4 py-3 border-b border-stone-100 bg-stone-50 shrink-0">
             <div>
-              <h2 className="font-bold text-base text-stone-900">
-                Order — <span className="text-amber-500">{table}</span>
-              </h2>
+              <div className="flex items-center gap-2">
+                <h2 className="font-bold text-base text-stone-900">
+                  Order — <span className="text-amber-500">{table}</span>
+                </h2>
+                {pendingTableOrders.length > 0 && (
+                  <button
+                    onClick={() => setShowOpenTickets(true)}
+                    className="relative flex items-center gap-1 bg-amber-100 hover:bg-amber-200 text-amber-700 text-[10px] font-bold px-2 py-0.5 rounded-full transition active:scale-95"
+                  >
+                    🎫 {pendingTableOrders.length} open
+                  </button>
+                )}
+              </div>
               <p className="text-xs text-stone-400 mt-0.5">
                 {cart.length} item{cart.length !== 1 ? 's' : ''}
+                {mergedOrderIds.size > 0 && <span className="text-amber-500 ml-1">· {mergedOrderIds.size} ticket{mergedOrderIds.size !== 1 ? 's' : ''} merged</span>}
               </p>
             </div>
             {cart.length > 0 && (
@@ -714,25 +1185,35 @@ export default function POSPage() {
               cart.map((item) => {
                 const key = cartKey(item)
                 const hasDiscount = !!item.itemDiscount && item.itemDiscount > 0
+                const isQr = !!item.fromOrderId
                 return (
                   <div key={key} className="flex items-center gap-1.5 py-2 border-b border-stone-100">
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium leading-snug text-stone-800">{item.name}</p>
+                      <div className="flex items-center gap-1.5">
+                        <p className="text-sm font-medium leading-snug text-stone-800 truncate">{item.name}</p>
+                        {isQr && (
+                          <span className="text-[9px] bg-amber-100 text-amber-700 px-1 py-0.5 rounded font-bold shrink-0">QR</span>
+                        )}
+                      </div>
                       {item.variantLabel && (
                         <p className="text-[10px] text-stone-400 leading-tight mt-0.5">{item.variantLabel}</p>
                       )}
                     </div>
-                    <div className="flex items-center gap-1 shrink-0">
-                      <button
-                        onClick={() => changeQty(item.menuId, -1, item.variantLabel)}
-                        className="w-7 h-7 rounded-full bg-stone-100 hover:bg-stone-200 active:scale-95 flex items-center justify-center text-base font-bold text-stone-600 transition"
-                      >−</button>
-                      <span className="w-5 text-center font-bold text-sm text-stone-900">{item.qty}</span>
-                      <button
-                        onClick={() => changeQty(item.menuId, 1, item.variantLabel)}
-                        className="w-7 h-7 rounded-full bg-stone-900 hover:bg-stone-800 active:scale-95 flex items-center justify-center text-base font-bold text-white transition"
-                      >+</button>
-                    </div>
+                    {isQr ? (
+                      <span className="w-5 text-center font-bold text-sm text-stone-900 shrink-0">{item.qty}</span>
+                    ) : (
+                      <div className="flex items-center gap-1 shrink-0">
+                        <button
+                          onClick={() => changeQty(item.menuId, -1, item.variantLabel)}
+                          className="w-7 h-7 rounded-full bg-stone-100 hover:bg-stone-200 active:scale-95 flex items-center justify-center text-base font-bold text-stone-600 transition"
+                        >−</button>
+                        <span className="w-5 text-center font-bold text-sm text-stone-900">{item.qty}</span>
+                        <button
+                          onClick={() => changeQty(item.menuId, 1, item.variantLabel)}
+                          className="w-7 h-7 rounded-full bg-stone-900 hover:bg-stone-800 active:scale-95 flex items-center justify-center text-base font-bold text-white transition"
+                        >+</button>
+                      </div>
+                    )}
                     {/* ราคา — แสดงขีดทับถ้ามีส่วนลด */}
                     <div className="flex flex-col items-end shrink-0 min-w-[52px]">
                       {hasDiscount ? (
@@ -744,8 +1225,15 @@ export default function POSPage() {
                         <span className="text-amber-600 text-sm font-bold">{baht(item.price * item.qty)}</span>
                       )}
                     </div>
-                    {/* ปุ่ม % ส่วนลดต่อ item */}
-                    {hasDiscount ? (
+                    {/* ปุ่ม % ส่วนลดต่อ item — ปิดสำหรับรายการจาก QR */}
+                    {isQr ? (
+                      <button
+                        onClick={() => unmergeQrOrder(item.fromOrderId!)}
+                        className="text-[10px] bg-stone-100 text-stone-400 hover:bg-stone-200 rounded-full px-1.5 py-0.5 font-bold shrink-0 active:scale-95"
+                      >
+                        Remove
+                      </button>
+                    ) : hasDiscount ? (
                       <button
                         onClick={() => setItemDiscountForItem(key, undefined)}
                         className="text-[10px] bg-emerald-100 text-emerald-700 rounded-full px-1.5 py-0.5 font-bold shrink-0 active:scale-95"
@@ -772,6 +1260,12 @@ export default function POSPage() {
               <span className="text-stone-400 text-xs">Subtotal</span>
               <span className="text-stone-600 font-semibold text-sm">{baht(subtotal)}</span>
             </div>
+
+            {cart.length > 0 && cart.every(c => c.fromOrderId) && (
+              <p className="text-[10px] text-amber-600 -mt-1">
+                All items are from held tickets — discounts apply only to items added manually.
+              </p>
+            )}
 
             {/* Fix #7: manual discount hidden when coupon is applied */}
             {!appliedCoupon && (
@@ -827,21 +1321,22 @@ export default function POSPage() {
                   >✕</button>
                 </div>
               ) : (
-                <div className="flex items-center gap-1.5">
-                  <input
-                    value={couponCode}
-                    onChange={e => { setCouponCode(e.target.value.toUpperCase()); setCouponError('') }}
-                    onKeyDown={e => e.key === 'Enter' && applyCoupon()}
-                    placeholder="🎟 Coupon code..."
-                    className="flex-1 min-w-0 bg-white border border-stone-200 rounded-xl px-3 py-2 text-xs text-stone-700 placeholder-stone-300 outline-none focus:border-stone-400 transition"
-                    style={{ userSelect: 'text' }}
-                  />
-                  <button
-                    onClick={applyCoupon}
-                    disabled={!couponCode.trim()}
-                    className="text-xs px-3 py-2 rounded-xl bg-stone-100 hover:bg-stone-200 text-stone-600 font-semibold transition disabled:opacity-30 shrink-0"
-                  >Apply</button>
-                </div>
+                <select
+                  value=""
+                  onChange={e => {
+                    if (!e.target.value) return
+                    applyCoupon(e.target.value)
+                    e.target.value = ''
+                  }}
+                  className="w-full bg-white border border-stone-200 rounded-xl px-3 py-2 text-xs text-stone-700 outline-none focus:border-stone-400 transition appearance-none"
+                >
+                  <option value="">🎟 {coupons.length > 0 ? 'Select coupon...' : 'No active coupons'}</option>
+                  {coupons.map(c => (
+                    <option key={c.id} value={c.code}>
+                      {c.code} — {c.name} ({c.type === 'percent' ? `${c.value}%` : `฿${c.value}`} off)
+                    </option>
+                  ))}
+                </select>
               )}
               {couponError && <p className="text-xs text-red-500 px-1">{couponError}</p>}
             </div>
@@ -855,28 +1350,93 @@ export default function POSPage() {
             {/* Member — select จาก DB */}
             <select
               value={memberName}
-              onChange={e => setMemberName(e.target.value)}
+              onChange={e => { setMemberName(e.target.value); setPointsToRedeem(0) }}
               className="w-full bg-white border border-stone-200 rounded-xl px-3 py-2.5 text-sm text-stone-700 outline-none focus:border-stone-400 transition appearance-none"
             >
               <option value="">👤 No member</option>
               {members.map(m => (
-                <option key={m.id} value={m.name}>{m.name}</option>
+                <option key={m.id} value={m.name}>{m.name} {m.points > 0 ? `(${m.points} pts)` : ''}</option>
               ))}
             </select>
 
-            {/* TICKET + CHECKOUT buttons */}
+            {/* Points redemption — shown when member has points */}
+            {selectedMember && memberAvailablePoints > 0 && (
+              actualPointsDiscount > 0 ? (
+                <div className="flex items-center gap-1.5 bg-violet-50 border border-violet-200 rounded-xl px-3 py-2">
+                  <span className="text-violet-700 text-xs font-bold flex-1">
+                    ⭐ Points redeemed · -{baht(actualPointsDiscount)}
+                  </span>
+                  <button
+                    onClick={() => setPointsToRedeem(0)}
+                    className="text-stone-400 hover:text-red-500 text-xs transition"
+                  >✕</button>
+                </div>
+              ) : (
+                <button
+                  onClick={() => setPointsToRedeem(Math.min(memberAvailablePoints, afterCouponManual))}
+                  className="w-full text-xs px-3 py-2 rounded-xl bg-violet-50 border border-violet-200 text-violet-700 font-semibold hover:bg-violet-100 transition active:scale-95 text-left"
+                >
+                  ⭐ Use {memberAvailablePoints} pts = -{baht(Math.min(memberAvailablePoints, afterCouponManual))} discount
+                </button>
+              )
+            )}
+
+            {/* Hold Bill — send to kitchen now, collect payment later */}
+            {cart.some(c => !c.fromOrderId) && (
+              <button
+                onClick={handleHoldBill}
+                className="w-full py-3 rounded-2xl font-bold text-sm border-2 border-amber-400 text-amber-600 bg-amber-50 hover:bg-amber-100 transition active:scale-95"
+              >
+                🧊 Hold Bill (send to kitchen/bar)
+              </button>
+            )}
+
+            {/* Action buttons row */}
             <div className="flex gap-2">
+              {/* Print check bill */}
               <button
                 onClick={handlePrintTicket}
                 disabled={cart.length === 0}
-                className={`px-4 py-4 rounded-2xl font-bold text-sm transition active:scale-95 whitespace-nowrap ${
+                title="Print check bill"
+                className={`px-3 py-4 rounded-2xl font-bold text-sm transition active:scale-95 whitespace-nowrap ${
                   cart.length > 0
                     ? 'bg-white border-2 border-stone-900 text-stone-900 hover:bg-stone-50'
                     : 'bg-stone-50 border border-stone-200 text-stone-300 cursor-not-allowed'
                 }`}
               >
-                🧾 TICKET
+                🧾
               </button>
+              {/* Split bill */}
+              <button
+                onClick={() => setShowSplitBill(true)}
+                disabled={cart.length === 0}
+                title="Split Bill"
+                className={`px-3 py-4 rounded-2xl font-bold text-sm transition active:scale-95 whitespace-nowrap ${
+                  cart.length > 0
+                    ? 'bg-white border-2 border-stone-900 text-stone-900 hover:bg-stone-50'
+                    : 'bg-stone-50 border border-stone-200 text-stone-300 cursor-not-allowed'
+                }`}
+              >
+                ✂️
+              </button>
+              {/* Open Tickets */}
+              <button
+                onClick={() => setShowOpenTickets(true)}
+                title="Open Tickets"
+                className={`relative px-3 py-4 rounded-2xl font-bold text-sm transition active:scale-95 whitespace-nowrap ${
+                  allOpenTableOrders.length > 0
+                    ? 'bg-amber-500 hover:bg-amber-400 text-black'
+                    : 'bg-stone-50 border border-stone-200 text-stone-300'
+                }`}
+              >
+                🎫
+                {pendingTableOrders.length > 0 && (
+                  <span className="absolute -top-1.5 -right-1.5 bg-red-500 text-white text-[9px] font-black min-w-[16px] h-4 rounded-full flex items-center justify-center px-0.5">
+                    {pendingTableOrders.length}
+                  </span>
+                )}
+              </button>
+              {/* Checkout */}
               <button
                 onClick={() => setShowCheckout(true)}
                 disabled={cart.length === 0}
@@ -886,7 +1446,7 @@ export default function POSPage() {
                     : 'bg-stone-100 text-stone-300 cursor-not-allowed'
                 }`}
               >
-                {cart.length > 0 ? `CHECKOUT  ${baht(finalTotal)} →` : 'SELECT ITEMS'}
+                {cart.length > 0 ? `${baht(finalTotal)} →` : 'SELECT ITEMS'}
               </button>
             </div>
 

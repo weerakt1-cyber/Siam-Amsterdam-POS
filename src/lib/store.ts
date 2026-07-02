@@ -8,6 +8,7 @@ import type {
   DailyReport, CashEntry, ExpenseEntry, ExpenseCategory,
   Coupon, CouponUse, CouponType,
   PosUser, UserRole,
+  MenuIngredient,
 } from './types'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -57,6 +58,7 @@ function mapOrder(row: Record<string, unknown>): Order {
     total:         Number(row.total),
     paymentMethod: row.payment_method as string | undefined,
     memberName:    row.member_name as string | undefined,
+    customerName:  row.customer_name as string | undefined,
     createdAt:     row.created_at as string,
     updatedAt:     row.updated_at as string,
   }
@@ -64,16 +66,18 @@ function mapOrder(row: Record<string, unknown>): Order {
 
 function mapMember(row: Record<string, unknown>): Member {
   return {
-    id:           row.id as string,
-    name:         row.name as string,
-    phone:        row.phone as string | undefined,
-    birthday:     row.birthday as string | undefined,
-    notes:        row.notes as string | undefined,
-    points:       Number(row.points),
-    stamps:       Number(row.stamps),
-    stampsEarned: Number(row.stamps_earned),
-    createdAt:    row.created_at as string,
-    updatedAt:    row.updated_at as string,
+    id:             row.id as string,
+    name:           row.name as string,
+    phone:          row.phone as string | undefined,
+    birthday:       row.birthday as string | undefined,
+    notes:          row.notes as string | undefined,
+    points:         Number(row.points),
+    lifetimePoints: Number(row.lifetime_points ?? 0),
+    tier:           (row.tier as Member['tier']) ?? 'bronze',
+    stamps:         Number(row.stamps),
+    stampsEarned:   Number(row.stamps_earned),
+    createdAt:      row.created_at as string,
+    updatedAt:      row.updated_at as string,
   }
 }
 
@@ -255,23 +259,27 @@ export async function createOrder(data: {
   paymentMethod?: string
   discount?: OrderDiscount
   memberName?: string
+  customerName?: string
+  hold?: boolean  // true = ส่งครัว/บาร์ทันทีแต่ "พักบิล" ไว้ ยังไม่เก็บเงิน (status เริ่มที่ pending เหมือน QR order)
 }): Promise<Order> {
   const subtotal = data.items.reduce((s, i) => s + i.price * i.qty, 0)
   const total    = Math.max(0, subtotal - (data.discount?.amount ?? 0))
   const id       = makeId('ord')
   const ts       = now()
+  const status   = data.hold ? 'pending' : (data.source === 'pos' ? 'paid' : 'pending')
 
   const { error: orderErr } = await supabase.from('orders').insert({
     id,
     table_no:       data.tableNo,
     note:           data.note ?? '',
-    status:         data.source === 'pos' ? 'paid' : 'pending',
+    status,
     source:         data.source ?? 'manual',
     subtotal,
     discount:       data.discount ?? null,
     total,
     payment_method: data.paymentMethod ?? null,
     member_name:    data.memberName ?? null,
+    customer_name:  data.customerName ?? null,
     created_at:     ts,
     updated_at:     ts,
   })
@@ -295,17 +303,19 @@ export async function createOrder(data: {
   // คืน order object โดยไม่ต้อง re-fetch
   return {
     id, tableNo: data.tableNo, items: data.items,
-    note: data.note ?? '', status: data.source === 'pos' ? 'paid' : 'pending',
+    note: data.note ?? '', status,
     source: data.source ?? 'manual', subtotal, discount: data.discount, total,
-    paymentMethod: data.paymentMethod, memberName: data.memberName,
+    paymentMethod: data.paymentMethod, memberName: data.memberName, customerName: data.customerName,
     createdAt: ts, updatedAt: ts,
   }
 }
 
-export async function updateOrderStatus(id: string, status: OrderStatus): Promise<Order | null> {
+export async function updateOrderStatus(id: string, status: OrderStatus, paymentMethod?: string): Promise<Order | null> {
+  const update: Record<string, unknown> = { status, updated_at: now() }
+  if (paymentMethod) update.payment_method = paymentMethod
   const { error } = await supabase
     .from('orders')
-    .update({ status, updated_at: now() })
+    .update(update)
     .eq('id', id)
   if (error) return null
   return (await getOrder(id)) ?? null
@@ -349,11 +359,13 @@ export async function createMember(data: Omit<Member, 'id' | 'createdAt' | 'upda
       phone:         data.phone ?? null,
       birthday:      data.birthday ?? null,
       notes:         data.notes ?? null,
-      points:        data.points,
-      stamps:        data.stamps,
-      stamps_earned: data.stampsEarned,
-      created_at:    ts,
-      updated_at:    ts,
+      points:          data.points,
+      lifetime_points: data.lifetimePoints ?? 0,
+      tier:            data.tier ?? 'bronze',
+      stamps:          data.stamps,
+      stamps_earned:   data.stampsEarned,
+      created_at:      ts,
+      updated_at:      ts,
     })
     .select()
     .single()
@@ -367,9 +379,11 @@ export async function updateMember(id: string, data: Partial<Omit<Member, 'id' |
   if (data.phone        !== undefined) update.phone         = data.phone ?? null
   if (data.birthday     !== undefined) update.birthday      = data.birthday ?? null
   if (data.notes        !== undefined) update.notes         = data.notes ?? null
-  if (data.points       !== undefined) update.points        = data.points
-  if (data.stamps       !== undefined) update.stamps        = data.stamps
-  if (data.stampsEarned !== undefined) update.stamps_earned = data.stampsEarned
+  if (data.points         !== undefined) update.points          = data.points
+  if (data.lifetimePoints !== undefined) update.lifetime_points = data.lifetimePoints
+  if (data.tier           !== undefined) update.tier            = data.tier
+  if (data.stamps         !== undefined) update.stamps          = data.stamps
+  if (data.stampsEarned   !== undefined) update.stamps_earned   = data.stampsEarned
 
   const { data: row, error } = await supabase
     .from('members').update(update).eq('id', id).select().single()
@@ -752,42 +766,71 @@ export type { UserRole }
 // ─── Analytics ────────────────────────────────────────────────────────────────
 
 export async function getAnalyticsData(period: '7d' | '30d' | 'all' = '7d') {
-  // ดึง paid orders ตาม period (เพิ่ม date filter ที่ DB level)
-  let q = supabase
+  // Bangkok timezone offset (UTC+7)
+  const BKK_MS = 7 * 60 * 60 * 1000
+
+  function toBkkDate(isoStr: string): string {
+    return new Date(new Date(isoStr).getTime() + BKK_MS).toISOString().slice(0, 10)
+  }
+
+  // Fetch enough data to cover both stats period AND 14-day trend chart
+  const statsDays = period === '7d' ? 7 : period === '30d' ? 30 : null
+  const fetchDays = statsDays === null ? null : Math.max(statsDays, 14)
+
+  let ordersQ = supabase
     .from('orders')
     .select('*, order_items(*)')
     .eq('status', 'paid')
     .order('created_at', { ascending: false })
 
-  if (period !== 'all') {
-    const days = period === '7d' ? 7 : 30
-    const since = new Date(Date.now() - days * 86400000).toISOString()
-    q = q.gte('created_at', since)
+  if (fetchDays !== null) {
+    ordersQ = ordersQ.gte('created_at', new Date(Date.now() - fetchDays * 86400000).toISOString())
   }
 
-  const { data, error } = await q
-  if (error) throw error
-  const periodOrders = (data ?? []).map(mapOrder)
+  // Fetch orders + menu categories in parallel
+  const [{ data: ordersData, error: ordersErr }, { data: menuData }] = await Promise.all([
+    ordersQ,
+    supabase.from('menu_items').select('id, category'),
+  ])
+  if (ordersErr) throw ordersErr
 
-  const todayStr = new Date().toISOString().slice(0, 10)
-  const todayOrders = periodOrders.filter(o => o.createdAt.startsWith(todayStr))
+  const allOrders = (ordersData ?? []).map(mapOrder)
+
+  // Real category lookup from menu_items (avoids fragile menuId prefix matching)
+  const menuCatMap: Record<string, string> = {}
+  for (const m of menuData ?? []) {
+    const cat = m.category as string
+    menuCatMap[m.id] = cat.charAt(0).toUpperCase() + cat.slice(1)
+  }
+
+  // Filter to stats period (keep allOrders for 14-day trend)
+  const statsCutoff = statsDays
+    ? new Date(Date.now() - statsDays * 86400000).toISOString()
+    : null
+  const periodOrders = statsCutoff
+    ? allOrders.filter(o => o.createdAt >= statsCutoff)
+    : allOrders
+
+  // Today in Bangkok time
+  const todayBKK = toBkkDate(new Date().toISOString())
+  const todayOrders = periodOrders.filter(o => toBkkDate(o.createdAt) === todayBKK)
 
   const revenue    = periodOrders.reduce((s, o) => s + o.total, 0)
   const orderCount = periodOrders.length
   const avgOrder   = orderCount > 0 ? Math.round(revenue / orderCount) : 0
-  const todayRevenue = todayOrders.reduce((s, o) => s + o.total, 0)
 
-  // แนวโน้มรายได้ 14 วันล่าสุด
-  const now2 = new Date()
+  // Daily trend: always 14 days, dates in Bangkok timezone
+  const nowBKK = new Date(Date.now() + BKK_MS)
   const dailyTrend = Array.from({ length: 14 }, (_, i) => {
-    const d = new Date(now2); d.setDate(d.getDate() - (13 - i))
+    const d = new Date(nowBKK)
+    d.setDate(d.getDate() - (13 - i))
     const date  = d.toISOString().slice(0, 10)
     const label = `${d.getMonth() + 1}/${d.getDate()}`
-    const dayOrders = periodOrders.filter(o => o.createdAt.startsWith(date))
+    const dayOrders = allOrders.filter(o => toBkkDate(o.createdAt) === date)
     return { date, label, revenue: dayOrders.reduce((s, o) => s + o.total, 0), orders: dayOrders.length }
   })
 
-  // Top items by revenue
+  // Top items
   const itemMap: Record<string, { name: string; nameTh: string; menuId: string; qty: number; revenue: number }> = {}
   for (const o of periodOrders) {
     for (const item of o.items) {
@@ -798,7 +841,7 @@ export async function getAnalyticsData(period: '7d' | '30d' | 'all' = '7d') {
   }
   const topItems = Object.values(itemMap).sort((a, b) => b.revenue - a.revenue).slice(0, 10)
 
-  // Revenue by payment method
+  // Payment methods
   const payMap: Record<string, { count: number; revenue: number }> = {}
   for (const o of periodOrders) {
     const m = o.paymentMethod ?? 'unknown'
@@ -808,7 +851,7 @@ export async function getAnalyticsData(period: '7d' | '30d' | 'all' = '7d') {
   }
   const byPayment = Object.entries(payMap).map(([method, d]) => ({ method, ...d })).sort((a, b) => b.revenue - a.revenue)
 
-  // Revenue by source
+  // Order sources
   const srcMap: Record<string, { count: number; revenue: number }> = {}
   for (const o of periodOrders) {
     if (!srcMap[o.source]) srcMap[o.source] = { count: 0, revenue: 0 }
@@ -817,20 +860,17 @@ export async function getAnalyticsData(period: '7d' | '30d' | 'all' = '7d') {
   }
   const bySource = Object.entries(srcMap).map(([source, d]) => ({ source, ...d })).sort((a, b) => b.revenue - a.revenue)
 
-  // Orders per hour
+  // Peak hours in Bangkok timezone
   const byHour = Array(24).fill(0) as number[]
-  for (const o of periodOrders) byHour[new Date(o.createdAt).getHours()]++
+  for (const o of periodOrders) {
+    byHour[new Date(new Date(o.createdAt).getTime() + BKK_MS).getHours()]++
+  }
 
-  // Revenue by category (inferred from menuId prefix)
+  // Category from real menu_items data
   const catMap: Record<string, { revenue: number; qty: number }> = {}
   for (const o of periodOrders) {
     for (const item of o.items) {
-      const cat = item.menuId.startsWith('c')  ? 'Cocktails'
-        : item.menuId.startsWith('bb') || item.menuId.startsWith('db') ? 'Beer'
-        : item.menuId.startsWith('d')  ? 'Drinks'
-        : item.menuId.startsWith('f')  ? 'Food'
-        : item.menuId.startsWith('s')  ? 'Snacks'
-        : 'Other'
+      const cat = menuCatMap[item.menuId] ?? 'Other'
       if (!catMap[cat]) catMap[cat] = { revenue: 0, qty: 0 }
       catMap[cat].revenue += item.price * item.qty
       catMap[cat].qty     += item.qty
@@ -838,14 +878,14 @@ export async function getAnalyticsData(period: '7d' | '30d' | 'all' = '7d') {
   }
   const byCategory = Object.entries(catMap).map(([category, d]) => ({ category, ...d })).sort((a, b) => b.revenue - a.revenue)
 
-  const memberOrders   = periodOrders.filter(o => o.memberName)
-  const memberRevenue  = memberOrders.reduce((s, o) => s + o.total, 0)
+  const memberOrders     = periodOrders.filter(o => o.memberName)
+  const memberRevenue    = memberOrders.reduce((s, o) => s + o.total, 0)
   const discountedOrders = periodOrders.filter(o => o.discount?.amount)
-  const totalDiscount  = discountedOrders.reduce((s, o) => s + (o.discount?.amount ?? 0), 0)
+  const totalDiscount    = discountedOrders.reduce((s, o) => s + (o.discount?.amount ?? 0), 0)
 
   return {
     period,
-    stats: { revenue, orders: orderCount, avgOrder, today: { revenue: todayRevenue, orders: todayOrders.length } },
+    stats: { revenue, orders: orderCount, avgOrder, today: { revenue: todayOrders.reduce((s, o) => s + o.total, 0), orders: todayOrders.length } },
     dailyTrend,
     topItems,
     byPayment,
@@ -855,4 +895,258 @@ export async function getAnalyticsData(period: '7d' | '30d' | 'all' = '7d') {
     memberStats: { withMember: memberOrders.length, withoutMember: orderCount - memberOrders.length, memberRevenue, nonMemberRevenue: revenue - memberRevenue },
     discountStats: { totalDiscount, ordersWithDiscount: discountedOrders.length, totalOrders: orderCount },
   }
+}
+
+// ─── Month-over-Month Analytics ───────────────────────────────────────────────
+
+export async function getMomAnalyticsData() {
+  const BKK_MS = 7 * 60 * 60 * 1000
+
+  function toBkkDate(isoStr: string): string {
+    return new Date(new Date(isoStr).getTime() + BKK_MS).toISOString().slice(0, 10)
+  }
+
+  const nowBKK       = new Date(Date.now() + BKK_MS)
+  const currYear     = nowBKK.getUTCFullYear()
+  const currMonthIdx = nowBKK.getUTCMonth()
+
+  const prevMonthIdx = currMonthIdx === 0 ? 11 : currMonthIdx - 1
+  const prevYear     = currMonthIdx === 0 ? currYear - 1 : currYear
+
+  // UTC cutoffs: midnight Bangkok on the 1st of each calendar month
+  const prevMonthStartUtc = new Date(Date.UTC(prevYear, prevMonthIdx, 1) - BKK_MS).toISOString()
+  const currMonthStartUtc = new Date(Date.UTC(currYear, currMonthIdx,  1) - BKK_MS).toISOString()
+
+  const [{ data: ordersData, error: ordersErr }, { data: menuData }] = await Promise.all([
+    supabase
+      .from('orders')
+      .select('*, order_items(*)')
+      .eq('status', 'paid')
+      .gte('created_at', prevMonthStartUtc)
+      .order('created_at', { ascending: false }),
+    supabase.from('menu_items').select('id, category'),
+  ])
+  if (ordersErr) throw ordersErr
+
+  const allOrders  = (ordersData ?? []).map(mapOrder)
+  const currOrders = allOrders.filter(o => o.createdAt >= currMonthStartUtc)
+  const prevOrders = allOrders.filter(o => o.createdAt >= prevMonthStartUtc && o.createdAt < currMonthStartUtc)
+
+  const menuCatMap: Record<string, string> = {}
+  for (const m of menuData ?? []) {
+    const cat = m.category as string
+    menuCatMap[m.id] = cat.charAt(0).toUpperCase() + cat.slice(1)
+  }
+
+  // ── Current month stats ───────────────────────────────────────────────────
+  const revenue    = currOrders.reduce((s, o) => s + o.total, 0)
+  const orderCount = currOrders.length
+  const avgOrder   = orderCount > 0 ? Math.round(revenue / orderCount) : 0
+
+  const todayBKK    = toBkkDate(new Date().toISOString())
+  const todayOrders = currOrders.filter(o => toBkkDate(o.createdAt) === todayBKK)
+
+  // ── Previous month stats ──────────────────────────────────────────────────
+  const prevRevenue  = prevOrders.reduce((s, o) => s + o.total, 0)
+  const prevCount    = prevOrders.length
+  const prevAvgOrder = prevCount > 0 ? Math.round(prevRevenue / prevCount) : 0
+
+  const pctChange = (curr: number, prev: number): number =>
+    prev > 0 ? +((curr - prev) / prev * 100).toFixed(1) : curr > 0 ? 100 : 0
+
+  // ── Daily maps for weekly chart ───────────────────────────────────────────
+  const currDailyMap: Record<string, { revenue: number; orders: number }> = {}
+  for (const o of currOrders) {
+    const d = toBkkDate(o.createdAt)
+    if (!currDailyMap[d]) currDailyMap[d] = { revenue: 0, orders: 0 }
+    currDailyMap[d].revenue += o.total
+    currDailyMap[d].orders++
+  }
+  const prevDailyMap: Record<string, { revenue: number; orders: number }> = {}
+  for (const o of prevOrders) {
+    const d = toBkkDate(o.createdAt)
+    if (!prevDailyMap[d]) prevDailyMap[d] = { revenue: 0, orders: 0 }
+    prevDailyMap[d].revenue += o.total
+    prevDailyMap[d].orders++
+  }
+
+  const daysInPrevMonth = new Date(Date.UTC(currYear, currMonthIdx, 0)).getUTCDate()
+  const daysInCurrMonth = new Date(Date.UTC(currYear, currMonthIdx + 1, 0)).getUTCDate()
+  const numWeeks = Math.ceil(Math.max(daysInPrevMonth, daysInCurrMonth) / 7)
+  const pad = (n: number) => String(n).padStart(2, '0')
+
+  const weeklyTrend = Array.from({ length: numWeeks }, (_, w) => {
+    const dayStart = w * 7 + 1
+    const dayEnd   = (w + 1) * 7
+    let curr = 0, prev = 0, currOrd = 0, prevOrd = 0
+    for (let day = dayStart; day <= dayEnd; day++) {
+      if (day <= daysInCurrMonth) {
+        const k = `${currYear}-${pad(currMonthIdx + 1)}-${pad(day)}`
+        const c = currDailyMap[k]
+        if (c) { curr += c.revenue; currOrd += c.orders }
+      }
+      if (day <= daysInPrevMonth) {
+        const k = `${prevYear}-${pad(prevMonthIdx + 1)}-${pad(day)}`
+        const p = prevDailyMap[k]
+        if (p) { prev += p.revenue; prevOrd += p.orders }
+      }
+    }
+    return { label: `W${w + 1}`, curr, prev, currOrders: currOrd, prevOrders: prevOrd }
+  })
+
+  // ── Daily trend: current month, day 1 → today ────────────────────────────
+  const todayDayNum = nowBKK.getUTCDate()
+  const dailyTrend = Array.from({ length: todayDayNum }, (_, i) => {
+    const day = i + 1
+    const k   = `${currYear}-${pad(currMonthIdx + 1)}-${pad(day)}`
+    const d   = currDailyMap[k] ?? { revenue: 0, orders: 0 }
+    return { date: k, label: String(day), revenue: d.revenue, orders: d.orders }
+  })
+
+  // ── Top items (current month) ─────────────────────────────────────────────
+  const itemMap: Record<string, { name: string; nameTh: string; menuId: string; qty: number; revenue: number }> = {}
+  for (const o of currOrders) {
+    for (const item of o.items) {
+      if (!itemMap[item.menuId]) itemMap[item.menuId] = { name: item.name, nameTh: item.nameTh, menuId: item.menuId, qty: 0, revenue: 0 }
+      itemMap[item.menuId].qty     += item.qty
+      itemMap[item.menuId].revenue += item.price * item.qty
+    }
+  }
+  const topItems = Object.values(itemMap).sort((a, b) => b.revenue - a.revenue).slice(0, 10)
+
+  // ── Previous month top items for rank comparison ──────────────────────────
+  const prevItemMap: Record<string, { name: string; menuId: string; qty: number; revenue: number }> = {}
+  for (const o of prevOrders) {
+    for (const item of o.items) {
+      if (!prevItemMap[item.menuId]) prevItemMap[item.menuId] = { name: item.name, menuId: item.menuId, qty: 0, revenue: 0 }
+      prevItemMap[item.menuId].qty     += item.qty
+      prevItemMap[item.menuId].revenue += item.price * item.qty
+    }
+  }
+  const prevTopItems = Object.values(prevItemMap)
+    .sort((a, b) => b.revenue - a.revenue)
+    .slice(0, 10)
+    .map((item, i) => ({ ...item, rank: i + 1 }))
+
+  // ── byPayment ─────────────────────────────────────────────────────────────
+  const payMap: Record<string, { count: number; revenue: number }> = {}
+  for (const o of currOrders) {
+    const m = o.paymentMethod ?? 'unknown'
+    if (!payMap[m]) payMap[m] = { count: 0, revenue: 0 }
+    payMap[m].count++
+    payMap[m].revenue += o.total
+  }
+  const byPayment = Object.entries(payMap).map(([method, d]) => ({ method, ...d })).sort((a, b) => b.revenue - a.revenue)
+
+  // ── bySource ──────────────────────────────────────────────────────────────
+  const srcMap: Record<string, { count: number; revenue: number }> = {}
+  for (const o of currOrders) {
+    if (!srcMap[o.source]) srcMap[o.source] = { count: 0, revenue: 0 }
+    srcMap[o.source].count++
+    srcMap[o.source].revenue += o.total
+  }
+  const bySource = Object.entries(srcMap).map(([source, d]) => ({ source, ...d })).sort((a, b) => b.revenue - a.revenue)
+
+  // ── byHour ────────────────────────────────────────────────────────────────
+  const byHour = Array(24).fill(0) as number[]
+  for (const o of currOrders) {
+    byHour[new Date(new Date(o.createdAt).getTime() + BKK_MS).getHours()]++
+  }
+
+  // ── byCategory ────────────────────────────────────────────────────────────
+  const catMap: Record<string, { revenue: number; qty: number }> = {}
+  for (const o of currOrders) {
+    for (const item of o.items) {
+      const cat = menuCatMap[item.menuId] ?? 'Other'
+      if (!catMap[cat]) catMap[cat] = { revenue: 0, qty: 0 }
+      catMap[cat].revenue += item.price * item.qty
+      catMap[cat].qty     += item.qty
+    }
+  }
+  const byCategory = Object.entries(catMap).map(([category, d]) => ({ category, ...d })).sort((a, b) => b.revenue - a.revenue)
+
+  // ── Member + Discount stats ───────────────────────────────────────────────
+  const memberOrders     = currOrders.filter(o => o.memberName)
+  const memberRevenue    = memberOrders.reduce((s, o) => s + o.total, 0)
+  const discountedOrders = currOrders.filter(o => o.discount?.amount)
+  const totalDiscount    = discountedOrders.reduce((s, o) => s + (o.discount?.amount ?? 0), 0)
+
+  const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June',
+                  'July', 'August', 'September', 'October', 'November', 'December']
+
+  return {
+    period:        'mom' as const,
+    stats:         { revenue, orders: orderCount, avgOrder, today: { revenue: todayOrders.reduce((s, o) => s + o.total, 0), orders: todayOrders.length } },
+    dailyTrend,
+    topItems,
+    byPayment,
+    bySource,
+    byHour,
+    byCategory,
+    memberStats:   { withMember: memberOrders.length, withoutMember: orderCount - memberOrders.length, memberRevenue, nonMemberRevenue: revenue - memberRevenue },
+    discountStats: { totalDiscount, ordersWithDiscount: discountedOrders.length, totalOrders: orderCount },
+    comparison: {
+      prevRevenue,
+      prevOrders:     prevCount,
+      prevAvgOrder,
+      revenueChange:  pctChange(revenue, prevRevenue),
+      ordersChange:   pctChange(orderCount, prevCount),
+      avgOrderChange: pctChange(avgOrder, prevAvgOrder),
+      prevTopItems,
+      weeklyTrend,
+      currMonthLabel: `${MONTHS[currMonthIdx]} ${currYear}`,
+      prevMonthLabel: `${MONTHS[prevMonthIdx]} ${prevYear}`,
+    },
+  }
+}
+
+// ─── Menu Ingredients ─────────────────────────────────────────────────────────
+
+function mapMenuIngredient(row: Record<string, unknown>): MenuIngredient {
+  return {
+    id:                 row.id as string,
+    menuItemId:         row.menu_item_id as string,
+    inventoryItemId:    row.inventory_item_id as string,
+    quantityPerServing: Number(row.quantity_per_serving),
+    unit:               row.unit as string,
+  }
+}
+
+export async function getMenuIngredients(menuItemId: string): Promise<MenuIngredient[]> {
+  const { data, error } = await supabase
+    .from('menu_ingredients')
+    .select('*')
+    .eq('menu_item_id', menuItemId)
+    .order('created_at', { ascending: true })
+  if (error) throw error
+  return (data ?? []).map(mapMenuIngredient)
+}
+
+export async function getAllMenuIngredients(): Promise<MenuIngredient[]> {
+  const { data, error } = await supabase.from('menu_ingredients').select('*')
+  if (error) throw error
+  return (data ?? []).map(mapMenuIngredient)
+}
+
+export async function upsertMenuIngredients(
+  menuItemId: string,
+  ingredients: { inventoryItemId: string; quantityPerServing: number; unit: string }[]
+): Promise<MenuIngredient[]> {
+  await supabase.from('menu_ingredients').delete().eq('menu_item_id', menuItemId)
+  if (ingredients.length === 0) return []
+
+  const ts = now()
+  const rows = ingredients.map(ing => ({
+    id:                   crypto.randomUUID(),
+    menu_item_id:         menuItemId,
+    inventory_item_id:    ing.inventoryItemId,
+    quantity_per_serving: ing.quantityPerServing,
+    unit:                 ing.unit,
+    created_at:           ts,
+    updated_at:           ts,
+  }))
+
+  const { data, error } = await supabase.from('menu_ingredients').insert(rows).select()
+  if (error) throw error
+  return (data ?? []).map(mapMenuIngredient)
 }

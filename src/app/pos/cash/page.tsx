@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import type { DailyReport, Order, ExpenseCategory } from '@/lib/types'
 import NumPad from '@/components/pos/NumPad'
+import { generateDailyReportPDF } from '@/lib/pdf-report'
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -212,6 +213,7 @@ export default function CashPage() {
   const [openingVal, setOpeningVal] = useState('')
   const [toast, setToast] = useState<{ msg: string; ok: boolean } | null>(null)
   const [isLoading, setIsLoading] = useState(true)
+  const [pdfLoading, setPdfLoading] = useState(false)
 
   const fetchReport = useCallback(async (d: string) => {
     setIsLoading(true)
@@ -274,8 +276,19 @@ export default function CashPage() {
     await callReport({ action: 'remove-expense', entryId: id })
   }
 
-  const summary = calcSummary(report, orders)
-  const isToday = date === today()
+  const summary  = calcSummary(report, orders)
+  const isToday  = date === today()
+  const hasData  = report.openingCash > 0 || report.cashIns.length > 0 || report.expenses.length > 0 || orders.length > 0
+
+  function handleExportPDF() {
+    if (pdfLoading) return
+    setPdfLoading(true)
+    try {
+      generateDailyReportPDF(date, report, orders)
+    } finally {
+      setPdfLoading(false)
+    }
+  }
 
   return (
     <div className="flex-1 flex flex-col overflow-hidden bg-stone-50 text-stone-900">
@@ -312,8 +325,17 @@ export default function CashPage() {
             onClick={() => exportToCSV(date, report, orders, summary)}
             className="text-xs px-3 py-2 rounded-xl border border-stone-200 text-stone-500 hover:text-stone-800 hover:border-gray-400 font-semibold transition active:scale-95"
           >
-            ⬇ Export CSV
+            ⬇ CSV
           </button>
+          {!isLoading && hasData && (
+            <button
+              onClick={handleExportPDF}
+              disabled={pdfLoading}
+              className="text-xs px-3 py-2 rounded-xl border border-red-200 text-red-500 hover:text-red-700 hover:bg-red-50 hover:border-red-400 font-semibold transition active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {pdfLoading ? '⏳ …' : '📄 PDF'}
+            </button>
+          )}
         </div>
       </div>
 

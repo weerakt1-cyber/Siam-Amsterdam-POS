@@ -1,8 +1,9 @@
 ﻿'use client'
 
 import { useState, useEffect, useRef, useCallback } from 'react'
-import type { MenuItem, Variant, VariantOption } from '@/lib/types'
+import type { MenuItem, Variant, VariantOption, InventoryItem, MenuIngredient } from '@/lib/types'
 import NumPad from '@/components/pos/NumPad'
+import { useAuth } from '@/lib/pos-auth'
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -52,6 +53,23 @@ const UNITS = ['glass', 'bottle', 'draft', 'can', 'shot', 'piece', 'plate', 'set
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 type Tab = 'items' | 'coupons' | 'categories'
+
+type AiSuggestion = {
+  menuId:         string
+  itemName:       string
+  currentPrice:   number
+  suggestedPrice: number
+  direction:      'up' | 'down' | 'bundle'
+  reason:         string
+  expectedImpact: string
+}
+
+type FormIngredient = {
+  _key: string
+  inventoryItemId: string
+  quantityPerServing: number
+  unit: string
+}
 
 type FormState = {
   name: string
@@ -269,6 +287,9 @@ function VariantEditor({
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
 export default function ItemsPage() {
+  const { user } = useAuth()
+  const isManager = ['admin', 'manager'].includes(user?.role ?? '')
+
   const [tab, setTab] = useState<Tab>('items')
   const [items, setItems] = useState<MenuItem[]>([])
   const [filterCat, setFilterCat] = useState<string>('all')
@@ -307,6 +328,18 @@ export default function ItemsPage() {
   const [toast, setToast] = useState<{ msg: string; ok: boolean } | null>(null)
   const [numPadTarget, setNumPadTarget] = useState<'price' | 'cost' | null>(null)
   const fileRef = useRef<HTMLInputElement>(null)
+  const [ingredients, setIngredients] = useState<FormIngredient[]>([])
+  const [inventory, setInventory] = useState<InventoryItem[]>([])
+  const [ingSearch, setIngSearch] = useState('')
+  const [ingDropOpen, setIngDropOpen] = useState(false)
+
+  // AI Price Optimizer
+  const [aiOpen, setAiOpen]               = useState(false)
+  const [aiLoading, setAiLoading]         = useState(false)
+  const [aiSuggestions, setAiSuggestions] = useState<AiSuggestion[]>([])
+  const [aiError, setAiError]             = useState('')
+  const [appliedIds, setAppliedIds]       = useState<Set<string>>(new Set())
+  const [applyingId, setApplyingId]       = useState<string | null>(null)
 
   const fetchMenu = useCallback(async () => {
     const r = await fetch('/api/menu')
@@ -316,7 +349,23 @@ export default function ItemsPage() {
     }
   }, [])
 
+  const fetchIngredients = useCallback(async (menuItemId: string) => {
+    const r = await fetch(`/api/menu/${menuItemId}/ingredients`)
+    if (!r.ok) return
+    const d = await r.json()
+    setIngredients((d.ingredients ?? []).map((i: MenuIngredient) => ({
+      _key: i.id,
+      inventoryItemId: i.inventoryItemId,
+      quantityPerServing: i.quantityPerServing,
+      unit: i.unit,
+    })))
+  }, [])
+
   useEffect(() => { fetchMenu() }, [fetchMenu])
+
+  useEffect(() => {
+    fetch('/api/inventory').then(r => r.ok ? r.json() : { items: [] }).then(d => setInventory(d.items ?? []))
+  }, [])
 
   function showToast(msg: string, ok = true) {
     setToast({ msg, ok })
@@ -327,12 +376,14 @@ export default function ItemsPage() {
     setSelectedId(item.id)
     setIsCreating(false)
     setForm(itemToForm(item))
+    fetchIngredients(item.id)
   }
 
   function startCreate() {
     setSelectedId(null)
     setIsCreating(true)
     setForm(emptyForm())
+    setIngredients([])
   }
 
   function setField<K extends keyof FormState>(key: K, val: FormState[K]) {
@@ -380,6 +431,12 @@ export default function ItemsPage() {
       variants: form.variants,
     }
 
+    const ingPayload = ingredients.map(i => ({
+      inventoryItemId: i.inventoryItemId,
+      quantityPerServing: i.quantityPerServing,
+      unit: i.unit,
+    }))
+
     setIsSaving(true)
     try {
       if (isCreating) {
@@ -390,6 +447,11 @@ export default function ItemsPage() {
         })
         if (!r.ok) throw new Error((await r.json()).error)
         const d = await r.json()
+        await fetch(`/api/menu/${d.item.id}/ingredients`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ ingredients: ingPayload }),
+        })
         showToast(`"${d.item.name}" created`)
         await fetchMenu()
         setSelectedId(d.item.id)
@@ -402,6 +464,11 @@ export default function ItemsPage() {
           body: JSON.stringify(payload),
         })
         if (!r.ok) throw new Error((await r.json()).error)
+        await fetch(`/api/menu/${selectedId}/ingredients`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ ingredients: ingPayload }),
+        })
         showToast('Changes saved')
         await fetchMenu()
       }
@@ -430,6 +497,48 @@ export default function ItemsPage() {
     } finally {
       setIsDeleting(false)
     }
+  }
+
+  // ── AI Price Optimizer ────────────────────────────────────────────────────────
+
+  async function openAiOptimizer() {
+    setAiOpen(true)
+    setAiLoading(true)
+    setAiSuggestions([])
+    setAiError('')
+    setAppliedIds(new Set())
+    try {
+      const r = await fetch('/api/ai/menu-optimize')
+      const d = await r.json()
+      if (!r.ok) throw new Error(d.error ?? 'Analysis failed')
+      setAiSuggestions(d.suggestions ?? [])
+    } catch (err) {
+      setAiError(err instanceof Error ? err.message : 'Failed to analyze menu')
+    }
+    setAiLoading(false)
+  }
+
+  async function applyPrice(s: AiSuggestion) {
+    setApplyingId(s.menuId)
+    try {
+      const r = await fetch(`/api/menu/${s.menuId}`, {
+        method:  'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({ price: s.suggestedPrice }),
+      })
+      if (!r.ok) throw new Error()
+      setAppliedIds(prev => new Set([...prev, s.menuId]))
+      setItems(prev => prev.map(i => i.id === s.menuId ? { ...i, price: s.suggestedPrice } : i))
+      if (selectedId === s.menuId) setField('price', String(s.suggestedPrice))
+    } catch {
+      showToast('Failed to apply price', false)
+    }
+    setApplyingId(null)
+  }
+
+  async function applyAll() {
+    const pending = aiSuggestions.filter(s => !appliedIds.has(s.menuId))
+    for (const s of pending) await applyPrice(s)
   }
 
   const filtered = items.filter((item) => {
@@ -462,12 +571,24 @@ export default function ItemsPage() {
             <p className="text-xs text-gray-500 mt-0.5">{items.length} menu items</p>
           </div>
           {tab === 'items' && (
-            <button
-              onClick={startCreate}
-              className="bg-amber-500 hover:bg-amber-400 active:scale-95 text-black font-bold text-sm px-4 py-2 rounded-xl transition flex items-center gap-1.5"
-            >
-              + New Item
-            </button>
+            <div className="flex items-center gap-2">
+              {isManager && (
+                <button
+                  onClick={openAiOptimizer}
+                  className="flex items-center gap-1.5 border border-violet-700 hover:border-violet-500 bg-violet-950/40 hover:bg-violet-900/60 text-violet-300 font-bold text-sm px-3 py-2 rounded-xl transition active:scale-95"
+                >
+                  <span className="text-base leading-none">✦</span>
+                  AI Pricing
+                  <span className="text-[9px] font-black bg-violet-500 text-white px-1.5 py-0.5 rounded-md tracking-wide ml-0.5">MAX</span>
+                </button>
+              )}
+              <button
+                onClick={startCreate}
+                className="bg-amber-500 hover:bg-amber-400 active:scale-95 text-black font-bold text-sm px-4 py-2 rounded-xl transition flex items-center gap-1.5"
+              >
+                + New Item
+              </button>
+            </div>
           )}
         </div>
         {/* Tabs */}
@@ -920,6 +1041,100 @@ export default function ItemsPage() {
                   />
                 </section>
 
+                {/* ── Section: Ingredients ── */}
+                <section className="flex flex-col gap-4">
+                  <div>
+                    <h3 className="text-xs font-bold text-gray-400 uppercase tracking-widest">Ingredients</h3>
+                    <p className="text-xs text-gray-400 mt-1">
+                      Link inventory items consumed per serving — stock auto-deducts when orders are paid
+                    </p>
+                  </div>
+
+                  {ingredients.length > 0 && (
+                    <div className="flex flex-col gap-2">
+                      {ingredients.map((ing) => {
+                        const invItem = inventory.find(i => i.id === ing.inventoryItemId)
+                        return (
+                          <div key={ing._key} className="flex items-center gap-2 bg-gray-100 rounded-xl px-3 py-2">
+                            <span className="flex-1 text-sm font-medium text-gray-800 truncate">
+                              {invItem?.name ?? ing.inventoryItemId}
+                            </span>
+                            <input
+                              type="number"
+                              min="0.001"
+                              step="0.001"
+                              value={ing.quantityPerServing}
+                              onChange={e => setIngredients(prev => prev.map(i =>
+                                i._key === ing._key ? { ...i, quantityPerServing: Number(e.target.value) || 0 } : i
+                              ))}
+                              className="w-20 bg-white border border-gray-200 rounded-lg px-2 py-1 text-sm text-right text-gray-900 outline-none focus:border-amber-500/60"
+                            />
+                            <span className="text-xs text-gray-400 w-12 shrink-0">{ing.unit}</span>
+                            <button
+                              onClick={() => setIngredients(prev => prev.filter(i => i._key !== ing._key))}
+                              className="w-6 h-6 rounded-md bg-slate-200 hover:bg-red-700/60 text-gray-500 hover:text-white flex items-center justify-center text-xs transition shrink-0"
+                            >
+                              ×
+                            </button>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  )}
+
+                  <div className="relative">
+                    <input
+                      value={ingSearch}
+                      onChange={e => { setIngSearch(e.target.value); setIngDropOpen(true) }}
+                      onFocus={() => setIngDropOpen(true)}
+                      placeholder={inventory.length === 0 ? 'No inventory items yet...' : 'Search inventory to add ingredient...'}
+                      disabled={inventory.length === 0}
+                      className="w-full bg-gray-100 border border-gray-200 rounded-xl px-3 py-2.5 text-sm text-gray-900 outline-none focus:border-amber-500/60 transition disabled:opacity-50"
+                    />
+                    {ingDropOpen && inventory.length > 0 && (
+                      <div className="absolute z-20 top-full mt-1 left-0 right-0 bg-white border border-gray-200 rounded-xl shadow-lg max-h-48 overflow-y-auto">
+                        {inventory
+                          .filter(i =>
+                            !ingredients.some(ing => ing.inventoryItemId === i.id) &&
+                            (!ingSearch || i.name.toLowerCase().includes(ingSearch.toLowerCase()))
+                          )
+                          .map(i => (
+                            <button
+                              key={i.id}
+                              onMouseDown={e => e.preventDefault()}
+                              onClick={() => {
+                                setIngredients(prev => [...prev, {
+                                  _key: `${i.id}-${prev.length}`,
+                                  inventoryItemId: i.id,
+                                  quantityPerServing: 1,
+                                  unit: i.unit,
+                                }])
+                                setIngSearch('')
+                                setIngDropOpen(false)
+                              }}
+                              className="w-full text-left px-4 py-2.5 text-sm hover:bg-amber-50 flex items-center justify-between border-b border-gray-100 last:border-0"
+                            >
+                              <span className="font-medium text-gray-900">{i.name}</span>
+                              <span className="text-xs text-gray-400">{i.unit} · {i.currentStock} in stock</span>
+                            </button>
+                          ))
+                        }
+                        {inventory.filter(i =>
+                          !ingredients.some(ing => ing.inventoryItemId === i.id) &&
+                          (!ingSearch || i.name.toLowerCase().includes(ingSearch.toLowerCase()))
+                        ).length === 0 && (
+                          <div className="px-4 py-3 text-sm text-gray-400 text-center">
+                            {ingSearch ? 'No matching items' : 'All inventory items already added'}
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                  {ingDropOpen && (
+                    <div className="fixed inset-0 z-10" onClick={() => setIngDropOpen(false)} />
+                  )}
+                </section>
+
                 {/* Bottom save button (convenience) */}
                 <div className="flex items-center justify-between pt-2 pb-6 border-t border-gray-200">
                   {!isCreating && (
@@ -943,6 +1158,148 @@ export default function ItemsPage() {
               </div>
             </div>
           )}
+        </div>
+      )}
+
+      {/* ── AI Price Optimizer Modal ── */}
+      {aiOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70">
+          <div className="bg-gray-900 border border-gray-700 rounded-2xl w-full max-w-2xl max-h-[85vh] flex flex-col shadow-2xl overflow-hidden">
+
+            {/* Modal header */}
+            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-800">
+              <div className="flex items-center gap-3">
+                <span className="text-xl text-violet-400">✦</span>
+                <div>
+                  <h2 className="font-black text-white text-base">AI Price Optimizer</h2>
+                  <p className="text-xs text-gray-400">Based on 30-day sales data · claude-sonnet-4-6</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setAiOpen(false)}
+                className="text-gray-500 hover:text-gray-300 text-xl w-8 h-8 flex items-center justify-center rounded-lg hover:bg-gray-800 transition"
+              >
+                ×
+              </button>
+            </div>
+
+            {/* Modal body */}
+            <div className="flex-1 overflow-y-auto px-6 py-4">
+
+              {/* Loading */}
+              {aiLoading && (
+                <div className="flex flex-col items-center justify-center py-16 gap-4">
+                  <div className="w-10 h-10 rounded-full border-2 border-violet-500 border-t-transparent animate-spin" />
+                  <p className="text-gray-400 text-sm">Analyzing your menu pricing...</p>
+                  <p className="text-gray-600 text-xs">Reviewing sales, margins &amp; market positioning</p>
+                </div>
+              )}
+
+              {/* Error */}
+              {!aiLoading && aiError && (
+                <div className="flex flex-col items-center justify-center py-12 gap-3">
+                  <p className="text-4xl">⚠️</p>
+                  <p className="text-red-400 text-sm font-semibold">{aiError}</p>
+                  <button
+                    onClick={openAiOptimizer}
+                    className="text-xs text-gray-400 hover:text-gray-200 border border-gray-700 hover:border-gray-500 px-4 py-2 rounded-xl transition"
+                  >
+                    Try again
+                  </button>
+                </div>
+              )}
+
+              {/* Suggestions */}
+              {!aiLoading && !aiError && aiSuggestions.length > 0 && (
+                <div className="flex flex-col gap-2">
+                  {aiSuggestions.map(s => {
+                    const applied  = appliedIds.has(s.menuId)
+                    const applying = applyingId === s.menuId
+                    const diff     = s.suggestedPrice - s.currentPrice
+                    const pct      = Math.round(Math.abs(diff) / s.currentPrice * 100)
+                    const isUp     = s.direction === 'up'
+                    const isBundle = s.direction === 'bundle'
+
+                    return (
+                      <div
+                        key={s.menuId}
+                        className={`flex items-center gap-4 bg-gray-800/60 border rounded-xl px-4 py-3 transition ${
+                          applied ? 'border-emerald-800/60 bg-emerald-950/20' : 'border-gray-700/60'
+                        }`}
+                      >
+                        {/* Item name */}
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-semibold text-white truncate">{s.itemName}</p>
+                          <p className="text-xs text-gray-400 mt-0.5 leading-snug line-clamp-2">{s.reason}</p>
+                        </div>
+
+                        {/* Price change */}
+                        <div className="flex flex-col items-center shrink-0 min-w-[100px] text-center">
+                          {isBundle ? (
+                            <span className="text-xs text-violet-400 font-bold">Bundle</span>
+                          ) : (
+                            <>
+                              <div className="flex items-center gap-1.5">
+                                <span className="text-xs text-gray-500 line-through">฿{s.currentPrice}</span>
+                                <span className={`text-sm font-black ${isUp ? 'text-emerald-400' : 'text-rose-400'}`}>
+                                  {isUp ? '↑' : '↓'} ฿{s.suggestedPrice}
+                                </span>
+                              </div>
+                              <span className={`text-[10px] font-bold mt-0.5 ${isUp ? 'text-emerald-600' : 'text-rose-600'}`}>
+                                {isUp ? '+' : '-'}{pct}%
+                              </span>
+                            </>
+                          )}
+                          <span className="text-[10px] text-violet-400/80 mt-1">{s.expectedImpact}</span>
+                        </div>
+
+                        {/* Apply button */}
+                        <div className="shrink-0">
+                          {applied ? (
+                            <span className="text-xs font-bold text-emerald-400 bg-emerald-950/40 border border-emerald-800/60 px-3 py-1.5 rounded-lg">
+                              ✓ Applied
+                            </span>
+                          ) : (
+                            <button
+                              onClick={() => applyPrice(s)}
+                              disabled={applying}
+                              className="text-xs font-bold text-white bg-violet-600 hover:bg-violet-500 px-3 py-1.5 rounded-lg transition active:scale-95 disabled:opacity-50 disabled:cursor-wait"
+                            >
+                              {applying ? '…' : 'Apply'}
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
+
+              {/* Empty state */}
+              {!aiLoading && !aiError && aiSuggestions.length === 0 && (
+                <div className="flex flex-col items-center justify-center py-12 gap-2 text-gray-500">
+                  <p className="text-3xl">✦</p>
+                  <p className="text-sm">No suggestions yet</p>
+                </div>
+              )}
+            </div>
+
+            {/* Modal footer */}
+            {!aiLoading && aiSuggestions.length > 0 && (
+              <div className="px-6 py-4 border-t border-gray-800 flex items-center justify-between gap-4 shrink-0">
+                <p className="text-[11px] text-gray-600 leading-snug">
+                  AI suggestions based on 30-day sales data. Review before applying.
+                </p>
+                <button
+                  onClick={applyAll}
+                  disabled={appliedIds.size === aiSuggestions.length || applyingId !== null}
+                  className="shrink-0 text-sm font-bold text-black bg-violet-400 hover:bg-violet-300 px-5 py-2.5 rounded-xl transition active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed"
+                >
+                  {appliedIds.size === aiSuggestions.length ? '✓ All Applied' : 'Apply All'}
+                </button>
+              </div>
+            )}
+          </div>
         </div>
       )}
 

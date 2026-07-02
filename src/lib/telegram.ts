@@ -33,6 +33,7 @@ export type OrderNotifyData = {
   tableNo:        string
   staffName?:     string
   memberName?:    string
+  customerName?:  string
   items:          { name: string; qty: number; price: number }[]
   subtotal:       number
   discountAmount: number
@@ -61,13 +62,14 @@ export async function sendOrderAlert(data: OrderNotifyData): Promise<boolean> {
     ? `\n💵 Received ฿${data.received.toLocaleString()}  |  Change ฿${(data.change ?? 0).toLocaleString()}`
     : ''
 
-  const staffLine  = data.staffName  ? `\n👤 Staff: ${data.staffName}`  : ''
-  const memberLine = data.memberName ? `\n⭐ Member: ${data.memberName}` : ''
+  const staffLine    = data.staffName    ? `\n👤 Staff: ${data.staffName}`      : ''
+  const memberLine   = data.memberName   ? `\n⭐ Member: ${data.memberName}`    : ''
+  const customerLine = data.customerName ? `\n🙋 Customer: ${data.customerName}` : ''
 
   const text = [
     `🍹 <b>New Order</b> — Siam Amsterdam POS`,
     `━━━━━━━━━━━━━━━━`,
-    `🪑 Table: <b>${data.tableNo}</b>  |  #${shortId}${staffLine}${memberLine}`,
+    `🪑 Table: <b>${data.tableNo}</b>  |  #${shortId}${staffLine}${memberLine}${customerLine}`,
     ``,
     `🛒 <b>Items:</b>`,
     itemLines,
@@ -160,6 +162,16 @@ export async function sendDailySummary(data: EndOfDayData): Promise<boolean> {
   ].join('\n')
 
   return sendMessage(text)
+}
+
+// ─── Tier upgrade notification ───────────────────────────────────────────────
+
+const TIER_EMOJI: Record<string, string> = { bronze: '🥉', silver: '🥈', gold: '🥇' }
+
+export async function sendTierUpgrade(memberName: string, tier: string): Promise<boolean> {
+  const emoji = TIER_EMOJI[tier] ?? '⭐'
+  const label = tier.charAt(0).toUpperCase() + tier.slice(1)
+  return sendMessage(`${emoji} <b>${memberName}</b> just reached <b>${label}</b> tier! Congratulations! 🎉`)
 }
 
 // ─── Bot info (verify token) ──────────────────────────────────────────────────

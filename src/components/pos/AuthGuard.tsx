@@ -177,7 +177,7 @@ function LoginScreen({ onLogin }: { onLogin: (u: ActiveUser) => void }) {
 
         {/* Header */}
         <div className="text-center">
-          <div className="text-5xl mb-2">🍹</div>
+          <img src="/logo.png" alt="Siam Amsterdam" className="w-28 h-28 object-contain mx-auto mb-2" />
           <h1 className="text-2xl font-black text-gray-900 tracking-tight">BAR POS</h1>
           {time && <p className="text-3xl font-light text-gray-400 mt-1 tabular-nums">{time}</p>}
         </div>
@@ -203,7 +203,7 @@ function LoadingSkeleton() {
   return (
     <div className="fixed inset-0 z-[200] bg-gray-50 flex items-center justify-center">
       <div className="flex flex-col items-center gap-3">
-        <div className="text-4xl animate-pulse">🍹</div>
+        <img src="/logo.png" alt="Siam Amsterdam" className="w-20 h-20 object-contain animate-pulse" />
         <div className="w-24 h-2 bg-gray-200 rounded-full animate-pulse" />
       </div>
     </div>

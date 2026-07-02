@@ -3,14 +3,16 @@
 import { useState, useEffect, useRef } from 'react'
 import {
   loadBarSettings, connectPrinter, checkPrinterConnected, loadPrinterDevice,
-  disconnectPrinter, printReceiptBluetooth, openCashDrawerBluetooth,
+  disconnectPrinter, printReceipt, openCashDrawer,
   type BarSettings, type ReceiptData,
 } from '@/lib/printer'
+import OmisePaymentModal, { type OmisePayType } from './OmisePaymentModal'
+import { getTierByName, computePointsEarned, TIERS } from '@/lib/loyalty'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 export type CartItem    = { menuId: string; name: string; qty: number; price: number }
-export type PaymentMethod = 'cash' | 'card' | 'promptpay'
+export type PaymentMethod = 'cash' | 'card' | 'promptpay' | 'credit_card' | 'promptpay_qr' | 'wechat_pay'
 export type DiscountInfo  = { type: 'percent' | 'fixed'; value: number; amount: number; couponCode?: string }
 
 type Props = {
@@ -19,6 +21,7 @@ type Props = {
   note: string
   discount: DiscountInfo
   memberName: string
+  memberTier?: 'bronze' | 'silver' | 'gold'
   onConfirm: (method: PaymentMethod, received?: number) => Promise<string>
   onClose: () => void
   onComplete?: () => void
@@ -88,8 +91,8 @@ function buildReceiptHtml({
       </div>`)
     .join('')
 
-  const PAY_ICON: Record<string, string> = { cash: '💵', card: '💳', promptpay: '📱' }
-  const PAY_LABEL: Record<string, string> = { cash: 'Cash', card: 'Card', promptpay: 'QR PromptPay' }
+  const PAY_ICON: Record<string, string>  = { cash: '💵', card: '💳', promptpay: '📱', credit_card: '🌐', promptpay_qr: '📱', wechat_pay: '🟢' }
+  const PAY_LABEL: Record<string, string> = { cash: 'Cash', card: 'Card', promptpay: 'QR PromptPay', credit_card: 'Credit Card', promptpay_qr: 'PromptPay QR', wechat_pay: 'WeChat/Alipay' }
 
   return `<!DOCTYPE html>
 <html><head><meta charset="utf-8"><title>Receipt</title>
@@ -155,16 +158,28 @@ ${note ? `<div class="sep"></div><div class="small">Note: ${note}</div>` : ''}
 </body></html>`
 }
 
+const PAY_LABEL_MAP: Record<string, string> = {
+  cash: 'Cash', card: 'Card', promptpay: 'QR PromptPay',
+  credit_card: 'Credit Card', promptpay_qr: 'PromptPay QR', wechat_pay: 'WeChat/Alipay',
+}
+
 // ─── Main Component ────────────────────────────────────────────────────────────
 
 export default function CheckoutModal({
-  cart, table, note, discount, memberName, onConfirm, onClose, onComplete,
+  cart, table, note, discount, memberName, memberTier, onConfirm, onClose, onComplete,
 }: Props) {
   const [step, setStep]                 = useState<1 | 2 | 3>(1)
   const [payment, setPayment]           = useState<PaymentMethod>('cash')
   const [received, setReceived]         = useState('')
   const [isConfirming, setIsConfirming] = useState(false)
   const [orderRef, setOrderRef]             = useState('DRAFT')
+
+  const [showOmise, setShowOmise]   = useState(false)
+  const [omiseType, setOmiseType]   = useState<OmisePayType>('credit_card')
+
+  // PromptPay static QR
+  const [ppQr,      setPpQr]      = useState<string | null>(null)
+  const [ppLoading, setPpLoading] = useState(false)
 
   const [btStatus, setBtStatus] = useState<'idle' | 'connecting' | 'printing' | 'done' | 'error'>('idle')
   const [btError,  setBtError]  = useState('')
@@ -176,20 +191,44 @@ export default function CheckoutModal({
   useEffect(() => {
     setCfg(loadBarSettings())
     try {
-      const u = localStorage.getItem('pos_active_user')
+      const u = sessionStorage.getItem('pos_active_user')
       if (u) setStaffName(JSON.parse(u).name ?? '')
     } catch { /* ignore */ }
-    loadPrinterDevice().then(d => { if (d) setBtName(d.name ?? d.address) }).catch(() => {})
+    const s = loadBarSettings()
+    if ((s.printerConnectionType ?? 'bluetooth') === 'lan') {
+      if (s.printerLanIp) setBtName(s.printerLanIp)
+    } else {
+      loadPrinterDevice().then(d => { if (d) setBtName(d.name ?? d.address) }).catch(() => {})
+    }
   }, [])
 
-  // Auto-print + open cash drawer when payment is confirmed (step 3)
+  // Fetch real PromptPay QR when "QR Pay" is selected
+  useEffect(() => {
+    if (payment !== 'promptpay' || ppQr) return
+    setPpLoading(true)
+    const phone = cfg?.promptpayNumber ?? ''
+    if (!phone) { setPpLoading(false); return }
+    fetch(`/api/payment/promptpay?phone=${encodeURIComponent(phone)}&amount=${total}`)
+      .then(r => r.json())
+      .then(d => { if (d.dataUrl) setPpQr(d.dataUrl) })
+      .catch(() => {})
+      .finally(() => setPpLoading(false))
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [payment, cfg])
+
+  // Auto-print when payment confirmed (step 3) — Bluetooth or LAN
   const autoPrintedRef = useRef(false)
   useEffect(() => {
     if (step !== 3 || autoPrintedRef.current) return
     autoPrintedRef.current = true
-    loadPrinterDevice()
-      .then(saved => { if (saved) setTimeout(() => handleBTPrint(), 800) })
-      .catch(() => {})
+    const s = loadBarSettings()
+    if ((s.printerConnectionType ?? 'bluetooth') === 'lan') {
+      if (s.printerLanIp) setTimeout(() => handleBTPrint(), 800)
+    } else {
+      loadPrinterDevice()
+        .then(saved => { if (saved) setTimeout(() => handleBTPrint(), 800) })
+        .catch(() => {})
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [step])
 
@@ -209,7 +248,7 @@ export default function CheckoutModal({
       cart, table, note, discount, memberName, subtotal, total, vatIncluded,
       payment: pmt, received: receivedNum, change,
       orderRef, isDraft, dateStr, timeStr, staffName,
-      cfg: cfg ?? { barName: '🍹 SIAM', address: 'Amsterdam', phone: '', taxId: '', footer: 'Thank you!', width: 32 as const },
+      cfg: cfg ?? { barName: '🍹 SIAM', address: 'Amsterdam', phone: '', taxId: '', footer: 'Thank you!', width: 32 as const, promptpayNumber: '', receiptTemplate: 'classic' as const },
     }
   }
 
@@ -231,21 +270,23 @@ export default function CheckoutModal({
       note:      note || undefined,
     }
     try {
-      const isConnected = await checkPrinterConnected()
-      if (!isConnected) {
-        setBtStatus('connecting')
-        const saved = await loadPrinterDevice()
-        if (!saved) throw new Error('ยังไม่ได้ตั้งค่าปริ้นเตอร์ — ไปที่ Settings → Bluetooth Printer')
-        const name = await connectPrinter(saved.address)
-        setBtName(name)
+      const mode = cfg.printerConnectionType ?? 'bluetooth'
+      if (mode === 'bluetooth') {
+        const isConnected = await checkPrinterConnected()
+        if (!isConnected) {
+          setBtStatus('connecting')
+          const saved = await loadPrinterDevice()
+          if (!saved) throw new Error('ยังไม่ได้ตั้งค่าปริ้นเตอร์ — ไปที่ Settings → Printer')
+          const name = await connectPrinter(saved.address)
+          setBtName(name)
+        }
       }
       setBtStatus('printing')
-      await printReceiptBluetooth(data, cfg)
-      if (payment === 'cash') await openCashDrawerBluetooth().catch(() => {})
+      await printReceipt(data, cfg)
+      if (payment === 'cash') await openCashDrawer(cfg).catch(() => {})
       setBtStatus('done')
     } catch (err) {
-      await disconnectPrinter()
-      setBtName('')
+      if ((cfg.printerConnectionType ?? 'bluetooth') === 'bluetooth') await disconnectPrinter()
       setBtStatus('error')
       setBtError(err instanceof Error ? err.message : 'เกิดข้อผิดพลาด')
     }
@@ -267,13 +308,14 @@ export default function CheckoutModal({
     }
   }
 
+  const isLan = (cfg?.printerConnectionType ?? 'bluetooth') === 'lan'
   const btLabel = (() => {
     if (btStatus === 'connecting') return '🔵 Connecting...'
-    if (btStatus === 'printing')   return '🖨️ Printing...'
+    if (btStatus === 'printing')   return '⏳ Printing...'
     if (btStatus === 'done')       return '✓ Printed!'
-    if (btStatus === 'error')      return '⚠ Retry Bluetooth'
-    if (btName)                    return `📡 Print (${btName})`
-    return '📡 Print via Bluetooth'
+    if (btStatus === 'error')      return isLan ? '⚠ Retry LAN Print' : '⚠ Retry Bluetooth'
+    if (btName)                    return isLan ? `🌐 Print (${btName})` : `📡 Print (${btName})`
+    return isLan ? '🌐 Print via LAN' : '📡 Print via Bluetooth'
   })()
 
   const btDisabled = btStatus === 'connecting' || btStatus === 'printing'
@@ -319,8 +361,8 @@ export default function CheckoutModal({
               </div>
 
               <div className="flex flex-col gap-0 mb-4">
-                {cart.map((item) => (
-                  <div key={item.menuId} className="flex items-center justify-between py-2.5 border-b border-stone-100 last:border-0">
+                {cart.map((item, idx) => (
+                  <div key={`${item.menuId}-${idx}`} className="flex items-center justify-between py-2.5 border-b border-stone-100 last:border-0">
                     <div className="flex items-center gap-2.5 flex-1 min-w-0">
                       <span className="shrink-0 w-7 h-7 rounded-lg bg-stone-200 text-stone-600 text-xs font-black flex items-center justify-center">
                         {item.qty}
@@ -359,9 +401,34 @@ export default function CheckoutModal({
 
               {(memberName || staffName || note) && (
                 <div className="mt-3 flex flex-col gap-1 text-xs text-stone-400 pb-2">
-                  {memberName && <span>👤 Member: <span className="text-stone-600 font-medium">{memberName}</span></span>}
-                  {staffName  && <span>🧑 Staff: <span className="text-stone-600 font-medium">{staffName}</span></span>}
-                  {note       && <span>📝 <span className="text-stone-500">{note}</span></span>}
+                  {memberName && (
+                    <div className="flex flex-col gap-0.5">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span>👤 Member: <span className="text-stone-600 font-medium">{memberName}</span></span>
+                        {memberTier && (() => {
+                          const t = getTierByName(memberTier)
+                          return (
+                            <span className={`inline-flex items-center gap-0.5 text-[10px] font-bold px-1.5 py-0.5 rounded-full ${t.pillClass}`}>
+                              {t.badge} {t.label}
+                            </span>
+                          )
+                        })()}
+                      </div>
+                      {memberTier && (() => {
+                        const t    = getTierByName(memberTier)
+                        const pts  = computePointsEarned(total, t)
+                        const mult = TIERS.findIndex(x => x.name === memberTier)
+                        const multLabel = mult === 2 ? '2×' : mult === 1 ? '1.5×' : '1×'
+                        return (
+                          <span className="text-emerald-500 font-semibold">
+                            +{pts} pts earned ({t.label} {multLabel})
+                          </span>
+                        )
+                      })()}
+                    </div>
+                  )}
+                  {staffName && <span>🧑 Staff: <span className="text-stone-600 font-medium">{staffName}</span></span>}
+                  {note      && <span>📝 <span className="text-stone-500">{note}</span></span>}
                 </div>
               )}
             </div>
@@ -401,28 +468,49 @@ export default function CheckoutModal({
                 <p className="text-xs text-stone-300 mt-1">Table {table}</p>
               </div>
 
-              {/* Payment method selector */}
-              <div className="grid grid-cols-3 gap-2 mb-4">
+              {/* Payment method selector — row 1: local */}
+              <div className="grid grid-cols-3 gap-2 mb-2">
                 {([
-                  { id: 'cash',      icon: '💵', label: 'Cash'   },
-                  { id: 'card',      icon: '💳', label: 'Card'   },
-                  { id: 'promptpay', icon: '📱', label: 'QR Pay' },
+                  { id: 'cash',      icon: '💵', label: 'Cash'    },
+                  { id: 'card',      icon: '💳', label: 'EDC Card' },
+                  { id: 'promptpay', icon: '📱', label: 'QR Pay'  },
                 ] as const).map((pm) => (
                   <button
                     key={pm.id}
                     onClick={() => { setPayment(pm.id); setReceived('') }}
-                    className={`py-3.5 rounded-xl flex flex-col items-center gap-1.5 transition active:scale-95 border-2 ${
+                    className={`py-3 rounded-xl flex flex-col items-center gap-1 transition active:scale-95 border-2 ${
                       payment === pm.id
                         ? 'bg-stone-900 text-white border-stone-900 shadow-sm'
                         : 'bg-white text-stone-500 border-stone-200 hover:border-stone-400 hover:text-stone-700'
                     }`}
                   >
-                    <span className="text-2xl">{pm.icon}</span>
-                    <span className={`text-xs font-bold uppercase tracking-wide ${
-                      payment === pm.id ? 'text-white' : 'text-stone-500'
-                    }`}>
+                    <span className="text-xl">{pm.icon}</span>
+                    <span className={`text-[10px] font-bold uppercase tracking-wide ${payment === pm.id ? 'text-white' : 'text-stone-500'}`}>
                       {pm.label}
                     </span>
+                  </button>
+                ))}
+              </div>
+
+              {/* Row 2: online (Omise) */}
+              <p className="text-[9px] font-bold text-stone-300 uppercase tracking-widest text-center mb-1.5">Online Payment · Powered by Omise</p>
+              <div className="grid grid-cols-3 gap-2 mb-4">
+                {([
+                  { id: 'credit_card'  as OmisePayType, icon: '🌐', label: 'Credit Card',     accent: 'border-blue-400 bg-blue-50 text-blue-700'     },
+                  { id: 'promptpay_qr' as OmisePayType, icon: '📱', label: 'PromptPay+',       accent: 'border-violet-400 bg-violet-50 text-violet-700' },
+                  { id: 'wechat_pay'   as OmisePayType, icon: '🟢', label: 'WeChat/Alipay',   accent: 'border-green-400 bg-green-50 text-green-700'    },
+                ]).map((pm) => (
+                  <button
+                    key={pm.id}
+                    onClick={() => { setPayment(pm.id); setReceived(''); setOmiseType(pm.id); setShowOmise(true) }}
+                    className={`py-3 rounded-xl flex flex-col items-center gap-1 transition active:scale-95 border-2 ${
+                      payment === pm.id
+                        ? pm.accent
+                        : 'bg-white text-stone-400 border-stone-200 hover:border-stone-300'
+                    }`}
+                  >
+                    <span className="text-xl">{pm.icon}</span>
+                    <span className="text-[10px] font-bold uppercase tracking-wide leading-tight text-center">{pm.label}</span>
                   </button>
                 ))}
               </div>
@@ -472,14 +560,31 @@ export default function CheckoutModal({
                 </div>
               )}
 
-              {/* PromptPay panel */}
+              {/* PromptPay QR panel */}
               {payment === 'promptpay' && (
-                <div className="bg-white border border-stone-100 rounded-xl p-5 text-center flex flex-col items-center gap-2">
-                  <div className="w-28 h-28 bg-stone-50 border border-stone-200 rounded-xl flex items-center justify-center">
-                    <span className="text-5xl">📱</span>
-                  </div>
-                  <p className="text-lg font-black text-stone-900">{baht(total)}</p>
-                  <p className="text-xs text-stone-400">Configure PromptPay in Settings</p>
+                <div className="bg-white border border-stone-100 rounded-xl p-4 flex flex-col items-center gap-3">
+                  {ppLoading ? (
+                    <div className="py-8 flex flex-col items-center gap-2">
+                      <div className="w-7 h-7 border-2 border-stone-200 border-t-purple-500 rounded-full animate-spin" />
+                      <p className="text-xs text-stone-400">Generating QR...</p>
+                    </div>
+                  ) : ppQr ? (
+                    <>
+                      <div className="p-2 bg-white border-2 border-purple-100 rounded-xl">
+                        <img src={ppQr} alt="PromptPay QR" className="w-48 h-48 object-contain" />
+                      </div>
+                      <p className="text-2xl font-black text-stone-900">{baht(total)}</p>
+                      <p className="text-[10px] text-stone-400 text-center">
+                        สแกนด้วยแอปธนาคารใดก็ได้ · Scan with any Thai banking app
+                      </p>
+                    </>
+                  ) : (
+                    <div className="py-6 text-center flex flex-col items-center gap-2">
+                      <span className="text-4xl">📱</span>
+                      <p className="text-sm font-bold text-stone-900">{baht(total)}</p>
+                      <p className="text-xs text-stone-400">ตั้งค่าเบอร์ PromptPay ใน Settings</p>
+                    </div>
+                  )}
                 </div>
               )}
             </div>
@@ -491,7 +596,7 @@ export default function CheckoutModal({
               >
                 ← Back
               </button>
-              {payment !== 'cash' && (
+              {(payment === 'card' || payment === 'promptpay') && (
                 <button
                   onClick={() => handleConfirm()}
                   disabled={isConfirming}
@@ -519,7 +624,7 @@ export default function CheckoutModal({
             <div className="text-center">
               <p className="text-2xl font-black text-stone-900">Payment Complete!</p>
               <p className="text-stone-400 mt-1 text-sm">
-                {baht(total)} · {payment.toUpperCase()} · Table {table}
+                {baht(total)} · {PAY_LABEL_MAP[payment] ?? payment.toUpperCase()} · Table {table}
               </p>
               {payment === 'cash' && change > 0 && (
                 <div className="mt-3 bg-emerald-50 border border-emerald-200 rounded-xl px-4 py-2.5">
@@ -573,6 +678,26 @@ export default function CheckoutModal({
         )}
       </div>
 
+      {/* Omise payment modal — overlays on top of CheckoutModal */}
+      {showOmise && (
+        <OmisePaymentModal
+          paymentType={omiseType}
+          total={total}
+          onSuccess={async () => {
+            setIsConfirming(true)
+            try {
+              const id = await onConfirm(omiseType)
+              setOrderRef(id.slice(-8).toUpperCase())
+              setStep(3)
+              setBtStatus('idle')
+            } catch { /* parent shows toast */ } finally {
+              setIsConfirming(false)
+              setShowOmise(false)
+            }
+          }}
+          onClose={() => { setShowOmise(false); setPayment('cash') }}
+        />
+      )}
     </div>
   )
 }

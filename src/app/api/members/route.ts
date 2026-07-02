@@ -18,13 +18,15 @@ export async function POST(req: NextRequest) {
     }
 
     const member = await createMember({
-      name:         name.trim(),
-      phone:        phone ? String(phone).trim() : undefined,
-      birthday:     birthday ? String(birthday) : undefined,
-      notes:        notes ? String(notes).trim() : undefined,
-      points:       0,
-      stamps:       0,
-      stampsEarned: 0,
+      name:           name.trim(),
+      phone:          phone ? String(phone).trim() : undefined,
+      birthday:       birthday ? String(birthday) : undefined,
+      notes:          notes ? String(notes).trim() : undefined,
+      points:         0,
+      lifetimePoints: 0,
+      tier:           'bronze',
+      stamps:         0,
+      stampsEarned:   0,
     })
 
     return NextResponse.json({ member }, { status: 201 })

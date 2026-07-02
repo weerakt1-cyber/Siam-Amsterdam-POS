@@ -1,5 +1,6 @@
 import Sidebar from '@/components/pos/Sidebar'
-import AuthGuard from '@/components/pos/AuthGuard'
+import AppAuthGuard from '@/components/pos/AppAuthGuard'
+import AIChatPanel from '@/components/pos/AIChatPanel'
 import { PosAuthProvider } from '@/lib/pos-auth'
 
 export const metadata = {
@@ -10,14 +11,15 @@ export const metadata = {
 export default function POSLayout({ children }: { children: React.ReactNode }) {
   return (
     <PosAuthProvider>
-      <AuthGuard>
+      <AppAuthGuard>
         <div className="h-screen flex bg-[#FAF8F4] overflow-hidden">
           <Sidebar />
           <main className="flex-1 overflow-hidden flex flex-col pb-16 sm:pb-0">
             {children}
           </main>
         </div>
-      </AuthGuard>
+        <AIChatPanel />
+      </AppAuthGuard>
     </PosAuthProvider>
   )
 }

@@ -4,6 +4,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getOrders, getMenu, createOrder, recordCouponUse } from '@/lib/store'
 import { appendOrderToSheet } from '@/lib/sheets'
 import { sendOrderAlert } from '@/lib/telegram'
+import { sendLineOrderAlert } from '@/lib/line'
+import { fireWebhook } from '@/lib/webhooks'
 import type { OrderItem } from '@/lib/types'
 
 export async function GET() {
@@ -14,7 +16,7 @@ export async function GET() {
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json()
-    const { tableNo, items, note, source, paymentMethod, discount, memberName, couponId, couponOrderTotal, couponMemberName } = body
+    const { tableNo, items, note, source, paymentMethod, discount, memberName, customerName, couponId, couponOrderTotal, couponMemberName, hold } = body
 
     if (!tableNo || !Array.isArray(items) || items.length === 0) {
       return NextResponse.json({ error: 'tableNo and items are required' }, { status: 400 })
@@ -49,10 +51,12 @@ export async function POST(req: NextRequest) {
       tableNo:       String(tableNo),
       items:         enrichedItems,
       note:          note ? String(note) : '',
-      source:        source === 'pos' ? 'pos' : source === 'tilda' ? 'tilda' : 'manual',
+      source:        source === 'pos' ? 'pos' : source === 'qr' ? 'qr' : 'manual',
       paymentMethod: paymentMethod ? String(paymentMethod) : undefined,
       discount:      discount && typeof discount === 'object' ? discount : undefined,
       memberName:    memberName ? String(memberName) : undefined,
+      customerName:  customerName ? String(customerName) : undefined,
+      hold:          Boolean(hold),
     })
 
     // B-04: Atomic coupon recording â€” record in the same request as order creation
@@ -65,6 +69,10 @@ export async function POST(req: NextRequest) {
       }
     }
 
+    // Fire outbound webhook (non-blocking)
+    fireWebhook('order.created', order)
+      .catch((err) => console.error('[Orders API] Webhook delivery failed:', err))
+
     // Send to Google Sheets (non-blocking)
     appendOrderToSheet(order).catch((err) =>
       console.error('[Orders API] Sheets append failed:', err)
@@ -75,17 +83,22 @@ export async function POST(req: NextRequest) {
     const notifyCoupon = discount && typeof discount === 'object' && 'couponCode' in discount
       ? String((discount as Record<string, unknown>).couponCode ?? '')
       : undefined
-    sendOrderAlert({
+    const notifyPayload = {
       orderId:        order.id,
       tableNo:        order.tableNo,
       memberName:     order.memberName,
+      customerName:   order.customerName,
       couponCode:     notifyCoupon || undefined,
       items:          order.items.map(i => ({ name: i.name, qty: i.qty, price: i.price })),
       subtotal:       order.subtotal,
       discountAmount: order.discount?.amount ?? 0,
       total:          order.total,
       paymentMethod:  order.paymentMethod ?? 'cash',
-    }).catch((err) => console.error('[Orders API] Telegram notify failed:', err))
+    }
+    sendOrderAlert(notifyPayload)
+      .catch((err) => console.error('[Orders API] Telegram notify failed:', err))
+    sendLineOrderAlert(notifyPayload)
+      .catch((err) => console.error('[Orders API] LINE notify failed:', err))
 
     return NextResponse.json({ order }, { status: 201 })
   } catch {

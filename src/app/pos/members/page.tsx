@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import type { Member, Order } from '@/lib/types'
 import NumPad from '@/components/pos/NumPad'
+import { getTier, getPointsToNextTier, TIERS } from '@/lib/loyalty'
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -47,7 +48,17 @@ function memberStats(member: Member, orders: Order[]) {
 }
 
 function emptyForm(): Partial<Member> & { name: string } {
-  return { name: '', phone: '', birthday: '', notes: '', points: 0, stamps: 0, stampsEarned: 0 }
+  return { name: '', phone: '', birthday: '', notes: '', points: 0, lifetimePoints: 0, tier: 'bronze', stamps: 0, stampsEarned: 0 }
+}
+
+function TierPill({ tier, size = 'sm' }: { tier: string; size?: 'xs' | 'sm' }) {
+  const found = TIERS.find(x => x.name === tier) ?? TIERS[0]
+  const cls = size === 'xs' ? 'text-[10px] px-1.5 py-0.5' : 'text-xs px-2 py-0.5'
+  return (
+    <span className={`inline-flex items-center gap-0.5 font-bold rounded-full ${cls} ${found.pillClass}`}>
+      {found.badge} {found.label}
+    </span>
+  )
 }
 
 // ─── Stamp Card ───────────────────────────────────────────────────────────────
@@ -98,7 +109,7 @@ export default function MembersPage() {
   const [toast, setToast] = useState<{ msg: string; ok: boolean } | null>(null)
   const [numPadTarget, setNumPadTarget] = useState<'points' | 'addPoints' | null>(null)
   const [addPointsVal, setAddPointsVal] = useState('')
-  const [sortBy, setSortBy] = useState<'name' | 'visits' | 'spend'>('name')
+  const [sortBy, setSortBy] = useState<'name' | 'visits' | 'spend' | 'tier'>('name')
 
   const fetchAll = useCallback(async () => {
     const [mr, or] = await Promise.all([
@@ -178,18 +189,16 @@ export default function MembersPage() {
     if (!selectedId) return
     const delta = parseInt(addPointsVal) || 0
     if (delta === 0) return
-    const m = members.find((x) => x.id === selectedId)
-    if (!m) return
-    await fetch(`/api/members/${selectedId}`, {
-      method: 'PUT',
+    const r = await fetch(`/api/members/${selectedId}`, {
+      method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ points: Math.max(0, m.points + delta) }),
+      body: JSON.stringify({ pointsDelta: delta }),
     })
-    showToast(`${delta > 0 ? '+' : ''}${delta} points`)
+    const json = await r.json()
+    if (json.tierChanged) showToast(`${delta > 0 ? '+' : ''}${delta} pts — ${json.newTier.charAt(0).toUpperCase() + json.newTier.slice(1)} tier! 🎉`)
+    else showToast(`${delta > 0 ? '+' : ''}${delta} points`)
     setAddPointsVal('')
     await fetchAll()
-    const updated = members.find((x) => x.id === selectedId)
-    if (updated) setForm({ ...updated, points: Math.max(0, updated.points + delta) })
   }
 
   async function handleAddStamp() {
@@ -227,9 +236,15 @@ export default function MembersPage() {
     !search || m.name.toLowerCase().includes(search.toLowerCase()) || m.phone?.includes(search)
   )
 
+  const TIER_ORDER: Record<string, number> = { gold: 3, silver: 2, bronze: 1 }
+
   const sorted = [...filtered].sort((a, b) => {
     if (sortBy === 'visits') return b.stats.visits - a.stats.visits
     if (sortBy === 'spend') return b.stats.lifetimeSpend - a.stats.lifetimeSpend
+    if (sortBy === 'tier') {
+      const diff = (TIER_ORDER[b.m.tier] ?? 1) - (TIER_ORDER[a.m.tier] ?? 1)
+      return diff !== 0 ? diff : a.m.name.localeCompare(b.m.name)
+    }
     return a.m.name.localeCompare(b.m.name)
   })
 
@@ -295,7 +310,7 @@ export default function MembersPage() {
               className="w-full bg-white rounded-xl px-3 py-2 text-sm text-gray-900 placeholder-gray-300 outline-none focus:ring-1 focus:ring-amber-500 transition"
             />
             <div className="flex gap-1">
-              {(['name', 'visits', 'spend'] as const).map((s) => (
+              {(['name', 'visits', 'spend', 'tier'] as const).map((s) => (
                 <button
                   key={s}
                   onClick={() => setSortBy(s)}
@@ -303,7 +318,7 @@ export default function MembersPage() {
                     sortBy === s ? 'bg-amber-500/20 text-amber-400' : 'text-gray-400 hover:text-gray-700'
                   }`}
                 >
-                  {s === 'name' ? 'A–Z' : s === 'visits' ? 'Visits' : 'Spend'}
+                  {s === 'name' ? 'A–Z' : s === 'visits' ? 'Visits' : s === 'spend' ? 'Spend' : 'Tier'}
                 </button>
               ))}
             </div>
@@ -332,8 +347,8 @@ export default function MembersPage() {
                       <span className="font-semibold text-sm">{m.name}</span>
                       {birthdaySoon && <span className="text-pink-400 text-xs">🎂{days === 0 ? '!' : ` ${days}d`}</span>}
                     </div>
-                    <div className="flex items-center gap-2 mt-0.5">
-                      <span className="text-xs text-gray-400">{m.phone || 'No phone'}</span>
+                    <div className="flex items-center gap-2 mt-0.5 flex-wrap">
+                      <TierPill tier={m.tier} size="xs" />
                       <span className="text-gray-300">·</span>
                       <span className="text-xs text-amber-400/70">{m.points}pts</span>
                       <span className="text-gray-300">·</span>
@@ -385,6 +400,39 @@ export default function MembersPage() {
                 </button>
               )}
             </div>
+
+            {/* ── Loyalty Tier ── */}
+            {!isCreating && selected && (() => {
+              const tier       = getTier(selected.lifetimePoints)
+              const toNext     = getPointsToNextTier(selected.lifetimePoints)
+              const nextTier   = TIERS.find(t => t.name !== tier.name && (TIERS.indexOf(t) > TIERS.indexOf(tier)))
+              const progressPct = toNext == null ? 100
+                : nextTier
+                  ? Math.round(((selected.lifetimePoints - tier.minPoints) / (nextTier.minPoints - tier.minPoints)) * 100)
+                  : 100
+              return (
+                <div className="bg-white border border-gray-200 rounded-2xl p-4">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-xs font-bold text-gray-400 uppercase tracking-widest">Loyalty Tier</span>
+                    <TierPill tier={tier.name} />
+                  </div>
+                  <div className="flex items-center justify-between text-xs text-gray-400 mb-1.5">
+                    <span>{selected.lifetimePoints.toLocaleString()} lifetime pts</span>
+                    {toNext != null ? (
+                      <span>{toNext.toLocaleString()} pts to {nextTier?.label}</span>
+                    ) : (
+                      <span className="text-amber-400 font-semibold">Max tier 🥇</span>
+                    )}
+                  </div>
+                  <div className="h-2 rounded-full bg-gray-100 overflow-hidden">
+                    <div
+                      className={`h-full rounded-full transition-all ${tier.pillClass.split(' ')[0]}`}
+                      style={{ width: `${progressPct}%` }}
+                    />
+                  </div>
+                </div>
+              )
+            })()}
 
             {/* ── Stats row (view only) ── */}
             {!isCreating && selStats && (

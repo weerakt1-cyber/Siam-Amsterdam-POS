@@ -14,6 +14,17 @@ type PosUserPublic = {
   updatedAt: string
 }
 
+type PendingUser = {
+  id:             string
+  name:           string
+  color:          string
+  email:          string
+  requested_role: string
+  status:         string
+  created_at:     string
+  provider:       string
+}
+
 // ─── Constants ────────────────────────────────────────────────────────────────
 
 const AVATAR_COLORS = [
@@ -99,12 +110,24 @@ function Avatar({ name, color, size = 'md' }: { name: string; color: string; siz
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
 type Mode = 'idle' | 'new' | 'view' | 'edit-pin'
+type Tab  = 'staff' | 'pending'
 
 export default function UsersPage() {
+  const [tab, setTab] = useState<Tab>('staff')
+
+  // ── Staff (PIN) state ────────────────────────────────────────
   const [users, setUsers] = useState<PosUserPublic[]>([])
   const [selected, setSelected] = useState<PosUserPublic | null>(null)
   const [mode, setMode] = useState<Mode>('idle')
   const [loading, setLoading] = useState(true)
+
+  // ── Pending (OAuth) state ────────────────────────────────────
+  const [pending,         setPending]         = useState<PendingUser[]>([])
+  const [pendingLoading,  setPendingLoading]   = useState(false)
+  const [selectedPending, setSelectedPending]  = useState<PendingUser | null>(null)
+  const [approveRole,     setApproveRole]      = useState<UserRole>('staff')
+  const [approving,       setApproving]        = useState(false)
+
   const [saving, setSaving] = useState(false)
   const [toast, setToast] = useState('')
 
@@ -131,7 +154,16 @@ export default function UsersPage() {
     } finally { setLoading(false) }
   }, [])
 
+  const loadPending = useCallback(async () => {
+    setPendingLoading(true)
+    try {
+      const r = await fetch('/api/admin/pending')
+      if (r.ok) { const d = await r.json(); setPending(d.pending) }
+    } finally { setPendingLoading(false) }
+  }, [])
+
   useEffect(() => { loadUsers() }, [loadUsers])
+  useEffect(() => { loadPending() }, [loadPending])
 
   // auto-advance PIN steps for new user
   useEffect(() => {
@@ -257,8 +289,111 @@ export default function UsersPage() {
     }
   }
 
+  const handleApprove = async (action: 'approve' | 'reject') => {
+    if (!selectedPending) return
+    setApproving(true)
+    try {
+      const r = await fetch('/api/admin/approve', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId: selectedPending.id, action, role: action === 'approve' ? approveRole : undefined }),
+      })
+      if (r.ok) {
+        setPending(prev => prev.filter(p => p.id !== selectedPending.id))
+        setSelectedPending(null)
+        showToast(action === 'approve' ? 'อนุมัติแล้ว ✓' : 'ปฏิเสธแล้ว')
+      } else {
+        const e = await r.json(); showToast(e.error ?? 'เกิดข้อผิดพลาด')
+      }
+    } finally { setApproving(false) }
+  }
+
   const isNewReady = name.trim() && pin.length === 4 && confirmPin.length === 4 && pin === confirmPin
   const isDirty = selected && (name !== selected.name || role !== selected.role || color !== selected.color)
+
+  // ─── Pending right panel ─────────────────────────────────────────────────────
+
+  const renderPendingRight = () => {
+    if (!selectedPending) {
+      return (
+        <div className="flex-1 flex flex-col items-center justify-center gap-3 text-center px-8">
+          <span className="text-5xl opacity-20">⏳</span>
+          <p className="text-gray-400 text-sm">เลือกผู้ใช้เพื่ออนุมัติการเข้าถึง</p>
+        </div>
+      )
+    }
+
+    const p = selectedPending
+    const ROLE_KEYS = Object.keys(ROLE_META) as UserRole[]
+
+    return (
+      <div className="flex-1 overflow-y-auto p-5 space-y-5">
+        {/* Header */}
+        <div className="flex items-center gap-3">
+          <Avatar name={p.name} color={p.color} size="lg" />
+          <div>
+            <h2 className="text-base font-bold text-gray-900">{p.name}</h2>
+            <p className="text-xs text-gray-400">{p.email}</p>
+            <span className="text-[10px] text-amber-600 font-semibold bg-amber-50 px-2 py-0.5 rounded-full border border-amber-200">
+              ขอตำแหน่ง: {ROLE_META[p.requested_role as UserRole]?.label ?? p.requested_role}
+            </span>
+          </div>
+        </div>
+
+        <div className="border-t border-gray-100" />
+
+        {/* Assign Role */}
+        <div>
+          <label className="text-xs text-gray-500 uppercase tracking-wide">อนุมัติด้วย Role</label>
+          <div className="grid grid-cols-2 gap-2 mt-2">
+            {ROLE_KEYS.map(r => (
+              <button
+                key={r}
+                type="button"
+                onPointerDown={() => setApproveRole(r)}
+                className={`py-2 rounded-xl text-sm font-semibold border transition-all ${
+                  approveRole === r
+                    ? `${ROLE_META[r].badge} border-current`
+                    : 'bg-gray-100/50 text-gray-500 border-gray-200 hover:border-gray-300'
+                }`}
+              >
+                {ROLE_META[r].label}
+              </button>
+            ))}
+          </div>
+          {approveRole !== p.requested_role && (
+            <p className="text-[10px] text-amber-600 mt-1">
+              เปลี่ยนจาก {ROLE_META[p.requested_role as UserRole]?.label ?? p.requested_role} → {ROLE_META[approveRole]?.label}
+            </p>
+          )}
+        </div>
+
+        {/* Actions */}
+        <div className="flex gap-2">
+          <button
+            onPointerDown={() => handleApprove('approve')}
+            disabled={approving}
+            className="flex-1 py-3 bg-emerald-500 hover:bg-emerald-400 text-white font-bold text-sm rounded-xl transition-all active:scale-95 disabled:opacity-40"
+          >
+            {approving ? 'กำลังบันทึก…' : '✓ อนุมัติ'}
+          </button>
+          <button
+            onPointerDown={() => handleApprove('reject')}
+            disabled={approving}
+            className="px-4 py-3 border border-red-200 text-red-500 hover:bg-red-50 font-bold text-sm rounded-xl transition-all active:scale-95 disabled:opacity-40"
+          >
+            ✕ ปฏิเสธ
+          </button>
+        </div>
+
+        <div className="border-t border-gray-100" />
+        <div>
+          <p className="text-xs text-gray-400">Provider: {p.provider}</p>
+          <p className="text-xs text-gray-400">สมัครเมื่อ: {new Date(p.created_at).toLocaleString('th-TH')}</p>
+        </div>
+      </div>
+    )
+  }
 
   // ─── Right panel content ────────────────────────────────────────────────────
 
@@ -500,60 +635,121 @@ export default function UsersPage() {
   return (
     <div className="flex-1 flex overflow-hidden h-full">
 
-      {/* ── Left panel — user list ──────────────────────────────────────── */}
+      {/* ── Left panel ─────────────────────────────────────────────────── */}
       <div className="w-64 border-r border-gray-100 flex flex-col bg-white shrink-0">
-        {/* Header */}
-        <div className="px-4 py-3 border-b border-gray-100 flex items-center justify-between">
-          <div>
-            <h2 className="text-sm font-bold text-gray-900">Staff Users</h2>
-            <p className="text-xs text-gray-400">{users.length} accounts</p>
+
+        {/* Tabs */}
+        <div className="px-3 pt-3 pb-0 border-b border-gray-100">
+          <div className="flex gap-1 mb-0">
+            <button
+              onPointerDown={() => { setTab('staff'); setSelectedPending(null) }}
+              className={`flex-1 py-2 text-xs font-bold rounded-t-lg transition-all ${
+                tab === 'staff' ? 'bg-gray-100 text-gray-900' : 'text-gray-400 hover:text-gray-600'
+              }`}
+            >
+              Staff PIN
+            </button>
+            <button
+              onPointerDown={() => { setTab('pending'); setSelected(null); setMode('idle') }}
+              className={`flex-1 py-2 text-xs font-bold rounded-t-lg transition-all flex items-center justify-center gap-1 ${
+                tab === 'pending' ? 'bg-gray-100 text-gray-900' : 'text-gray-400 hover:text-gray-600'
+              }`}
+            >
+              App Users
+              {pending.length > 0 && (
+                <span className="inline-flex items-center justify-center w-4 h-4 bg-amber-500 text-black text-[9px] font-black rounded-full">
+                  {pending.length}
+                </span>
+              )}
+            </button>
           </div>
-          <button
-            onPointerDown={startNew}
-            className="w-8 h-8 rounded-lg bg-amber-500 hover:bg-amber-400 text-black flex items-center justify-center text-lg font-bold transition-all active:scale-95"
-          >
-            +
-          </button>
         </div>
 
-        {/* List */}
-        <div className="flex-1 overflow-y-auto py-2">
-          {loading ? (
-            Array(4).fill(0).map((_, i) => (
-              <div key={i} className="mx-3 my-1 h-14 bg-gray-100 rounded-xl animate-pulse" />
-            ))
-          ) : users.length === 0 ? (
-            <p className="text-center text-gray-400 text-sm mt-8">ยังไม่มี User</p>
-          ) : (
-            users.map(u => (
+        {tab === 'staff' ? (
+          <>
+            {/* Staff header */}
+            <div className="px-4 py-2 flex items-center justify-between">
+              <p className="text-xs text-gray-400">{users.length} accounts</p>
               <button
-                key={u.id}
-                onPointerDown={() => selectUser(u)}
-                className={`w-full flex items-center gap-3 px-3 py-2.5 mx-0 transition-all ${
-                  selected?.id === u.id
-                    ? 'bg-gray-100'
-                    : 'hover:bg-white'
-                }`}
-              >
-                <Avatar name={u.name} color={u.color} size="sm" />
-                <div className="flex-1 text-left min-w-0">
-                  <p className="text-sm font-semibold text-gray-900 truncate">{u.name}</p>
-                  <span className={`text-[10px] px-1.5 py-0.5 rounded border ${ROLE_META[u.role].badge}`}>
-                    {ROLE_META[u.role].label}
-                  </span>
+                onPointerDown={startNew}
+                className="w-7 h-7 rounded-lg bg-amber-500 hover:bg-amber-400 text-black flex items-center justify-center text-base font-bold transition-all active:scale-95"
+              >+</button>
+            </div>
+
+            {/* Staff list */}
+            <div className="flex-1 overflow-y-auto pb-2">
+              {loading ? (
+                Array(4).fill(0).map((_, i) => (
+                  <div key={i} className="mx-3 my-1 h-14 bg-gray-100 rounded-xl animate-pulse" />
+                ))
+              ) : users.length === 0 ? (
+                <p className="text-center text-gray-400 text-sm mt-8">ยังไม่มี User</p>
+              ) : (
+                users.map(u => (
+                  <button
+                    key={u.id}
+                    onPointerDown={() => selectUser(u)}
+                    className={`w-full flex items-center gap-3 px-3 py-2.5 transition-all ${
+                      selected?.id === u.id ? 'bg-gray-100' : 'hover:bg-gray-50'
+                    }`}
+                  >
+                    <Avatar name={u.name} color={u.color} size="sm" />
+                    <div className="flex-1 text-left min-w-0">
+                      <p className="text-sm font-semibold text-gray-900 truncate">{u.name}</p>
+                      <span className={`text-[10px] px-1.5 py-0.5 rounded border ${ROLE_META[u.role].badge}`}>
+                        {ROLE_META[u.role].label}
+                      </span>
+                    </div>
+                    {selected?.id === u.id && <span className="w-1.5 h-1.5 rounded-full bg-amber-500 shrink-0" />}
+                  </button>
+                ))
+              )}
+            </div>
+          </>
+        ) : (
+          <>
+            {/* Pending list */}
+            <div className="px-4 py-2">
+              <p className="text-xs text-gray-400">
+                {pendingLoading ? 'กำลังโหลด…' : `${pending.length} รายการรออนุมัติ`}
+              </p>
+            </div>
+            <div className="flex-1 overflow-y-auto pb-2">
+              {pendingLoading ? (
+                Array(3).fill(0).map((_, i) => (
+                  <div key={i} className="mx-3 my-1 h-14 bg-gray-100 rounded-xl animate-pulse" />
+                ))
+              ) : pending.length === 0 ? (
+                <div className="flex flex-col items-center justify-center h-32 gap-2 text-center px-4">
+                  <span className="text-3xl opacity-30">✓</span>
+                  <p className="text-gray-400 text-xs">ไม่มีคำขอรออนุมัติ</p>
                 </div>
-                {selected?.id === u.id && (
-                  <span className="w-1.5 h-1.5 rounded-full bg-amber-500 shrink-0" />
-                )}
-              </button>
-            ))
-          )}
-        </div>
+              ) : (
+                pending.map(p => (
+                  <button
+                    key={p.id}
+                    onPointerDown={() => { setSelectedPending(p); setApproveRole((p.requested_role as UserRole) || 'staff') }}
+                    className={`w-full flex items-center gap-3 px-3 py-2.5 transition-all ${
+                      selectedPending?.id === p.id ? 'bg-amber-50' : 'hover:bg-gray-50'
+                    }`}
+                  >
+                    <Avatar name={p.name} color={p.color} size="sm" />
+                    <div className="flex-1 text-left min-w-0">
+                      <p className="text-sm font-semibold text-gray-900 truncate">{p.name}</p>
+                      <p className="text-[10px] text-amber-600 font-medium">ขอ: {ROLE_META[p.requested_role as UserRole]?.label ?? p.requested_role}</p>
+                    </div>
+                    {selectedPending?.id === p.id && <span className="w-1.5 h-1.5 rounded-full bg-amber-500 shrink-0" />}
+                  </button>
+                ))
+              )}
+            </div>
+          </>
+        )}
       </div>
 
       {/* ── Right panel ────────────────────────────────────────────────── */}
       <div className="flex-1 flex flex-col bg-white overflow-hidden">
-        {renderRight()}
+        {tab === 'pending' ? renderPendingRight() : renderRight()}
       </div>
 
       {/* Toast */}

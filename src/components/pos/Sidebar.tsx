@@ -1,30 +1,34 @@
 'use client'
 
 import Link from 'next/link'
-import { usePathname } from 'next/navigation'
+import { usePathname, useRouter } from 'next/navigation'
 import { useState, useEffect } from 'react'
 import { useAuth, type ActiveUser } from '@/lib/pos-auth'
 import { DEMO_USERS, isDemoUser } from '@/lib/demo-data'
+import { getSupabaseBrowser } from '@/lib/supabase-browser'
+
+const MANAGER_ROLES = new Set(['admin', 'manager'])
 
 const NAV = [
   { href: '/pos',            icon: '🛍️',  label: 'POS'       },
+  { href: '/pos/floor',      icon: '🗺️',  label: 'Floor'     },
   { href: '/pos/kitchen',    icon: '🍳',  label: 'Kitchen'   },
   { href: '/pos/inventory',  icon: '📦',  label: 'Inventory' },
   { href: '/pos/items',      icon: '🍹',  label: 'Items'     },
   { href: '/pos/members',    icon: '👥',  label: 'Members'   },
   { href: '/pos/cash',       icon: '💰',  label: 'Cash'      },
   { href: '/pos/coupons',    icon: '🎟️',  label: 'Coupons'   },
-  { href: '/pos/analytics',  icon: '📊',  label: 'Analytics' },
-  { href: '/pos/users',      icon: '👤',  label: 'Users'     },
-  { href: '/pos/settings',   icon: '⚙️',  label: 'Settings'  },
+  { href: '/pos/analytics',  icon: '📊',  label: 'Analytics', managerOnly: true },
+  { href: '/pos/users',      icon: '👤',  label: 'Users',     managerOnly: true },
+  { href: '/pos/settings',   icon: '⚙️',  label: 'Settings',  managerOnly: true },
 ]
 
 const BOTTOM_NAV = [
   { href: '/pos',           icon: '🛍️', label: 'POS'      },
   { href: '/pos/members',   icon: '👥', label: 'Members'  },
   { href: '/pos/cash',      icon: '💰', label: 'Cash'     },
-  { href: '/pos/analytics', icon: '📊', label: 'Stats'    },
-  { href: '/pos/settings',  icon: '⚙️', label: 'Settings' },
+  { href: '/pos/analytics', icon: '📊', label: 'Stats',    managerOnly: true },
+  { href: '/pos/settings',  icon: '⚙️', label: 'Settings', managerOnly: true },
 ]
 
 type StaffUser = { id: string; name: string; role: string; color: string }
@@ -171,17 +175,36 @@ function UserSwitcher({ onLogin, onLogout, onClose }: { onLogin: (u: ActiveUser)
 
 export default function Sidebar() {
   const path = usePathname()
+  const router = useRouter()
   const { user: activeUser, login, logout } = useAuth()
   const [showSwitcher, setShowSwitcher] = useState(false)
+  const [logoSrc, setLogoSrc] = useState('/logo.png')
+
+  useEffect(() => {
+    function refreshLogo() {
+      try {
+        const raw = localStorage.getItem('pos_bar_settings')
+        if (raw) {
+          const s = JSON.parse(raw)
+          setLogoSrc(s.logoDataUrl || '/logo.png')
+        }
+      } catch { /* ignore */ }
+    }
+    refreshLogo()
+    window.addEventListener('pos-settings-changed', refreshLogo)
+    return () => window.removeEventListener('pos-settings-changed', refreshLogo)
+  }, [])
 
   const handleLogin = (u: ActiveUser) => {
     login(u)
     setShowSwitcher(false)
   }
 
-  const handleLogout = () => {
-    logout()
+  const handleLogout = async () => {
     setShowSwitcher(false)
+    logout()
+    await getSupabaseBrowser().auth.signOut()
+    router.replace('/auth')
   }
 
   function isActive(href: string) {
@@ -194,10 +217,14 @@ export default function Sidebar() {
       <nav
         className="hidden sm:flex w-16 bg-stone-900 border-r border-stone-800 flex-col items-center py-3 gap-1 shrink-0"
       >
-        <div className="mb-2 mt-1"><span className="text-2xl">🍹</span></div>
+        <div className="mb-2 mt-1">
+          <div className="w-11 h-11 rounded-2xl overflow-hidden border border-stone-700 shrink-0">
+            <img src={logoSrc} alt="Siam Amsterdam" className="w-full h-full object-cover" />
+          </div>
+        </div>
         <div className="w-8 border-t border-stone-700 mb-1" />
 
-        {NAV.map((item) => {
+        {NAV.filter(item => !item.managerOnly || MANAGER_ROLES.has(activeUser?.role ?? '')).map((item) => {
           const active = isActive(item.href)
           return (
             <Link
@@ -247,7 +274,7 @@ export default function Sidebar() {
         className="sm:hidden fixed bottom-0 left-0 right-0 z-30 bg-white border-t border-stone-200 flex items-stretch"
         style={{ boxShadow: '0 -2px 12px rgba(0,0,0,0.08)' }}
       >
-        {BOTTOM_NAV.map((item) => {
+        {BOTTOM_NAV.filter(item => !item.managerOnly || MANAGER_ROLES.has(activeUser?.role ?? '')).map((item) => {
           const active = isActive(item.href)
           return (
             <Link

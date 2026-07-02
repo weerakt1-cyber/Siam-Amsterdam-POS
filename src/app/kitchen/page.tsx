@@ -106,7 +106,12 @@ export default function KitchenDisplay() {
               >
                 {/* Table + age */}
                 <div className="flex items-start justify-between">
-                  <span className="text-5xl font-black leading-none">{order.tableNo}</span>
+                  <div>
+                    <span className="text-5xl font-black leading-none">{order.tableNo}</span>
+                    {order.customerName && (
+                      <p className="text-sm text-white/60 mt-1">🙋 {order.customerName}</p>
+                    )}
+                  </div>
                   <div className="text-right">
                     <p className={`text-xl font-black ${urgent ? 'text-red-400' : 'text-white/50'}`}>
                       {age}น.
@@ -116,7 +121,7 @@ export default function KitchenDisplay() {
                       {isPending ? '⏳ รอรับ' : '🔥 กำลังทำ'}
                     </p>
                     <p className="text-xs text-white/30">
-                      {order.source === 'tilda' ? '📱 Tilda' : '🖥️ POS'}
+                      {order.source === 'qr' ? '📱 QR' : '🖥️ POS'}
                     </p>
                   </div>
                 </div>

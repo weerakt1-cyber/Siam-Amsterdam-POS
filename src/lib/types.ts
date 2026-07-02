@@ -1,5 +1,5 @@
 export type OrderStatus = 'pending' | 'accepted' | 'ready' | 'delivered' | 'cancelled' | 'paid'
-export type OrderSource = 'tilda' | 'pos' | 'manual'
+export type OrderSource = 'qr' | 'pos' | 'manual'
 export type MenuCategory = 'cocktail' | 'beer' | 'drink' | 'snack' | 'food' | 'shot' | 'other'
 
 export type OrderItem = {
@@ -29,6 +29,7 @@ export type Order = {
   total: number            // after discount
   paymentMethod?: string
   memberName?: string
+  customerName?: string
   createdAt: string
   updatedAt: string
 }
@@ -41,7 +42,9 @@ export type Member = {
   phone?: string
   birthday?: string    // YYYY-MM-DD
   notes?: string
-  points: number       // redeemable points balance
+  points: number       // redeemable points balance (can decrease on redemption)
+  lifetimePoints: number // total points ever earned (never decreases, drives tier)
+  tier: 'bronze' | 'silver' | 'gold'
   stamps: number       // current stamp card progress (0–9, resets at 10)
   stampsEarned: number // lifetime stamps earned (for analytics)
   createdAt: string
@@ -182,4 +185,14 @@ export type MenuItem = {
   image?: string          // data URL (prototype) or CDN URL (production)
   sortOrder?: number
   variants?: Variant[]
+}
+
+// ─── Menu ↔ Inventory linking ─────────────────────────────────────────────────
+
+export type MenuIngredient = {
+  id: string
+  menuItemId: string
+  inventoryItemId: string
+  quantityPerServing: number
+  unit: string
 }
