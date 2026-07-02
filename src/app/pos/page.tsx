@@ -138,6 +138,7 @@ export default function POSPage() {
   const [showCheckout, setShowCheckout] = useState(false)
   const [showSplitBill, setShowSplitBill] = useState(false)
   const [showOpenTickets, setShowOpenTickets] = useState(false)
+  const [showMoreActions, setShowMoreActions] = useState(false)
   const [payingTicket, setPayingTicket] = useState<Order | null>(null)
   const [pointsToRedeem, setPointsToRedeem] = useState(0)
   const [voidConfirmId, setVoidConfirmId] = useState<string | null>(null)
@@ -1253,7 +1254,7 @@ export default function POSPage() {
           </div>
 
           {/* Cart footer */}
-          <div className="px-4 pt-3 pb-4 border-t border-stone-100 flex flex-col gap-2.5 shrink-0 bg-stone-50/60">
+          <div className="px-4 pt-2.5 pb-3 border-t border-stone-100 flex flex-col gap-2 shrink-0 bg-stone-50/60">
 
             {/* Subtotal */}
             <div className="flex items-baseline justify-between">
@@ -1351,7 +1352,7 @@ export default function POSPage() {
             <select
               value={memberName}
               onChange={e => { setMemberName(e.target.value); setPointsToRedeem(0) }}
-              className="w-full bg-white border border-stone-200 rounded-xl px-3 py-2.5 text-sm text-stone-700 outline-none focus:border-stone-400 transition appearance-none"
+              className="w-full bg-white border border-stone-200 rounded-xl px-3 py-2 text-sm text-stone-700 outline-none focus:border-stone-400 transition appearance-none"
             >
               <option value="">👤 No member</option>
               {members.map(m => (
@@ -1385,7 +1386,7 @@ export default function POSPage() {
             {cart.some(c => !c.fromOrderId) && (
               <button
                 onClick={handleHoldBill}
-                className="w-full py-3 rounded-2xl font-bold text-sm border-2 border-amber-400 text-amber-600 bg-amber-50 hover:bg-amber-100 transition active:scale-95"
+                className="w-full py-2.5 rounded-2xl font-bold text-sm border-2 border-amber-400 text-amber-600 bg-amber-50 hover:bg-amber-100 transition active:scale-95"
               >
                 🧊 Hold Bill (send to kitchen/bar)
               </button>
@@ -1393,54 +1394,63 @@ export default function POSPage() {
 
             {/* Action buttons row */}
             <div className="flex gap-2">
-              {/* Print check bill */}
-              <button
-                onClick={handlePrintTicket}
-                disabled={cart.length === 0}
-                title="Print check bill"
-                className={`px-3 py-4 rounded-2xl font-bold text-sm transition active:scale-95 whitespace-nowrap ${
-                  cart.length > 0
-                    ? 'bg-white border-2 border-stone-900 text-stone-900 hover:bg-stone-50'
-                    : 'bg-stone-50 border border-stone-200 text-stone-300 cursor-not-allowed'
-                }`}
-              >
-                🧾
-              </button>
-              {/* Split bill */}
-              <button
-                onClick={() => setShowSplitBill(true)}
-                disabled={cart.length === 0}
-                title="Split Bill"
-                className={`px-3 py-4 rounded-2xl font-bold text-sm transition active:scale-95 whitespace-nowrap ${
-                  cart.length > 0
-                    ? 'bg-white border-2 border-stone-900 text-stone-900 hover:bg-stone-50'
-                    : 'bg-stone-50 border border-stone-200 text-stone-300 cursor-not-allowed'
-                }`}
-              >
-                ✂️
-              </button>
-              {/* Open Tickets */}
-              <button
-                onClick={() => setShowOpenTickets(true)}
-                title="Open Tickets"
-                className={`relative px-3 py-4 rounded-2xl font-bold text-sm transition active:scale-95 whitespace-nowrap ${
-                  allOpenTableOrders.length > 0
-                    ? 'bg-amber-500 hover:bg-amber-400 text-black'
-                    : 'bg-stone-50 border border-stone-200 text-stone-300'
-                }`}
-              >
-                🎫
-                {pendingTableOrders.length > 0 && (
-                  <span className="absolute -top-1.5 -right-1.5 bg-red-500 text-white text-[9px] font-black min-w-[16px] h-4 rounded-full flex items-center justify-center px-0.5">
-                    {pendingTableOrders.length}
-                  </span>
+              {/* More actions — combines Print / Split / Open Tickets behind one button */}
+              <div className="relative">
+                <button
+                  onClick={() => setShowMoreActions(v => !v)}
+                  title="More actions"
+                  className={`relative px-3 py-3.5 rounded-2xl font-bold text-sm transition active:scale-95 whitespace-nowrap ${
+                    allOpenTableOrders.length > 0
+                      ? 'bg-amber-500 hover:bg-amber-400 text-black'
+                      : 'bg-white border-2 border-stone-900 text-stone-900 hover:bg-stone-50'
+                  }`}
+                >
+                  ⋯
+                  {pendingTableOrders.length > 0 && (
+                    <span className="absolute -top-1.5 -right-1.5 bg-red-500 text-white text-[9px] font-black min-w-[16px] h-4 rounded-full flex items-center justify-center px-0.5">
+                      {pendingTableOrders.length}
+                    </span>
+                  )}
+                </button>
+
+                {showMoreActions && (
+                  <>
+                    <div className="fixed inset-0 z-40" onClick={() => setShowMoreActions(false)} />
+                    <div className="absolute bottom-full left-0 mb-2 z-50 w-44 bg-white rounded-2xl shadow-xl border border-stone-100 overflow-hidden">
+                      <button
+                        onClick={() => { setShowMoreActions(false); handlePrintTicket() }}
+                        disabled={cart.length === 0}
+                        className="w-full flex items-center gap-2.5 px-4 py-3 text-sm font-semibold text-stone-700 hover:bg-stone-50 transition disabled:opacity-40 disabled:cursor-not-allowed"
+                      >
+                        🧾 Print check bill
+                      </button>
+                      <button
+                        onClick={() => { setShowMoreActions(false); setShowSplitBill(true) }}
+                        disabled={cart.length === 0}
+                        className="w-full flex items-center gap-2.5 px-4 py-3 text-sm font-semibold text-stone-700 hover:bg-stone-50 transition border-t border-stone-100 disabled:opacity-40 disabled:cursor-not-allowed"
+                      >
+                        ✂️ Split Bill
+                      </button>
+                      <button
+                        onClick={() => { setShowMoreActions(false); setShowOpenTickets(true) }}
+                        className="w-full flex items-center justify-between gap-2.5 px-4 py-3 text-sm font-semibold text-stone-700 hover:bg-stone-50 transition border-t border-stone-100"
+                      >
+                        <span>🎫 Open Tickets</span>
+                        {pendingTableOrders.length > 0 && (
+                          <span className="bg-red-500 text-white text-[10px] font-black min-w-[18px] h-[18px] rounded-full flex items-center justify-center px-1">
+                            {pendingTableOrders.length}
+                          </span>
+                        )}
+                      </button>
+                    </div>
+                  </>
                 )}
-              </button>
+              </div>
               {/* Checkout */}
               <button
                 onClick={() => setShowCheckout(true)}
                 disabled={cart.length === 0}
-                className={`flex-1 py-4 rounded-2xl font-black text-base tracking-wide transition active:scale-95 ${
+                className={`flex-1 py-3.5 rounded-2xl font-black text-base tracking-wide transition active:scale-95 ${
                   cart.length > 0
                     ? 'bg-stone-900 hover:bg-stone-800 text-white shadow-md shadow-stone-300/50'
                     : 'bg-stone-100 text-stone-300 cursor-not-allowed'
