@@ -3,13 +3,17 @@ export const dynamic = 'force-dynamic'
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient }              from '@supabase/supabase-js'
 
-const supabaseAdmin = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_KEY!,
-  { auth: { autoRefreshToken: false, persistSession: false } }
-)
+// placeholder fallback ป้องกัน createClient โยน error ตอน build time (env vars ยังไม่มี)
+function getSupabaseAdmin() {
+  return createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://placeholder.supabase.co',
+    process.env.SUPABASE_SERVICE_KEY || 'placeholder-key-build-time-only',
+    { auth: { autoRefreshToken: false, persistSession: false } }
+  )
+}
 
 export async function GET(req: NextRequest) {
+  const supabaseAdmin = getSupabaseAdmin()
   const appUrl     = process.env.NEXT_PUBLIC_APP_URL ?? ''
   const clientId   = process.env.LINE_CLIENT_ID
   const clientSec  = process.env.LINE_CLIENT_SECRET
