@@ -836,7 +836,7 @@ export default function POSPage() {
                   {mergedOrderIds.size > 0 && ` · ${mergedOrderIds.size} added to current bill`}
                 </p>
                 <p className="text-[10px] text-stone-400 mt-1">
-                  Tap a ticket to pay it separately · use <span className="font-semibold text-amber-600">Add to Bill</span> to combine orders for one payment
+                  Tap a ticket to add it to the current bill · use <span className="font-semibold text-stone-600">Pay This Order</span> to charge it separately
                 </p>
               </div>
               <button
@@ -863,7 +863,7 @@ export default function POSPage() {
                   return (
                     <div
                       key={o.id}
-                      onClick={() => { if (!isMerged) setPayingTicket(o) }}
+                      onClick={() => { if (!isMerged) mergeQrOrder(o) }}
                       className={`rounded-xl border overflow-hidden transition ${
                         isMerged
                           ? 'border-amber-300 bg-amber-50/60'
@@ -879,6 +879,10 @@ export default function POSPage() {
                             {o.source === 'qr' ? '📱 QR' : '🖥 POS'}
                           </span>
                           <span className="text-xs font-mono text-stone-400">#{o.id.slice(-6)}</span>
+                          <span className="text-[10px] font-semibold text-stone-500">🪑 {o.tableNo}</span>
+                          {o.customerName && (
+                            <span className="text-xs font-semibold text-stone-700">👤 {o.customerName}</span>
+                          )}
                           <span className={`text-xs font-medium ${
                             o.status === 'delivered' ? 'text-emerald-600'
                             : o.status === 'ready' ? 'text-blue-600'
