@@ -1,6 +1,11 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  // Pin the workspace root to this project. A stray package-lock.json in the home
+  // directory otherwise makes Next infer the wrong root (breaks output file tracing).
+  turbopack: {
+    root: __dirname,
+  },
   // ลด bundle ที่ส่งไป client — เร็วขึ้นทุก page load
   experimental: {
     optimizePackageImports: ['@supabase/supabase-js'],
