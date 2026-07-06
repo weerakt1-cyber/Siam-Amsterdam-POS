@@ -5,13 +5,12 @@ import type { MenuItem, Order } from '@/lib/types'
 import CheckoutModal from '@/components/pos/CheckoutModal'
 import NumPad from '@/components/pos/NumPad'
 import SplitBillModal from '@/components/pos/SplitBillModal'
-import { DEMO_MENU } from '@/lib/demo-data'
 import { loadBarSettings, type BarSettings } from '@/lib/printer'
+import { type CatEntry, CATEGORIES_CHANGED_EVENT, loadAllCategories } from '@/lib/categories'
 
 const TABLES = ['T1', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7', 'T8', 'BAR', 'VIP1', 'VIP2']
 
-// Fix #3: added Shot and Other to match MenuCategory type
-const CATEGORIES = ['All', 'Cocktail', 'Beer', 'Drink', 'Snack', 'Food', 'Shot', 'Other']
+const ALL_CHIP: CatEntry = { value: 'all', label: 'All', color: 'bg-gray-200 text-gray-700', icon: '🍽️' }
 
 type CartItem = {
   menuId: string; name: string; qty: number; price: number
@@ -110,8 +109,28 @@ ${discountRow}
 
 export default function POSPage() {
   const [table, setTable] = useState('T1')
-  const [category, setCategory] = useState('All')
-  const [menu, setMenu] = useState<MenuItem[]>(DEMO_MENU)
+  const [category, setCategory] = useState('all')
+  const [categories, setCategories] = useState<CatEntry[]>(() => loadAllCategories())
+  const [menu, setMenu] = useState<MenuItem[]>([])
+  const [menuLoading, setMenuLoading] = useState(true)
+
+  // Live-refresh category chips when Items → Categories adds/deletes/reorders —
+  // covers both same-tab edits (custom event) and another tab/window (storage event).
+  // If the currently-selected category was deleted, fall back to "All" so the menu
+  // doesn't silently show nothing with no chip highlighted.
+  useEffect(() => {
+    const refresh = () => {
+      const next = loadAllCategories()
+      setCategories(next)
+      setCategory(prev => (prev === 'all' || next.some(c => c.value === prev) ? prev : 'all'))
+    }
+    window.addEventListener(CATEGORIES_CHANGED_EVENT, refresh)
+    window.addEventListener('storage', refresh)
+    return () => {
+      window.removeEventListener(CATEGORIES_CHANGED_EVENT, refresh)
+      window.removeEventListener('storage', refresh)
+    }
+  }, [])
 
   // Fix #2: per-table carts stored in a map keyed by table
   const [carts, setCarts] = useState<Record<string, CartItem[]>>({})
@@ -184,7 +203,7 @@ export default function POSPage() {
       fetch('/api/menu/ingredients').then(r => r.json()),
       fetch('/api/inventory').then(r => r.json()),
     ]).then(([menuData, ingData, invData]) => {
-      if (menuData.menu?.length) setMenu(menuData.menu)
+      setMenu(menuData.menu ?? [])
       const invMap: Record<string, { name: string; currentStock: number; lowStockThreshold: number }> =
         Object.fromEntries((invData.items ?? []).map((i: { id: string; name: string; currentStock: number; lowStockThreshold: number }) => [i.id, i]))
       const map: Record<string, string[]> = {}
@@ -196,7 +215,7 @@ export default function POSPage() {
         }
       }
       setLowStockMap(map)
-    }).catch(() => {})
+    }).catch(() => {}).finally(() => setMenuLoading(false))
     fetch('/api/members')
       .then((r) => r.json())
       .then((d) => {
@@ -564,18 +583,12 @@ export default function POSPage() {
       const q = search.trim().toLowerCase()
       return m.name.toLowerCase().includes(q) || m.nameTh.toLowerCase().includes(q)
     }
-    return category === 'All' || m.category.toLowerCase() === category.toLowerCase()
+    return category === 'all' || m.category.toLowerCase() === category.toLowerCase()
   })
 
   const dateLabel = new Date().toLocaleDateString('en-GB', {
     weekday: 'short', day: 'numeric', month: 'short', year: 'numeric',
   })
-
-  // Fix #3: added Shot and Other icons
-  const CAT_ICONS: Record<string, string> = {
-    All: '🍽️', Cocktail: '🍹', Beer: '🍺', Drink: '🥤',
-    Snack: '🍿', Food: '🍔', Shot: '🥃', Other: '🏷️',
-  }
 
   return (
     <div
@@ -1034,17 +1047,17 @@ export default function POSPage() {
           {/* Category filter + Search */}
           <div className="flex flex-col shrink-0 bg-white border-b border-stone-100">
             <div className="flex gap-1.5 px-3 pt-2.5 pb-2 overflow-x-auto">
-              {CATEGORIES.map((cat) => (
+              {[ALL_CHIP, ...categories].map((cat) => (
                 <button
-                  key={cat}
-                  onClick={() => { setCategory(cat); setSearch('') }}
+                  key={cat.value}
+                  onClick={() => { setCategory(cat.value); setSearch('') }}
                   className={`px-3.5 py-2 rounded-xl text-xs font-semibold whitespace-nowrap transition shrink-0 flex items-center gap-1.5 active:scale-95 ${
-                    category === cat && !search
+                    category === cat.value && !search
                       ? 'bg-stone-900 text-white font-bold shadow-sm'
                       : 'bg-stone-100 text-stone-600 hover:bg-stone-200'
                   }`}
                 >
-                  <span>{CAT_ICONS[cat]}</span> {cat}
+                  {cat.label}
                 </button>
               ))}
             </div>
@@ -1068,7 +1081,20 @@ export default function POSPage() {
 
           {/* Menu grid */}
           <div className="flex-1 overflow-y-auto p-3">
-            {filteredMenu.length === 0 ? (
+            {menuLoading ? (
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
+                {Array.from({ length: 12 }).map((_, i) => (
+                  <div key={i} className="rounded-2xl border border-stone-100 shadow-sm overflow-hidden flex flex-col animate-pulse">
+                    <div className="w-full aspect-[3/2] bg-stone-100" />
+                    <div className="p-2.5 flex flex-col gap-1.5">
+                      <div className="h-3 bg-stone-100 rounded w-3/4" />
+                      <div className="h-2.5 bg-stone-100 rounded w-1/2" />
+                      <div className="h-3.5 bg-stone-100 rounded w-1/3 mt-1" />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : filteredMenu.length === 0 ? (
               <div className="flex flex-col items-center justify-center h-32 text-stone-300 text-sm gap-2">
                 <span className="text-3xl">{search ? '🔍' : '🍽️'}</span>
                 <p>{search ? `No results for "${search}"` : 'No items in this category'}</p>
