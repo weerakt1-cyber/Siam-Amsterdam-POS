@@ -69,6 +69,7 @@ function mapMember(row: Record<string, unknown>): Member {
     id:             row.id as string,
     name:           row.name as string,
     phone:          row.phone as string | undefined,
+    contact:        row.contact as string | undefined,
     birthday:       row.birthday as string | undefined,
     notes:          row.notes as string | undefined,
     points:         Number(row.points),
@@ -357,6 +358,7 @@ export async function createMember(data: Omit<Member, 'id' | 'createdAt' | 'upda
       id:            crypto.randomUUID(),
       name:          data.name,
       phone:         data.phone ?? null,
+      contact:       data.contact ?? null,
       birthday:      data.birthday ?? null,
       notes:         data.notes ?? null,
       points:          data.points,
@@ -377,6 +379,7 @@ export async function updateMember(id: string, data: Partial<Omit<Member, 'id' |
   const update: Record<string, unknown> = { updated_at: now() }
   if (data.name         !== undefined) update.name          = data.name
   if (data.phone        !== undefined) update.phone         = data.phone ?? null
+  if (data.contact      !== undefined) update.contact       = data.contact ?? null
   if (data.birthday     !== undefined) update.birthday      = data.birthday ?? null
   if (data.notes        !== undefined) update.notes         = data.notes ?? null
   if (data.points         !== undefined) update.points          = data.points

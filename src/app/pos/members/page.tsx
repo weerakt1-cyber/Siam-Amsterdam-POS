@@ -48,7 +48,7 @@ function memberStats(member: Member, orders: Order[]) {
 }
 
 function emptyForm(): Partial<Member> & { name: string } {
-  return { name: '', phone: '', birthday: '', notes: '', points: 0, lifetimePoints: 0, tier: 'bronze', stamps: 0, stampsEarned: 0 }
+  return { name: '', phone: '', contact: '', birthday: '', notes: '', points: 0, lifetimePoints: 0, tier: 'bronze', stamps: 0, stampsEarned: 0 }
 }
 
 function TierPill({ tier, size = 'sm' }: { tier: string; size?: 'xs' | 'sm' }) {
@@ -233,7 +233,10 @@ export default function MembersPage() {
   const enriched = members.map((m) => ({ m, stats: memberStats(m, orders) }))
 
   const filtered = enriched.filter(({ m }) =>
-    !search || m.name.toLowerCase().includes(search.toLowerCase()) || m.phone?.includes(search)
+    !search ||
+    m.name.toLowerCase().includes(search.toLowerCase()) ||
+    m.phone?.includes(search) ||
+    m.contact?.toLowerCase().includes(search.toLowerCase())
   )
 
   const TIER_ORDER: Record<string, number> = { gold: 3, silver: 2, bronze: 1 }
@@ -306,7 +309,7 @@ export default function MembersPage() {
             <input
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder="🔍 Search name or phone..."
+              placeholder="🔍 Search name, phone, or contact..."
               className="w-full bg-white rounded-xl px-3 py-2 text-sm text-gray-900 placeholder-gray-300 outline-none focus:ring-1 focus:ring-amber-500 transition"
             />
             <div className="flex gap-1">
@@ -531,6 +534,17 @@ export default function MembersPage() {
                   placeholder="08x-xxx-xxxx"
                   className="w-full bg-white border border-gray-200 rounded-xl px-3 py-2.5 text-sm text-gray-900 outline-none focus:border-amber-400 transition"
                 />
+              </div>
+
+              <div>
+                <label className="text-xs text-gray-400 mb-1 block">Contact (optional)</label>
+                <input
+                  value={form.contact ?? ''}
+                  onChange={(e) => setForm((f) => ({ ...f, contact: e.target.value }))}
+                  placeholder="Email, LINE ID, Facebook..."
+                  className="w-full bg-white border border-gray-200 rounded-xl px-3 py-2.5 text-sm text-gray-900 outline-none focus:border-amber-400 transition"
+                />
+                <p className="text-[10px] text-gray-400 mt-1">For sending promotions or birthday greetings</p>
               </div>
 
               <div>
