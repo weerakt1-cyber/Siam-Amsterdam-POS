@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef, use, useCallback } from 'react'
 import type { MenuItem } from '@/lib/types'
+import { type CatEntry, CATEGORIES_CHANGED_EVENT, loadAllCategories } from '@/lib/categories'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -34,14 +35,13 @@ function cartKey(c: { menuId: string; variantLabel?: string }) {
   return c.variantLabel ? `${c.menuId}::${c.variantLabel}` : c.menuId
 }
 
+// Fallback icon shown on menu items with no photo — keyed by category value.
 const CAT_ICONS: Record<string, string> = {
   all: '🍽️', cocktail: '🍹', beer: '🍺', drink: '🥤',
   snack: '🍿', food: '🍔', shot: '🥃', other: '🏷️',
 }
-const CAT_LABELS: Record<string, string> = {
-  all: 'All', cocktail: 'Cocktail', beer: 'Beer', drink: 'Drink',
-  snack: 'Snack', food: 'Food', shot: 'Shot', other: 'Other',
-}
+
+const ALL_CHIP: CatEntry = { value: 'all', label: 'All', color: '' }
 
 const TABLES = ['T1', 'T2', 'T3', 'T4', 'T5', 'T6', 'VIP1', 'BAR']
 
@@ -65,6 +65,19 @@ export default function OrderPage({ params }: { params: Promise<{ tableNo: strin
   const [menu, setMenu]         = useState<MenuItem[]>([])
   const [loading, setLoading]   = useState(true)
   const [category, setCategory] = useState('all')
+  const [allCats, setAllCats]   = useState<CatEntry[]>(() => loadAllCategories())
+
+  // Live-refresh category tabs when Items → Categories adds/deletes/reorders —
+  // same mechanism as the POS ordering screen, so both stay in sync.
+  useEffect(() => {
+    const refresh = () => setAllCats(loadAllCategories())
+    window.addEventListener(CATEGORIES_CHANGED_EVENT, refresh)
+    window.addEventListener('storage', refresh)
+    return () => {
+      window.removeEventListener(CATEGORIES_CHANGED_EVENT, refresh)
+      window.removeEventListener('storage', refresh)
+    }
+  }, [])
 
   const [cart, setCart]         = useState<CartItem[]>([])
   const [cartOpen, setCartOpen] = useState(false)
@@ -122,7 +135,7 @@ export default function OrderPage({ params }: { params: Promise<{ tableNo: strin
 
   // ── Derived ───────────────────────────────────────────────────────────────────
 
-  const categories = ['all', ...Array.from(new Set(menu.map(m => m.category)))]
+  const categories = [ALL_CHIP, ...allCats]
   const filtered   = menu.filter(m => category === 'all' || m.category === category)
   const cartTotal  = cart.reduce((s, c) => s + c.price * c.qty, 0)
   const cartCount  = cart.reduce((s, c) => s + c.qty, 0)
@@ -422,13 +435,13 @@ export default function OrderPage({ params }: { params: Promise<{ tableNo: strin
           <div className="flex gap-1.5 px-4 pb-3 overflow-x-auto" style={{ scrollbarWidth: 'none' }}>
             {categories.map(cat => (
               <button
-                key={cat}
-                onClick={() => setCategory(cat)}
-                className={`flex items-center gap-1 px-3 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap shrink-0 transition active:scale-95 ${
-                  category === cat ? 'bg-gray-900 text-white' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
+                key={cat.value}
+                onClick={() => setCategory(cat.value)}
+                className={`px-3 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap shrink-0 transition active:scale-95 ${
+                  category === cat.value ? 'bg-gray-900 text-white' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
                 }`}
               >
-                {CAT_ICONS[cat] ?? '🏷️'} {CAT_LABELS[cat] ?? cat}
+                {cat.label}
               </button>
             ))}
           </div>
