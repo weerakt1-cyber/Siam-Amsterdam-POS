@@ -2,8 +2,8 @@ import type { CapacitorConfig } from '@capacitor/cli'
 
 // กำหนดค่า Capacitor สำหรับ wrapping Next.js เป็น Android APK
 const config: CapacitorConfig = {
-  appId:   'com.siamamsterdam.pos',
-  appName: 'Siam Amsterdam POS',
+  appId:   'com.baze.pos',
+  appName: 'Baze POS',
   webDir:  'out',
 
   // โหลด web app จาก Next.js server (ไม่ใช่ static bundle เพราะมี API routes)

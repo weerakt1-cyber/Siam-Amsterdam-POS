@@ -79,9 +79,9 @@ export default function AuthPage() {
         {/* Logo */}
         <div className="flex flex-col items-center gap-3">
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/logo.png" alt="Siam Amsterdam" className="w-24 h-24 object-contain" />
+          <img src="/logo.png" alt="Bar logo" className="w-24 h-24 object-contain" />
           <div className="text-center">
-            <h1 className="text-2xl font-black text-white tracking-tight">SIAM AMSTERDAM</h1>
+            <h1 className="text-2xl font-black text-white tracking-tight">BAZE POS</h1>
             <p className="text-sm text-gray-500 mt-1">Bar POS System</p>
           </div>
         </div>
@@ -127,7 +127,7 @@ export default function AuthPage() {
 
         {/* Role preview chips */}
         <div className="flex flex-col items-center gap-2">
-          <p className="text-xs text-gray-600">สำหรับทีมงาน Siam Amsterdam</p>
+          <p className="text-xs text-gray-600">สำหรับทีมงานบาร์</p>
           <div className="flex gap-2 flex-wrap justify-center">
             {Object.entries(ROLE_COLORS).map(([role, color]) => (
               <span

@@ -60,7 +60,7 @@ function GoogleLoginScreen({
             🍹
           </div>
           <div className="text-center">
-            <h1 className="text-2xl font-black text-white tracking-tight">SIAM AMSTERDAM</h1>
+            <h1 className="text-2xl font-black text-white tracking-tight">BAZE POS</h1>
             <p className="text-sm text-gray-500 mt-1">Bar POS System</p>
           </div>
         </div>

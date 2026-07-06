@@ -67,7 +67,7 @@ export async function sendOrderAlert(data: OrderNotifyData): Promise<boolean> {
   const customerLine = data.customerName ? `\n🙋 Customer: ${data.customerName}` : ''
 
   const text = [
-    `🍹 <b>New Order</b> — Siam Amsterdam POS`,
+    `🍹 <b>New Order</b> — Baze POS`,
     `━━━━━━━━━━━━━━━━`,
     `🪑 Table: <b>${data.tableNo}</b>  |  #${shortId}${staffLine}${memberLine}${customerLine}`,
     ``,
@@ -141,7 +141,7 @@ export async function sendDailySummary(data: EndOfDayData): Promise<boolean> {
     : ''
 
   const text = [
-    `📊 <b>End of Day Report</b> — Siam Amsterdam POS`,
+    `📊 <b>End of Day Report</b> — Baze POS`,
     `📅 ${data.date}`,
     `━━━━━━━━━━━━━━━━`,
     `🧾 <b>SALES</b>`,
@@ -158,7 +158,7 @@ export async function sendDailySummary(data: EndOfDayData): Promise<boolean> {
     `💰 <b>CASH DRAWER</b>`,
     drawerLines,
     `━━━━━━━━━━━━━━━━`,
-    `🍹 Siam Amsterdam POS`,
+    `🍹 Baze POS`,
   ].join('\n')
 
   return sendMessage(text)

@@ -1,7 +1,7 @@
 <?xml version='1.0' encoding='utf-8'?>
 <resources>
-    <string name="app_name">Siam Amsterdam POS</string>
-    <string name="title_activity_main">Siam Amsterdam POS</string>
-    <string name="package_name">com.siamamsterdam.pos</string>
-    <string name="custom_url_scheme">com.siamamsterdam.pos</string>
+    <string name="app_name">Baze POS</string>
+    <string name="title_activity_main">Baze POS</string>
+    <string name="package_name">com.baze.pos</string>
+    <string name="custom_url_scheme">com.baze.pos</string>
 </resources>

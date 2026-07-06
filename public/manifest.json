@@ -1,7 +1,7 @@
 {
-  "name": "Siam Amsterdam POS",
-  "short_name": "SIAM POS",
-  "description": "Bar POS — Siam Amsterdam",
+  "name": "Baze POS",
+  "short_name": "Baze POS",
+  "description": "Baze POS — Point of Sale for bars & restaurants",
   "start_url": "/pos",
   "display": "standalone",
   "orientation": "portrait",

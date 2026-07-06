@@ -71,7 +71,7 @@ function formatOrderAlert(data: OrderNotifyData): string {
   const customerLine = data.customerName ? `\n🙋 Customer: ${data.customerName}` : ''
 
   return [
-    `🍹 New Order — Siam Amsterdam POS`,
+    `🍹 New Order — Baze POS`,
     `━━━━━━━━━━━━`,
     `🪑 Table: ${data.tableNo}  |  #${shortId}${staffLine}${memberLine}${customerLine}`,
     ``,
@@ -124,7 +124,7 @@ function formatDailySummary(data: EndOfDayData): string {
     : ''
 
   return [
-    `📊 End of Day — Siam Amsterdam POS`,
+    `📊 End of Day — Baze POS`,
     `📅 ${data.date}`,
     `━━━━━━━━━━━━`,
     `🧾 SALES`,
@@ -141,7 +141,7 @@ function formatDailySummary(data: EndOfDayData): string {
     `💰 CASH DRAWER`,
     drawerLines,
     `━━━━━━━━━━━━`,
-    `🍹 Siam Amsterdam POS`,
+    `🍹 Baze POS`,
   ].join('\n')
 }
 

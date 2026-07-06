@@ -1,4 +1,4 @@
-package com.siamamsterdam.pos;
+package com.baze.pos;
 
 import com.getcapacitor.BridgeActivity;
 

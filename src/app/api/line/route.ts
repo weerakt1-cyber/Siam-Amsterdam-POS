@@ -24,7 +24,7 @@ export async function POST() {
   }
 
   const ok = await sendLineMessage(
-    '🍹 Test from SIAM AMSTERDAM POS\nLINE Messaging API is connected and working!'
+    '🍹 Test from Baze POS\nLINE Messaging API is connected and working!'
   )
 
   if (!ok) {
