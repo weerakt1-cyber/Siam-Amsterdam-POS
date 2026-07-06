@@ -4,20 +4,9 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 import type { MenuItem, Variant, VariantOption, InventoryItem, MenuIngredient } from '@/lib/types'
 import NumPad from '@/components/pos/NumPad'
 import { useAuth } from '@/lib/pos-auth'
+import { type CatEntry, loadAllCategories, saveAllCategories } from '@/lib/categories'
 
 // ─── Constants ────────────────────────────────────────────────────────────────
-
-type CatEntry = { value: string; label: string; color: string }
-
-const DEFAULT_CATEGORIES: CatEntry[] = [
-  { value: 'cocktail', label: 'Cocktail', color: 'bg-purple-600 text-gray-900' },
-  { value: 'beer',     label: 'Beer',     color: 'bg-amber-600 text-gray-900' },
-  { value: 'drink',    label: 'Drink',    color: 'bg-cyan-600 text-gray-900' },
-  { value: 'snack',    label: 'Snack',    color: 'bg-lime-600 text-gray-900' },
-  { value: 'food',     label: 'Food',     color: 'bg-red-600 text-gray-900' },
-  { value: 'shot',     label: 'Shot',     color: 'bg-orange-600 text-gray-900' },
-  { value: 'other',    label: 'Other',    color: 'bg-gray-300 text-gray-700' },
-]
 
 const COLOR_SWATCHES = [
   { label: 'amber',   bg: 'bg-amber-500',   classes: 'bg-amber-600 text-gray-900' },
@@ -45,8 +34,6 @@ const CAT_BADGE_DEFAULT: Record<string, string> = {
 function catBadge(category: string): string {
   return CAT_BADGE_DEFAULT[category] ?? 'bg-gray-700/60 text-gray-300'
 }
-
-const LS_CATS_KEY = 'pos_custom_categories'
 
 const UNITS = ['glass', 'bottle', 'draft', 'can', 'shot', 'piece', 'plate', 'set', 'portion']
 
@@ -294,30 +281,47 @@ export default function ItemsPage() {
   const [items, setItems] = useState<MenuItem[]>([])
   const [filterCat, setFilterCat] = useState<string>('all')
 
-  // Custom categories stored in localStorage
-  const [customCats, setCustomCats] = useState<CatEntry[]>(() => {
-    try { return JSON.parse(localStorage.getItem(LS_CATS_KEY) ?? '[]') } catch { return [] }
-  })
+  // All categories — one fully editable, reorderable, deletable list, persisted in localStorage
+  // and shared with the POS ordering screen's category chips (see @/lib/categories).
+  const [allCategories, setAllCategories] = useState<CatEntry[]>(() => loadAllCategories())
   const [newCatName, setNewCatName] = useState('')
   const [newCatColor, setNewCatColor] = useState(COLOR_SWATCHES[0].classes)
 
-  const allCategories: CatEntry[] = [...DEFAULT_CATEGORIES, ...customCats]
   const categoriesWithAll: CatEntry[] = [{ value: 'all', label: 'All', color: 'bg-gray-200 text-gray-700' }, ...allCategories]
+
+  // Persist whenever the list changes (and notify the POS page to refresh live) — functional
+  // updaters below always read the latest state, so rapid successive clicks (e.g. double-tapping
+  // ↑) apply correctly.
+  useEffect(() => {
+    saveAllCategories(allCategories)
+  }, [allCategories])
 
   function addCustomCat() {
     const val = newCatName.trim().toLowerCase().replace(/\s+/g, '_')
-    if (!val || allCategories.some(c => c.value === val)) return
-    const entry: CatEntry = { value: val, label: newCatName.trim(), color: newCatColor }
-    const updated = [...customCats, entry]
-    setCustomCats(updated)
-    localStorage.setItem(LS_CATS_KEY, JSON.stringify(updated))
+    setAllCategories(prev => {
+      if (!val || prev.some(c => c.value === val)) return prev
+      return [...prev, { value: val, label: newCatName.trim(), color: newCatColor }]
+    })
     setNewCatName('')
   }
 
-  function deleteCustomCat(val: string) {
-    const updated = customCats.filter(c => c.value !== val)
-    setCustomCats(updated)
-    localStorage.setItem(LS_CATS_KEY, JSON.stringify(updated))
+  function deleteCategory(val: string) {
+    const count = items.filter(i => i.category === val).length
+    if (count > 0 && !confirm(`${count} item${count !== 1 ? 's' : ''} currently use this category. Delete it anyway? (items keep their category tag, but it won't show as a filter/chip anymore)`)) {
+      return
+    }
+    setAllCategories(prev => prev.filter(c => c.value !== val))
+  }
+
+  function moveCategory(val: string, direction: 'up' | 'down') {
+    setAllCategories(prev => {
+      const idx = prev.findIndex(c => c.value === val)
+      const swapWith = direction === 'up' ? idx - 1 : idx + 1
+      if (idx === -1 || swapWith < 0 || swapWith >= prev.length) return prev
+      const updated = [...prev]
+      ;[updated[idx], updated[swapWith]] = [updated[swapWith], updated[idx]]
+      return updated
+    })
   }
   const [search, setSearch] = useState('')
   const [selectedId, setSelectedId] = useState<string | null>(null)
@@ -616,45 +620,48 @@ export default function ItemsPage() {
       {tab === 'categories' ? (
         /* ── Categories Manager ── */
         <div className="flex-1 overflow-y-auto p-6 max-w-xl">
-          <h2 className="text-base font-bold text-gray-700 mb-5">Manage Categories</h2>
+          <h2 className="text-base font-bold text-gray-700 mb-1">Manage Categories</h2>
+          <p className="text-xs text-gray-400 mb-5">Use ↑ / ↓ to reorder — categories you tap often are worth moving to the top.</p>
 
-          {/* Built-in categories */}
-          <div className="mb-6">
-            <p className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-3">Built-in (cannot delete)</p>
-            <div className="flex flex-wrap gap-2">
-              {DEFAULT_CATEGORIES.map(c => (
-                <span key={c.value} className={`px-3 py-1.5 rounded-xl text-sm font-bold ${c.color}`}>
-                  {c.label}
-                </span>
-              ))}
-            </div>
-          </div>
-
-          {/* Custom categories */}
+          {/* All categories — reorderable, deletable */}
           <div className="mb-6">
             <p className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-3">
-              Custom ({customCats.length})
+              Categories ({allCategories.length})
             </p>
-            {customCats.length === 0 ? (
-              <p className="text-sm text-gray-400">No custom categories yet.</p>
-            ) : (
-              <div className="flex flex-col gap-2">
-                {customCats.map(c => (
-                  <div key={c.value} className="flex items-center justify-between bg-white border border-gray-200 rounded-xl px-4 py-2.5">
-                    <div className="flex items-center gap-3">
-                      <span className={`px-3 py-1 rounded-lg text-sm font-bold ${c.color}`}>{c.label}</span>
-                      <span className="text-xs text-gray-400 font-mono">{c.value}</span>
-                    </div>
+            <div className="flex flex-col gap-2">
+              {allCategories.map((c, i) => (
+                <div key={c.value} className="flex items-center justify-between bg-white border border-gray-200 rounded-xl px-4 py-2.5">
+                  <div className="flex items-center gap-3">
+                    <span className={`px-3 py-1 rounded-lg text-sm font-bold ${c.color}`}>{c.label}</span>
+                    <span className="text-xs text-gray-400 font-mono">{c.value}</span>
+                  </div>
+                  <div className="flex items-center gap-1 shrink-0">
                     <button
-                      onClick={() => deleteCustomCat(c.value)}
-                      className="text-xs text-red-400 hover:text-red-600 transition px-2 py-1 rounded-lg hover:bg-red-50"
+                      onClick={() => moveCategory(c.value, 'up')}
+                      disabled={i === 0}
+                      title="Move up"
+                      className="w-7 h-7 rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition disabled:opacity-25 disabled:hover:bg-transparent flex items-center justify-center"
+                    >
+                      ↑
+                    </button>
+                    <button
+                      onClick={() => moveCategory(c.value, 'down')}
+                      disabled={i === allCategories.length - 1}
+                      title="Move down"
+                      className="w-7 h-7 rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition disabled:opacity-25 disabled:hover:bg-transparent flex items-center justify-center"
+                    >
+                      ↓
+                    </button>
+                    <button
+                      onClick={() => deleteCategory(c.value)}
+                      className="text-xs text-red-400 hover:text-red-600 transition px-2 py-1 rounded-lg hover:bg-red-50 ml-1"
                     >
                       Delete
                     </button>
                   </div>
-                ))}
-              </div>
-            )}
+                </div>
+              ))}
+            </div>
           </div>
 
           {/* Add new category */}
