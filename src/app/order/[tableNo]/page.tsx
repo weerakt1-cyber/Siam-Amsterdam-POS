@@ -78,6 +78,7 @@ export default function OrderPage({ params }: { params: Promise<{ tableNo: strin
   const [submitting, setSubmitting]   = useState(false)
   const [submitError, setSubmitError] = useState('')
   const [orders, setOrders]           = useState<PlacedOrder[]>([])
+  const [showConfirm, setShowConfirm] = useState(false)
 
   const [customerName, setCustomerName] = useState('')
   const [infoError, setInfoError]       = useState('')
@@ -192,6 +193,7 @@ export default function OrderPage({ params }: { params: Promise<{ tableNo: strin
         const d = await r.json()
         setSubmitError(d.error ?? 'Something went wrong')
         setSubmitting(false)
+        setShowConfirm(false)
         return
       }
       const d = await r.json()
@@ -206,9 +208,11 @@ export default function OrderPage({ params }: { params: Promise<{ tableNo: strin
       setCart([])
       setNote('')
       setCartOpen(false)
+      setShowConfirm(false)
       setPhase('tracking')
     } catch {
       setSubmitError('Network error — please try again')
+      setShowConfirm(false)
     }
     setSubmitting(false)
   }
@@ -561,8 +565,8 @@ export default function OrderPage({ params }: { params: Promise<{ tableNo: strin
               </div>
               {submitError && <p className="text-xs text-red-500 text-center mb-3">{submitError}</p>}
               <button
-                onClick={placeOrder}
-                disabled={submitting}
+                onClick={() => setShowConfirm(true)}
+                disabled={submitting || cart.length === 0}
                 className={`w-full py-4 rounded-2xl font-black text-base transition active:scale-[0.98] ${
                   submitting ? 'bg-gray-200 text-gray-400 cursor-wait' : 'bg-gray-900 text-white shadow-lg shadow-gray-900/20'
                 }`}
@@ -570,6 +574,61 @@ export default function OrderPage({ params }: { params: Promise<{ tableNo: strin
                 {submitting ? '⏳ Placing order...' : 'Place Order →'}
               </button>
               <p className="text-xs text-gray-400 text-center mt-2">Table {selectedTable} · Staff will bring your order</p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Confirm order modal — final check before submitting */}
+      {showConfirm && (
+        <div className="fixed inset-0 z-[60] flex items-end sm:items-center justify-center p-4" onClick={() => !submitting && setShowConfirm(false)}>
+          <div className="absolute inset-0 bg-black/60" />
+          <div className="relative bg-white rounded-3xl w-full max-w-sm overflow-hidden shadow-2xl" onClick={e => e.stopPropagation()}>
+            <div className="px-5 pt-5 pb-3 text-center">
+              <p className="text-3xl mb-1">🧐</p>
+              <h3 className="font-black text-lg text-gray-900">Please Check Your Order</h3>
+              <p className="text-xs text-gray-400 mt-1">Make sure everything below is correct before confirming</p>
+            </div>
+            <div className="px-5 pb-3 max-h-[40vh] overflow-y-auto">
+              <div className="flex flex-col divide-y divide-gray-50 bg-gray-50 rounded-2xl px-3">
+                {cart.map(c => (
+                  <div key={cartKey(c)} className="flex items-center justify-between gap-3 py-2.5">
+                    <div className="min-w-0">
+                      <p className="text-sm font-semibold text-gray-900 leading-snug">
+                        {c.name} <span className="text-gray-400 font-normal">×{c.qty}</span>
+                      </p>
+                      {c.variantLabel && <p className="text-xs text-gray-400 mt-0.5">{c.variantLabel}</p>}
+                    </div>
+                    <span className="text-sm font-bold text-amber-600 shrink-0">{baht(c.price * c.qty)}</span>
+                  </div>
+                ))}
+              </div>
+              {note.trim() && (
+                <p className="text-xs text-gray-500 mt-3 italic">Note: {note.trim()}</p>
+              )}
+              <div className="flex justify-between items-baseline mt-3 px-1">
+                <span className="text-sm text-gray-500">Total</span>
+                <span className="text-xl font-black text-gray-900">{baht(cartTotal)}</span>
+              </div>
+              <p className="text-xs text-gray-400 mt-1 px-1">Table {selectedTable}{customerName.trim() && ` · ${customerName.trim()}`}</p>
+            </div>
+            <div className="px-5 pb-5 pt-2 flex flex-col gap-2">
+              <button
+                onClick={placeOrder}
+                disabled={submitting}
+                className={`w-full py-4 rounded-2xl font-black text-base transition active:scale-[0.98] ${
+                  submitting ? 'bg-gray-200 text-gray-400 cursor-wait' : 'bg-gray-900 text-white shadow-lg shadow-gray-900/20'
+                }`}
+              >
+                {submitting ? '⏳ Placing order...' : '✓ Yes, Confirm Order'}
+              </button>
+              <button
+                onClick={() => setShowConfirm(false)}
+                disabled={submitting}
+                className="w-full py-3 rounded-2xl font-bold text-sm text-gray-500 hover:bg-gray-50 transition active:scale-[0.98] disabled:opacity-40"
+              >
+                ← Go Back, Let Me Check
+              </button>
             </div>
           </div>
         </div>
