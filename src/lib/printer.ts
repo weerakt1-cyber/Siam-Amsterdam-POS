@@ -23,6 +23,10 @@ export type BarSettings = {
   printerConnectionType?: PrinterConnectionType
   printerLanIp?:          string    // e.g. 192.168.1.105
   printerLanPort?:        number    // default 9100
+  autoLockMinutes?:       number    // minutes of inactivity before re-requiring PIN; 0 = disabled
+  dailyRevenueTarget?:    number    // ฿ target for notification alerts; 0 = disabled
+  weeklyRevenueTarget?:   number
+  monthlyRevenueTarget?:  number
 }
 
 export type PrinterDevice = {
@@ -42,6 +46,10 @@ export const DEFAULT_BAR_SETTINGS: BarSettings = {
   printerConnectionType:  'bluetooth',
   printerLanIp:           '',
   printerLanPort:         9100,
+  autoLockMinutes:        10,
+  dailyRevenueTarget:     0,
+  weeklyRevenueTarget:    0,
+  monthlyRevenueTarget:   0,
 }
 
 const LS_KEY = 'pos_bar_settings'

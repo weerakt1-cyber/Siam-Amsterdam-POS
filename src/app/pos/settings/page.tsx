@@ -826,6 +826,97 @@ export default function SettingsPage() {
           </div>
         </section>}
 
+        {/* ── Security ── */}
+        {activeTab === 'general' && <section>
+          <SectionTitle>Security</SectionTitle>
+          <div className="bg-white border border-gray-100 rounded-2xl p-5 flex flex-col gap-3 shadow-sm">
+            {cfg && (
+              <>
+                <div>
+                  <p className="text-sm font-semibold text-gray-700">Display Time Lock</p>
+                  <p className="text-xs text-gray-400 mt-0.5 mb-3">
+                    Re-request staff PIN after this much inactivity, instead of on every screen-off or app switch.
+                  </p>
+                  <div className="flex flex-wrap gap-2">
+                    {([
+                      { val: 0,  label: 'Off' },
+                      { val: 5,  label: '5 min' },
+                      { val: 10, label: '10 min' },
+                      { val: 15, label: '15 min' },
+                      { val: 30, label: '30 min' },
+                    ] as const).map(opt => (
+                      <button
+                        key={opt.val}
+                        onClick={() => updateCfg('autoLockMinutes', opt.val)}
+                        className={`px-4 py-2 rounded-xl text-sm font-semibold transition active:scale-95 ${
+                          (cfg.autoLockMinutes ?? 10) === opt.val ? 'bg-amber-500 text-black' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                        }`}
+                      >
+                        {opt.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="pt-1">
+                  <button
+                    onClick={saveCfg}
+                    className={`px-6 py-2.5 rounded-xl text-sm font-bold transition active:scale-95 ${
+                      cfgSaved ? 'bg-emerald-500 text-white' : 'bg-amber-500 hover:bg-amber-400 text-black'
+                    }`}
+                  >
+                    {cfgSaved ? '✓ Saved!' : 'Save Changes'}
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+        </section>}
+
+        {/* ── Revenue Targets ── */}
+        {activeTab === 'general' && <section>
+          <SectionTitle>Revenue Targets</SectionTitle>
+          <div className="bg-white border border-gray-100 rounded-2xl p-5 flex flex-col gap-3 shadow-sm">
+            {cfg && (
+              <>
+                <p className="text-xs text-gray-400 -mt-1 mb-1">
+                  Set sales goals to get 🔔 alerts when you hit them (or get close). Leave 0 to disable.
+                </p>
+                {([
+                  { key: 'dailyRevenueTarget'   as const, label: 'Daily target',   placeholder: 'e.g. 20000' },
+                  { key: 'weeklyRevenueTarget'  as const, label: 'Weekly target',  placeholder: 'e.g. 120000' },
+                  { key: 'monthlyRevenueTarget' as const, label: 'Monthly target', placeholder: 'e.g. 500000' },
+                ]).map(t => (
+                  <div key={t.key} className="flex items-center gap-4">
+                    <label className="text-sm text-gray-500 w-28 shrink-0">{t.label}</label>
+                    <div className="flex items-center gap-2 flex-1">
+                      <span className="text-gray-400 text-sm">฿</span>
+                      <input
+                        type="number"
+                        min={0}
+                        value={cfg[t.key] || ''}
+                        onChange={e => updateCfg(t.key, Math.max(0, Number(e.target.value) || 0))}
+                        placeholder={t.placeholder}
+                        className="flex-1 bg-white border border-gray-200 rounded-xl px-3 py-2.5 text-sm text-gray-900 placeholder:text-gray-300 focus:outline-none focus:border-amber-400 transition"
+                      />
+                    </div>
+                  </div>
+                ))}
+                <div className="pt-1">
+                  <button
+                    onClick={saveCfg}
+                    className={`px-6 py-2.5 rounded-xl text-sm font-bold transition active:scale-95 ${
+                      cfgSaved ? 'bg-emerald-500 text-white' : 'bg-amber-500 hover:bg-amber-400 text-black'
+                    }`}
+                  >
+                    {cfgSaved ? '✓ Saved!' : 'Save Changes'}
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+        </section>}
+
         {/* ── Receipt & Printer ── */}
         {activeTab === 'printer' && <section>
           <SectionTitle>Receipt &amp; Printer</SectionTitle>
