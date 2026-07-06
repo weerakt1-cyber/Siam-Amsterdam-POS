@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from 'react'
 import {
   loadBarSettings, connectPrinter, checkPrinterConnected, loadPrinterDevice,
-  disconnectPrinter, printReceipt, openCashDrawer,
+  disconnectPrinter, printReceipt, openCashDrawer, DEFAULT_BAR_SETTINGS,
   type BarSettings, type ReceiptData,
 } from '@/lib/printer'
 import OmisePaymentModal, { type OmisePayType } from './OmisePaymentModal'
@@ -208,7 +208,8 @@ export default function CheckoutModal({
     setPpLoading(true)
     const phone = cfg?.promptpayNumber ?? ''
     if (!phone) { setPpLoading(false); return }
-    fetch(`/api/payment/promptpay?phone=${encodeURIComponent(phone)}&amount=${total}`)
+    const barNameParam = cfg?.barName ? `&barName=${encodeURIComponent(cfg.barName)}` : ''
+    fetch(`/api/payment/promptpay?phone=${encodeURIComponent(phone)}&amount=${total}${barNameParam}`)
       .then(r => r.json())
       .then(d => { if (d.dataUrl) setPpQr(d.dataUrl) })
       .catch(() => {})
@@ -248,7 +249,7 @@ export default function CheckoutModal({
       cart, table, note, discount, memberName, subtotal, total, vatIncluded,
       payment: pmt, received: receivedNum, change,
       orderRef, isDraft, dateStr, timeStr, staffName,
-      cfg: cfg ?? { barName: '🍹 SIAM', address: 'Amsterdam', phone: '', taxId: '', footer: 'Thank you!', width: 32 as const, promptpayNumber: '', receiptTemplate: 'classic' as const },
+      cfg: cfg ?? DEFAULT_BAR_SETTINGS,
     }
   }
 

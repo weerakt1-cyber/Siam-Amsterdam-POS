@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { loadBarSettings } from '@/lib/printer'
 
 declare global {
   interface Window {
@@ -144,7 +145,7 @@ export default function OmisePaymentModal({ paymentType, total, onSuccess, onClo
         const res  = await fetch('/api/payment/omise', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ type: 'credit_card', token: response.id, amount: total }),
+          body: JSON.stringify({ type: 'credit_card', token: response.id, amount: total, description: loadBarSettings().barName }),
         })
         const data = await res.json()
         if (!res.ok) throw new Error(data.error ?? 'Payment error')

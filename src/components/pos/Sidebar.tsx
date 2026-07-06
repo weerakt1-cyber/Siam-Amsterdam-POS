@@ -77,7 +77,7 @@ export default function Sidebar() {
       >
         <div className="mb-2 mt-1">
           <div className="w-11 h-11 rounded-2xl overflow-hidden border border-stone-700 shrink-0">
-            <img src={logoSrc} alt="Siam Amsterdam" className="w-full h-full object-cover" />
+            <img src={logoSrc} alt="Bar logo" className="w-full h-full object-cover" />
           </div>
         </div>
         <div className="w-8 border-t border-stone-700 mb-1" />

@@ -18,10 +18,17 @@ function crc16(str: string): string {
 
 /**
  * Build a PromptPay QR payload string.
- * @param phone  Thai mobile number, e.g. "0637317929"
- * @param amount Amount in baht (omit for open-amount static QR)
+ * @param phone        Thai mobile number, e.g. "0637317929"
+ * @param amount       Amount in baht (omit for open-amount static QR)
+ * @param merchantName Merchant name shown in the payer's banking app (TLV 59, max ~25 chars)
+ * @param merchantCity Merchant city shown in the payer's banking app (TLV 60, max ~15 chars)
  */
-export function buildPromptPayQR(phone: string, amount?: number): string {
+export function buildPromptPayQR(
+  phone: string,
+  amount?: number,
+  merchantName = 'POS MERCHANT',
+  merchantCity = 'BANGKOK',
+): string {
   const digits = phone.replace(/\D/g, '')
   // 0637317929 → 0066637317929  (drop leading 0, prepend 0066)
   const normalized = '0066' + (digits.startsWith('0') ? digits.slice(1) : digits)
@@ -38,8 +45,8 @@ export function buildPromptPayQR(phone: string, amount?: number): string {
     tlv('53', '764'),
     ...(amount != null ? [tlv('54', amount.toFixed(2))] : []),
     tlv('58', 'TH'),
-    tlv('59', 'SIAM AMSTERDAM'),
-    tlv('60', 'AMSTERDAM'),
+    tlv('59', merchantName.slice(0, 25).toUpperCase()),
+    tlv('60', merchantCity.slice(0, 15).toUpperCase()),
     '6304',
   ]
 

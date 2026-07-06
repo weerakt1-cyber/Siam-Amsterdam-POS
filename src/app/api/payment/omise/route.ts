@@ -15,7 +15,7 @@ function getOmise() {
 
 export async function POST(req: NextRequest) {
   try {
-    const { type, token, amount } = await req.json()
+    const { type, token, amount, description } = await req.json()
     const amountSatang = Math.round(Number(amount) * 100)
 
     if (!amountSatang || amountSatang < 2000) {
@@ -32,7 +32,7 @@ export async function POST(req: NextRequest) {
         currency:    'thb',
         card:        token,
         capture:     true,
-        description: 'SIAM AMSTERDAM POS',
+        description: (typeof description === 'string' && description.trim()) || 'POS Payment',
       })
       return NextResponse.json({
         chargeId:       charge.id,

@@ -716,11 +716,11 @@ export default function SettingsPage() {
         <p style="margin:6px 0 2px;font-size:14px;font-weight:900;font-family:sans-serif">Table ${tableNo}</p>
         <p style="margin:0;font-size:9px;color:#888;font-family:monospace;word-break:break-all;text-align:center">${base}/order/${tableNo}</p>
       </div>`).join('')
-    win.document.write(`<!DOCTYPE html><html><head><title>QR Codes — ${cfg?.barName ?? 'Siam Amsterdam'}</title>
+    win.document.write(`<!DOCTYPE html><html><head><title>QR Codes — ${cfg?.barName || 'Your Bar'}</title>
       <style>body{margin:24px;font-family:sans-serif}h1{font-size:18px;margin-bottom:16px}
       .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:16px}
       @media print{@page{size:A4;margin:16mm}}</style></head>
-      <body><h1>QR Self-Ordering — ${cfg?.barName ?? 'Siam Amsterdam'}</h1>
+      <body><h1>QR Self-Ordering — ${cfg?.barName || 'Your Bar'}</h1>
       <div class="grid">${cells}</div></body></html>`)
     win.document.close()
     setTimeout(() => win.print(), 500)
@@ -805,11 +805,12 @@ export default function SettingsPage() {
                   </div>
                 </div>
 
-                <SettingInput label="Business Name" value={cfg.barName}               onChange={v => updateCfg('barName', v)}         placeholder="🍹 Siam Amsterdam" />
+                <SettingInput label="Business Name"  value={cfg.barName}               onChange={v => updateCfg('barName', v)}         placeholder="🍹 Your Bar Name" />
                 <SettingInput label="Address"        value={cfg.address}               onChange={v => updateCfg('address', v)}         placeholder="Sukhumvit Soi 11, Bangkok" />
                 <SettingInput label="Phone"          value={cfg.phone}                 onChange={v => updateCfg('phone', v)}           placeholder="02-xxx-xxxx" />
                 <SettingInput label="Tax ID"         value={cfg.taxId}                 onChange={v => updateCfg('taxId', v)}           placeholder="0-0000-00000-00-0" />
                 <SettingInput label="PromptPay"      value={cfg.promptpayNumber ?? ''} onChange={v => updateCfg('promptpayNumber', v)} placeholder="0812345678" />
+                <SettingInput label="Google Review Link" value={cfg.googleReviewUrl ?? ''} onChange={v => updateCfg('googleReviewUrl', v)} placeholder="https://maps.app.goo.gl/..." />
 
                 <div className="pt-1">
                   <button
@@ -1307,7 +1308,7 @@ export default function SettingsPage() {
               <div className="flex items-center gap-3">
                 <span className="text-2xl">✈️</span>
                 <div>
-                  <h3 className="font-bold text-gray-900">Siam Amsterdam POS Bot</h3>
+                  <h3 className="font-bold text-gray-900">Baze POS Bot</h3>
                   <p className="text-xs text-gray-400 mt-0.5">New order alerts + daily revenue summary</p>
                 </div>
               </div>
@@ -1715,7 +1716,7 @@ export default function SettingsPage() {
       )}
 
       <div className="px-6 py-3 border-t border-gray-100 text-xs text-gray-400 shrink-0 flex items-center justify-between bg-white">
-        <span>SIAM AMSTERDAM POS v1.0</span>
+        <span>BAZE POS v1.0</span>
         <span>claude-sonnet-4-6</span>
       </div>
     </div>

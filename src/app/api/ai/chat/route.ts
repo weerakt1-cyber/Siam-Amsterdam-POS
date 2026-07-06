@@ -146,7 +146,7 @@ export async function POST(req: NextRequest) {
       Promise.resolve(file ? buildFileContext(file, plan) : ''),
     ])
 
-    const systemPrompt = `คุณคือผู้ช่วย AI ของบาร์ Siam Amsterdam ที่รู้ทุกอย่างเกี่ยวกับธุรกิจนี้
+    const systemPrompt = `คุณคือผู้ช่วย AI ของบาร์นี้ ที่รู้ทุกอย่างเกี่ยวกับธุรกิจนี้
 
 ${businessContext}
 ${fileContext}

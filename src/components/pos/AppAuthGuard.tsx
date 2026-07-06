@@ -58,7 +58,7 @@ function LoadingSkeleton() {
     <div className="fixed inset-0 z-[200] bg-gray-950 flex items-center justify-center">
       <div className="flex flex-col items-center gap-4">
         {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src="/logo.png" alt="Siam Amsterdam" className="w-20 h-20 object-contain opacity-60" />
+        <img src="/logo.png" alt="Bar logo" className="w-20 h-20 object-contain opacity-60" />
         <div className="w-6 h-6 border-2 border-amber-500/30 border-t-amber-500 rounded-full animate-spin" />
       </div>
     </div>
@@ -75,7 +75,7 @@ function UnauthScreen() {
       />
       <div className="relative z-10 flex flex-col items-center gap-4">
         {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src="/logo.png" alt="Siam Amsterdam" className="w-20 h-20 object-contain" />
+        <img src="/logo.png" alt="Bar logo" className="w-20 h-20 object-contain" />
         <p className="text-gray-400 text-sm">กรุณาเข้าสู่ระบบก่อนใช้งาน</p>
         <button
           onClick={() => router.replace('/auth')}

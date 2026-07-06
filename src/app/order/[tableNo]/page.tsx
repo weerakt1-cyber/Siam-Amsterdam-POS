@@ -246,7 +246,6 @@ export default function OrderPage({ params }: { params: Promise<{ tableNo: strin
       <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center px-5" style={{ userSelect: 'none' }}>
         <div className="w-full max-w-sm bg-white rounded-3xl shadow-sm border border-gray-100 p-6">
           <div className="text-center mb-6">
-            <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-widest">Siam Amsterdam</p>
             <h1 className="text-xl font-black text-gray-900 mt-0.5">Welcome! 👋</h1>
             <p className="text-sm text-gray-400 mt-1">Please tell us your name before ordering</p>
           </div>
@@ -289,7 +288,6 @@ export default function OrderPage({ params }: { params: Promise<{ tableNo: strin
         <header className="sticky top-0 z-30 bg-white border-b border-gray-100 shadow-sm">
           <div className="max-w-md mx-auto px-4 py-3 flex items-center justify-between">
             <div>
-              <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-widest">Siam Amsterdam</p>
               <h1 className="text-lg font-black text-gray-900 leading-none">Order Status</h1>
             </div>
             <div className="bg-amber-500 text-black px-3 py-1.5 rounded-xl font-black text-sm">
@@ -411,7 +409,6 @@ export default function OrderPage({ params }: { params: Promise<{ tableNo: strin
       <header className="sticky top-0 z-30 bg-white border-b border-gray-100 shadow-sm">
         <div className="max-w-md mx-auto px-4 py-3 flex items-center justify-between">
           <div>
-            <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-widest">Siam Amsterdam</p>
             <h1 className="text-lg font-black text-gray-900 leading-none">Order Menu</h1>
           </div>
           <div className="flex items-center gap-2">

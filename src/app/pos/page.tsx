@@ -5,7 +5,7 @@ import type { MenuItem, Order } from '@/lib/types'
 import CheckoutModal from '@/components/pos/CheckoutModal'
 import NumPad from '@/components/pos/NumPad'
 import SplitBillModal from '@/components/pos/SplitBillModal'
-import { loadBarSettings, type BarSettings } from '@/lib/printer'
+import { loadBarSettings, DEFAULT_BAR_SETTINGS, type BarSettings } from '@/lib/printer'
 import { type CatEntry, CATEGORIES_CHANGED_EVENT, loadAllCategories } from '@/lib/categories'
 
 const TABLES = ['T1', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7', 'T8', 'BAR', 'VIP1', 'VIP2']
@@ -167,7 +167,7 @@ export default function POSPage() {
   const [showAllHistory, setShowAllHistory] = useState(false)
   const [toast, setToast] = useState<{ msg: string; ok: boolean } | null>(null)
   const [clock, setClock] = useState('')
-  const [bizName, setBizName] = useState('Siam Amsterdam')
+  const [bizName, setBizName] = useState(DEFAULT_BAR_SETTINGS.barName)
   const [coupons, setCoupons] = useState<{ id: string; code: string; name: string; type: string; value: number }[]>([])
   const [lowStockMap, setLowStockMap] = useState<Record<string, string[]>>({})
 
@@ -189,7 +189,7 @@ export default function POSPage() {
   }, [])
 
   useEffect(() => {
-    setBizName(loadBarSettings().barName || 'Siam Amsterdam')
+    setBizName(loadBarSettings().barName || DEFAULT_BAR_SETTINGS.barName)
     fetch('/api/coupons')
       .then(r => r.json())
       .then(d => setCoupons((d.coupons ?? []).filter((c: { active: boolean }) => c.active)))
@@ -1534,7 +1534,7 @@ export default function POSPage() {
 
       {/* Status bar */}
       <div className="flex items-center justify-between px-4 py-1.5 bg-white border-t border-stone-100 text-xs text-stone-400 shrink-0">
-        <span>SIAM AMSTERDAM POS v1.0</span>
+        <span>BAZE POS v1.0</span>
         <span>
           Today:{' '}
           <span className="text-amber-600 font-semibold">{baht(todayTotal)}</span>

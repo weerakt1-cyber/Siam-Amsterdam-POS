@@ -27,6 +27,7 @@ export type BarSettings = {
   dailyRevenueTarget?:    number    // ฿ target for notification alerts; 0 = disabled
   weeklyRevenueTarget?:   number
   monthlyRevenueTarget?:  number
+  googleReviewUrl?:       string    // Google Maps review link printed on receipts; '' = omit the block
 }
 
 export type PrinterDevice = {
@@ -40,7 +41,7 @@ export const DEFAULT_BAR_SETTINGS: BarSettings = {
   phone:                  '',
   taxId:                  '',
   footer:                 'ขอบคุณที่ใช้บริการ\nThank you! Come again 🙏',
-  promptpayNumber:        '0637317929',
+  promptpayNumber:        '',
   width:                  32,
   receiptTemplate:        'classic',
   printerConnectionType:  'bluetooth',
@@ -50,6 +51,7 @@ export const DEFAULT_BAR_SETTINGS: BarSettings = {
   dailyRevenueTarget:     0,
   weeklyRevenueTarget:    0,
   monthlyRevenueTarget:   0,
+  googleReviewUrl:        '',
 }
 
 const LS_KEY = 'pos_bar_settings'
@@ -180,8 +182,6 @@ export async function checkPrinterConnected(): Promise<boolean> {
   const printer = await getPlugin()
   return printer.isConnected()
 }
-
-const MAPS_REVIEW_URL = 'https://www.google.com/maps/place/Bar+Siam+Amsterdam/@12.9634159,100.8876897,16.96z/data=!4m8!3m7!1s0x31029569141e1951:0x8eadca38f19041b6!8m2!3d12.9639884!4d100.889355!9m1!1b1!16s%2Fg%2F11tg260j3m'
 
 // ─── ESC/POS constants ────────────────────────────────────────────────────────
 
@@ -314,9 +314,9 @@ export function buildReceiptBytes(d: ReceiptData, cfg: BarSettings): Uint8Array 
     b(divider(W) + '\n'),
     b(C.CENTER),
     b(divider(W) + '\n'),
-    b('Rate us on Google Maps!\n'),
-    buildQRBytes(MAPS_REVIEW_URL, 6),
-    b('\n'),
+    cfg.googleReviewUrl ? b('Rate us on Google Maps!\n') : new Uint8Array(0),
+    cfg.googleReviewUrl ? buildQRBytes(cfg.googleReviewUrl, 6) : new Uint8Array(0),
+    cfg.googleReviewUrl ? b('\n') : new Uint8Array(0),
     ...footerLines.map(line => b(line + '\n')),
     b(C.LEFT, '\n\n\n'),
     b(C.CUT),
