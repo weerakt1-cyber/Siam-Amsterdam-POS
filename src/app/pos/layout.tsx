@@ -1,6 +1,8 @@
 import Sidebar from '@/components/pos/Sidebar'
 import AppAuthGuard from '@/components/pos/AppAuthGuard'
 import AIChatPanel from '@/components/pos/AIChatPanel'
+import LockScreen from '@/components/pos/LockScreen'
+import NotificationBell from '@/components/pos/NotificationBell'
 import { PosAuthProvider } from '@/lib/pos-auth'
 
 export const metadata = {
@@ -19,6 +21,8 @@ export default function POSLayout({ children }: { children: React.ReactNode }) {
           </main>
         </div>
         <AIChatPanel />
+        <NotificationBell />
+        <LockScreen />
       </AppAuthGuard>
     </PosAuthProvider>
   )
