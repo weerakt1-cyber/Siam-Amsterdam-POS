@@ -45,10 +45,6 @@ export type OrderNotifyData = {
 }
 
 export async function sendOrderAlert(data: OrderNotifyData): Promise<boolean> {
-  const PAY: Record<string, string> = {
-    cash: '💵 Cash', card: '💳 Card', promptpay: '📱 QR PromptPay',
-  }
-
   const shortId   = data.orderId.slice(-8).toUpperCase()
   const itemLines = data.items
     .map(i => `  • ${i.name} ×${i.qty} — ฿${(i.price * i.qty).toLocaleString()}`)
@@ -58,14 +54,12 @@ export async function sendOrderAlert(data: OrderNotifyData): Promise<boolean> {
     ? `\n🏷 Discount${data.couponCode ? ` [${data.couponCode}]` : ''}: -฿${data.discountAmount.toLocaleString()}`
     : ''
 
-  const cashLine = data.paymentMethod === 'cash' && data.received != null
-    ? `\n💵 Received ฿${data.received.toLocaleString()}  |  Change ฿${(data.change ?? 0).toLocaleString()}`
-    : ''
-
   const staffLine    = data.staffName    ? `\n👤 Staff: ${data.staffName}`      : ''
   const memberLine   = data.memberName   ? `\n⭐ Member: ${data.memberName}`    : ''
   const customerLine = data.customerName ? `\n🙋 Customer: ${data.customerName}` : ''
 
+  // No "Paid" line here — orders (especially QR self-orders) aren't
+  // necessarily settled yet when this alert fires. Ends at Subtotal.
   const text = [
     `🍹 <b>New Order</b> — Baze POS`,
     `━━━━━━━━━━━━━━━━`,
@@ -75,8 +69,6 @@ export async function sendOrderAlert(data: OrderNotifyData): Promise<boolean> {
     itemLines,
     ``,
     `💰 Subtotal: ฿${data.subtotal.toLocaleString()}${discountLine}`,
-    `━━━━━━━━━━━━━━━━`,
-    `✅ <b>Paid ฿${data.total.toLocaleString()}</b>  |  ${PAY[data.paymentMethod] ?? data.paymentMethod}${cashLine}`,
   ].join('\n')
 
   return sendMessage(text)

@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef, use, useCallback } from 'react'
 import type { MenuItem } from '@/lib/types'
 import { type CatEntry, CATEGORIES_CHANGED_EVENT, loadAllCategories } from '@/lib/categories'
+import { type Lang, type OrderStringKey, LANGS, STRINGS, loadOrderLang, saveOrderLang } from '@/lib/order-i18n'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -45,11 +46,11 @@ const ALL_CHIP: CatEntry = { value: 'all', label: 'All', color: '' }
 
 const TABLES = ['T1', 'T2', 'T3', 'T4', 'T5', 'T6', 'VIP1', 'BAR']
 
-const STATUS_STEPS: { key: OrderStatus; label: string; labelTh: string; icon: string }[] = [
-  { key: 'pending',   label: 'Order Received',  labelTh: 'รับออเดอร์แล้ว',  icon: '✓'  },
-  { key: 'accepted',  label: 'Preparing',        labelTh: 'กำลังเตรียม',     icon: '🔥' },
-  { key: 'ready',     label: 'Ready!',            labelTh: 'เสร็จแล้ว!',      icon: '🎉' },
-  { key: 'delivered', label: 'Delivered',         labelTh: 'ส่งแล้ว',         icon: '😊' },
+const STATUS_STEPS: { key: OrderStatus; labelKey: OrderStringKey; labelTh: string; icon: string }[] = [
+  { key: 'pending',   labelKey: 'orderReceived', labelTh: 'รับออเดอร์แล้ว',  icon: '✓'  },
+  { key: 'accepted',  labelKey: 'preparing',     labelTh: 'กำลังเตรียม',     icon: '🔥' },
+  { key: 'ready',     labelKey: 'ready',         labelTh: 'เสร็จแล้ว!',      icon: '🎉' },
+  { key: 'delivered', labelKey: 'delivered',     labelTh: 'ส่งแล้ว',         icon: '😊' },
 ]
 
 function statusIndex(s: OrderStatus) {
@@ -95,6 +96,10 @@ export default function OrderPage({ params }: { params: Promise<{ tableNo: strin
 
   const [customerName, setCustomerName] = useState('')
   const [infoError, setInfoError]       = useState('')
+
+  const [lang, setLangState] = useState<Lang>(() => loadOrderLang())
+  function setLang(l: Lang) { setLangState(l); saveOrderLang(l) }
+  const t = (key: OrderStringKey) => STRINGS[lang][key]
 
   // Table is fixed by the QR code that was scanned — the customer never picks it
   const selectedTable = TABLES.includes(tableNo) ? tableNo : (tableNo || TABLES[0])
@@ -204,7 +209,7 @@ export default function OrderPage({ params }: { params: Promise<{ tableNo: strin
       })
       if (!r.ok) {
         const d = await r.json()
-        setSubmitError(d.error ?? 'Something went wrong')
+        setSubmitError(d.error ?? t('somethingWrong'))
         setSubmitting(false)
         setShowConfirm(false)
         return
@@ -224,7 +229,7 @@ export default function OrderPage({ params }: { params: Promise<{ tableNo: strin
       setShowConfirm(false)
       setPhase('tracking')
     } catch {
-      setSubmitError('Network error — please try again')
+      setSubmitError(t('networkError'))
       setShowConfirm(false)
     }
     setSubmitting(false)
@@ -233,8 +238,8 @@ export default function OrderPage({ params }: { params: Promise<{ tableNo: strin
   // ── Confirm customer info ───────────────────────────────────────────────────
 
   function confirmInfo() {
-    if (!customerName.trim()) { setInfoError('Please enter your name'); return }
-    if (!selectedTable)        { setInfoError('Please select a table'); return }
+    if (!customerName.trim()) { setInfoError(t('errNameRequired')); return }
+    if (!selectedTable)        { setInfoError(t('errTableRequired')); return }
     setInfoError('')
     setPhase('menu')
   }
@@ -245,22 +250,40 @@ export default function OrderPage({ params }: { params: Promise<{ tableNo: strin
     return (
       <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center px-5" style={{ userSelect: 'none' }}>
         <div className="w-full max-w-sm bg-white rounded-3xl shadow-sm border border-gray-100 p-6">
+
+          {/* Language selector — first thing a customer picks */}
+          <div className="flex items-center justify-center gap-2 mb-5">
+            {LANGS.map(l => (
+              <button
+                key={l.code}
+                onClick={() => setLang(l.code)}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold transition active:scale-95 border ${
+                  lang === l.code
+                    ? 'bg-gray-900 text-white border-gray-900'
+                    : 'bg-white text-gray-500 border-gray-200 hover:border-gray-400'
+                }`}
+              >
+                <span>{l.flag}</span> {l.label}
+              </button>
+            ))}
+          </div>
+
           <div className="text-center mb-6">
-            <h1 className="text-xl font-black text-gray-900 mt-0.5">Welcome! 👋</h1>
-            <p className="text-sm text-gray-400 mt-1">Please tell us your name before ordering</p>
+            <h1 className="text-xl font-black text-gray-900 mt-0.5">{t('welcomeTitle')}</h1>
+            <p className="text-sm text-gray-400 mt-1">{t('welcomeSubtitle')}</p>
           </div>
 
           <div className="flex items-center justify-center mb-5">
             <div className="bg-amber-500 text-black px-4 py-2 rounded-xl font-black text-sm">
-              🪑 Table {selectedTable}
+              🪑 {t('tableLabel')} {selectedTable}
             </div>
           </div>
 
-          <label className="text-xs font-semibold text-gray-400 uppercase tracking-widest block mb-2">Your Name</label>
+          <label className="text-xs font-semibold text-gray-400 uppercase tracking-widest block mb-2">{t('yourName')}</label>
           <input
             value={customerName}
             onChange={e => setCustomerName(e.target.value)}
-            placeholder="e.g. Somchai"
+            placeholder={t('namePlaceholder')}
             className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm text-gray-900 placeholder:text-gray-300 focus:outline-none focus:border-amber-400 transition"
             style={{ userSelect: 'text' }}
             autoFocus
@@ -272,7 +295,7 @@ export default function OrderPage({ params }: { params: Promise<{ tableNo: strin
             onClick={confirmInfo}
             className="w-full mt-5 py-4 rounded-2xl bg-gray-900 text-white font-black text-base shadow-lg shadow-gray-900/20 active:scale-[0.98] transition"
           >
-            Continue to Menu →
+            {t('continueToMenu')}
           </button>
         </div>
       </div>
@@ -288,10 +311,10 @@ export default function OrderPage({ params }: { params: Promise<{ tableNo: strin
         <header className="sticky top-0 z-30 bg-white border-b border-gray-100 shadow-sm">
           <div className="max-w-md mx-auto px-4 py-3 flex items-center justify-between">
             <div>
-              <h1 className="text-lg font-black text-gray-900 leading-none">Order Status</h1>
+              <h1 className="text-lg font-black text-gray-900 leading-none">{t('orderStatus')}</h1>
             </div>
             <div className="bg-amber-500 text-black px-3 py-1.5 rounded-xl font-black text-sm">
-              Table {selectedTable}
+              {t('tableLabel')} {selectedTable}
             </div>
           </div>
         </header>
@@ -312,17 +335,17 @@ export default function OrderPage({ params }: { params: Promise<{ tableNo: strin
                   isCancelled ? 'bg-gray-50' : isThisReady ? 'bg-emerald-50' : 'bg-white'
                 }`}>
                   <div>
-                    <p className="text-xs text-gray-400 font-semibold uppercase tracking-widest">Order #{i + 1}</p>
+                    <p className="text-xs text-gray-400 font-semibold uppercase tracking-widest">{t('orderNum')} #{i + 1}</p>
                     <p className="font-black text-lg text-gray-900">{baht(order.total)}</p>
                   </div>
                   {isCancelled ? (
                     <span className="text-xs font-bold text-red-500 bg-red-50 border border-red-100 px-3 py-1.5 rounded-xl">
-                      Cancelled
+                      {t('cancelled')}
                     </span>
                   ) : (
                     <div className="text-right">
                       <p className="text-2xl">{currentStep.icon}</p>
-                      <p className="text-xs font-bold text-gray-700 mt-0.5">{currentStep.label}</p>
+                      <p className="text-xs font-bold text-gray-700 mt-0.5">{t(currentStep.labelKey)}</p>
                       <p className="text-[10px] text-gray-400">{currentStep.labelTh}</p>
                     </div>
                   )}
@@ -352,7 +375,7 @@ export default function OrderPage({ params }: { params: Promise<{ tableNo: strin
                         <p key={st.key} className={`text-[9px] font-semibold text-center flex-1 ${
                           si === stepIdx ? 'text-gray-900' : 'text-gray-300'
                         }`}>
-                          {st.label}
+                          {t(st.labelKey)}
                         </p>
                       ))}
                     </div>
@@ -361,7 +384,7 @@ export default function OrderPage({ params }: { params: Promise<{ tableNo: strin
 
                 {/* Items */}
                 <div className="px-5 pb-4 border-t border-gray-50 pt-3">
-                  <p className="text-[10px] font-bold text-gray-300 uppercase tracking-widest mb-2">Items</p>
+                  <p className="text-[10px] font-bold text-gray-300 uppercase tracking-widest mb-2">{t('items')}</p>
                   <div className="flex flex-col gap-1">
                     {order.items.map((item, j) => (
                       <div key={j} className="flex items-center justify-between">
@@ -373,15 +396,15 @@ export default function OrderPage({ params }: { params: Promise<{ tableNo: strin
                       </div>
                     ))}
                   </div>
-                  {order.note && <p className="text-xs text-gray-400 mt-2 italic">Note: {order.note}</p>}
+                  {order.note && <p className="text-xs text-gray-400 mt-2 italic">{t('noteLabel')} {order.note}</p>}
                 </div>
 
                 {/* Ready banner */}
                 {order.status === 'ready' && (
                   <div className="mx-4 mb-4 bg-emerald-50 border border-emerald-100 rounded-2xl p-4 text-center">
                     <p className="text-2xl mb-1">🎉</p>
-                    <p className="font-black text-emerald-800">Your order is ready!</p>
-                    <p className="text-sm text-emerald-600 mt-0.5">Staff will bring it to you shortly.</p>
+                    <p className="font-black text-emerald-800">{t('yourOrderReady')}</p>
+                    <p className="text-sm text-emerald-600 mt-0.5">{t('staffBringShortly')}</p>
                     <p className="text-xs text-emerald-500 mt-0.5">อาหารพร้อมแล้ว พนักงานกำลังนำมาส่ง</p>
                   </div>
                 )}
@@ -393,9 +416,9 @@ export default function OrderPage({ params }: { params: Promise<{ tableNo: strin
             onClick={() => setPhase('menu')}
             className="w-full py-4 rounded-2xl bg-gray-900 text-white font-black text-base shadow-lg shadow-gray-900/20 active:scale-[0.98] transition"
           >
-            + Order More
+            {t('orderMore')}
           </button>
-          <p className="text-xs text-center text-gray-400 pb-4">Table {selectedTable} · Refreshing every 5 seconds</p>
+          <p className="text-xs text-center text-gray-400 pb-4">{t('tableLabel')} {selectedTable} · {t('refreshing')}</p>
         </main>
       </div>
     )
@@ -409,7 +432,7 @@ export default function OrderPage({ params }: { params: Promise<{ tableNo: strin
       <header className="sticky top-0 z-30 bg-white border-b border-gray-100 shadow-sm">
         <div className="max-w-md mx-auto px-4 py-3 flex items-center justify-between">
           <div>
-            <h1 className="text-lg font-black text-gray-900 leading-none">Order Menu</h1>
+            <h1 className="text-lg font-black text-gray-900 leading-none">{t('orderMenu')}</h1>
           </div>
           <div className="flex items-center gap-2">
             {latestOrder && (
@@ -419,11 +442,11 @@ export default function OrderPage({ params }: { params: Promise<{ tableNo: strin
                   isReady ? 'bg-emerald-500 text-white animate-pulse' : 'bg-gray-100 text-gray-700'
                 }`}
               >
-                {isReady ? '🎉' : '⏳'} {isReady ? 'Ready!' : 'Tracking'}
+                {isReady ? '🎉' : '⏳'} {isReady ? t('readyBtn') : t('trackingBtn')}
               </button>
             )}
             <div className="bg-amber-500 text-black px-3 py-1.5 rounded-xl font-black text-sm">
-              Table {selectedTable}
+              {t('tableLabel')} {selectedTable}
             </div>
           </div>
         </div>
@@ -449,12 +472,12 @@ export default function OrderPage({ params }: { params: Promise<{ tableNo: strin
         {loading ? (
           <div className="flex flex-col items-center justify-center py-20 text-gray-300">
             <p className="text-4xl mb-3 animate-pulse">🍽️</p>
-            <p className="text-sm">Loading menu...</p>
+            <p className="text-sm">{t('loadingMenu')}</p>
           </div>
         ) : filtered.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-20 text-gray-300">
             <p className="text-4xl mb-3">🤷</p>
-            <p className="text-sm">No items in this category</p>
+            <p className="text-sm">{t('noItemsCategory')}</p>
           </div>
         ) : (
           <div className="grid grid-cols-2 gap-3">
@@ -517,7 +540,7 @@ export default function OrderPage({ params }: { params: Promise<{ tableNo: strin
             >
               <div className="flex items-center gap-3">
                 <span className="bg-amber-500 text-black text-xs font-black w-7 h-7 rounded-full flex items-center justify-center">{cartCount}</span>
-                <span className="font-semibold text-sm">View Order</span>
+                <span className="font-semibold text-sm">{t('viewOrder')}</span>
               </div>
               <span className="font-black">{baht(cartTotal)}</span>
             </button>
@@ -531,7 +554,7 @@ export default function OrderPage({ params }: { params: Promise<{ tableNo: strin
           <div className="absolute inset-0 bg-black/50" onClick={() => setCartOpen(false)} />
           <div className="relative bg-white rounded-t-3xl max-h-[85vh] flex flex-col shadow-2xl">
             <div className="flex items-center justify-between px-5 pt-4 pb-2">
-              <h2 className="font-black text-lg text-gray-900">Your Order</h2>
+              <h2 className="font-black text-lg text-gray-900">{t('yourOrder')}</h2>
               <button onClick={() => setCartOpen(false)} className="text-gray-400 hover:text-gray-700 w-8 h-8 flex items-center justify-center text-xl">×</button>
             </div>
             <div className="flex-1 overflow-y-auto px-5 pb-2">
@@ -543,7 +566,7 @@ export default function OrderPage({ params }: { params: Promise<{ tableNo: strin
                       <div className="flex-1 min-w-0">
                         <p className="font-semibold text-sm text-gray-900 leading-snug">{c.name}</p>
                         {c.variantLabel && <p className="text-xs text-gray-400 mt-0.5">{c.variantLabel}</p>}
-                        <p className="text-xs text-gray-400 mt-0.5">{baht(c.price)} each</p>
+                        <p className="text-xs text-gray-400 mt-0.5">{baht(c.price)} {t('each')}</p>
                       </div>
                       <div className="flex items-center gap-2 shrink-0">
                         <button onClick={() => changeQty(key, -1)} className="w-8 h-8 rounded-full bg-gray-100 active:bg-gray-200 flex items-center justify-center font-bold text-gray-600 transition">−</button>
@@ -556,12 +579,12 @@ export default function OrderPage({ params }: { params: Promise<{ tableNo: strin
                 })}
               </div>
               <div className="mt-4">
-                <label className="text-xs font-semibold text-gray-400 uppercase tracking-widest block mb-2">Special Request / Note</label>
+                <label className="text-xs font-semibold text-gray-400 uppercase tracking-widest block mb-2">{t('specialRequest')}</label>
                 <textarea
                   ref={noteRef}
                   value={note}
                   onChange={e => setNote(e.target.value)}
-                  placeholder="e.g. No ice, extra spicy, allergy info..."
+                  placeholder={t('notePlaceholder')}
                   rows={2}
                   className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm text-gray-900 placeholder:text-gray-300 focus:outline-none focus:border-amber-400 transition resize-none"
                   style={{ userSelect: 'text' }}
@@ -570,7 +593,7 @@ export default function OrderPage({ params }: { params: Promise<{ tableNo: strin
             </div>
             <div className="px-5 pt-3 pb-6 border-t border-gray-100 shrink-0">
               <div className="flex justify-between items-baseline mb-4">
-                <span className="text-sm text-gray-500">Total</span>
+                <span className="text-sm text-gray-500">{t('total')}</span>
                 <span className="text-2xl font-black text-gray-900">{baht(cartTotal)}</span>
               </div>
               {submitError && <p className="text-xs text-red-500 text-center mb-3">{submitError}</p>}
@@ -581,9 +604,9 @@ export default function OrderPage({ params }: { params: Promise<{ tableNo: strin
                   submitting ? 'bg-gray-200 text-gray-400 cursor-wait' : 'bg-gray-900 text-white shadow-lg shadow-gray-900/20'
                 }`}
               >
-                {submitting ? '⏳ Placing order...' : 'Place Order →'}
+                {submitting ? t('placingOrder') : t('placeOrder')}
               </button>
-              <p className="text-xs text-gray-400 text-center mt-2">Table {selectedTable} · Staff will bring your order</p>
+              <p className="text-xs text-gray-400 text-center mt-2">{t('tableLabel')} {selectedTable} · {t('staffWillBring')}</p>
             </div>
           </div>
         </div>
@@ -596,8 +619,8 @@ export default function OrderPage({ params }: { params: Promise<{ tableNo: strin
           <div className="relative bg-white rounded-3xl w-full max-w-sm overflow-hidden shadow-2xl" onClick={e => e.stopPropagation()}>
             <div className="px-5 pt-5 pb-3 text-center">
               <p className="text-3xl mb-1">🧐</p>
-              <h3 className="font-black text-lg text-gray-900">Please Check Your Order</h3>
-              <p className="text-xs text-gray-400 mt-1">Make sure everything below is correct before confirming</p>
+              <h3 className="font-black text-lg text-gray-900">{t('checkYourOrder')}</h3>
+              <p className="text-xs text-gray-400 mt-1">{t('makeSureCorrect')}</p>
             </div>
             <div className="px-5 pb-3 max-h-[40vh] overflow-y-auto">
               <div className="flex flex-col divide-y divide-gray-50 bg-gray-50 rounded-2xl px-3">
@@ -614,13 +637,13 @@ export default function OrderPage({ params }: { params: Promise<{ tableNo: strin
                 ))}
               </div>
               {note.trim() && (
-                <p className="text-xs text-gray-500 mt-3 italic">Note: {note.trim()}</p>
+                <p className="text-xs text-gray-500 mt-3 italic">{t('noteLabel')} {note.trim()}</p>
               )}
               <div className="flex justify-between items-baseline mt-3 px-1">
-                <span className="text-sm text-gray-500">Total</span>
+                <span className="text-sm text-gray-500">{t('total')}</span>
                 <span className="text-xl font-black text-gray-900">{baht(cartTotal)}</span>
               </div>
-              <p className="text-xs text-gray-400 mt-1 px-1">Table {selectedTable}{customerName.trim() && ` · ${customerName.trim()}`}</p>
+              <p className="text-xs text-gray-400 mt-1 px-1">{t('tableLabel')} {selectedTable}{customerName.trim() && ` · ${customerName.trim()}`}</p>
             </div>
             <div className="px-5 pb-5 pt-2 flex flex-col gap-2">
               <button
@@ -630,14 +653,14 @@ export default function OrderPage({ params }: { params: Promise<{ tableNo: strin
                   submitting ? 'bg-gray-200 text-gray-400 cursor-wait' : 'bg-gray-900 text-white shadow-lg shadow-gray-900/20'
                 }`}
               >
-                {submitting ? '⏳ Placing order...' : '✓ Yes, Confirm Order'}
+                {submitting ? t('placingOrder') : t('confirmOrder')}
               </button>
               <button
                 onClick={() => setShowConfirm(false)}
                 disabled={submitting}
                 className="w-full py-3 rounded-2xl font-bold text-sm text-gray-500 hover:bg-gray-50 transition active:scale-[0.98] disabled:opacity-40"
               >
-                ← Go Back, Let Me Check
+                {t('goBack')}
               </button>
             </div>
           </div>
@@ -652,7 +675,7 @@ export default function OrderPage({ params }: { params: Promise<{ tableNo: strin
             <div className="px-5 py-4 border-b border-gray-100 flex items-start justify-between gap-3">
               <div>
                 <h3 className="font-black text-gray-900">{variantItem.name}</h3>
-                <p className="text-xs text-gray-400 mt-0.5">Base {baht(variantItem.price)}</p>
+                <p className="text-xs text-gray-400 mt-0.5">{t('basePriceLabel')} {baht(variantItem.price)}</p>
               </div>
               <button onClick={() => setVariantItem(null)} className="text-gray-400 text-xl w-7 h-7 flex items-center justify-center shrink-0">×</button>
             </div>
@@ -660,7 +683,7 @@ export default function OrderPage({ params }: { params: Promise<{ tableNo: strin
               {variantItem.variants?.map(v => (
                 <div key={v.id}>
                   <p className="text-xs font-bold text-gray-400 uppercase tracking-wide mb-2">
-                    {v.name}{v.required && <span className="text-amber-500 ml-1 normal-case font-normal">*required</span>}
+                    {v.name}{v.required && <span className="text-amber-500 ml-1 normal-case font-normal">{t('requiredTag')}</span>}
                   </p>
                   <div className="grid grid-cols-2 gap-2">
                     {v.options.map(opt => (
@@ -687,14 +710,14 @@ export default function OrderPage({ params }: { params: Promise<{ tableNo: strin
             </div>
             <div className="px-5 pb-5 pt-3 border-t border-gray-100">
               {variantItem.variants?.some(v => v.required && !variantSels[v.id]) && (
-                <p className="text-xs text-amber-500 text-center mb-2">Please select all required options *</p>
+                <p className="text-xs text-amber-500 text-center mb-2">{t('selectAllRequired')}</p>
               )}
               <button
                 onClick={confirmVariant}
                 disabled={variantItem.variants?.some(v => v.required && !variantSels[v.id])}
                 className="w-full py-3 rounded-xl bg-gray-900 text-white font-bold transition active:scale-95 disabled:opacity-30 disabled:cursor-not-allowed"
               >
-                Add to Order →
+                {t('addToOrder')}
               </button>
             </div>
           </div>
