@@ -6,12 +6,16 @@ const config: CapacitorConfig = {
   appName: 'Baze POS',
   webDir:  'out',
 
-  // โหลด web app จาก Next.js server (ไม่ใช่ static bundle เพราะมี API routes)
-  // — dev:  ชี้ไป localhost ของเครื่อง dev
-  // — prod: เปลี่ยนเป็น URL Vercel ก่อน `npx cap sync`
+  // The APK is a thin native shell that loads the live web app from Vercel
+  // (not a static bundle — this app has server-side API routes + Supabase).
+  // This is required for the Bluetooth thermal printer, which needs the native
+  // Capacitor layer that only exists inside the installed app.
+  //
+  // For on-device DEV against your own machine instead, temporarily swap the
+  // url to 'http://<your-computer-LAN-ip>:3000' and add `cleartext: true`,
+  // then `npx cap sync`. Change it back to the production URL before shipping.
   server: {
-    url:       'http://localhost:3000',
-    cleartext: true,           // ต้องการสำหรับ HTTP (ไม่ใช่ HTTPS) บน Android
+    url: 'https://siam-amsterdam-pos.vercel.app',
   },
 
   plugins: {

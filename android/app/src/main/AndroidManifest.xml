@@ -44,17 +44,20 @@
     <uses-permission android:name="android.permission.BLUETOOTH_ADMIN" />
 
     <!-- Bluetooth permissions สำหรับ Android 12+ (API 31+) — บังคับต้องมี -->
-    <uses-permission android:name="android.permission.BLUETOOTH_CONNECT"
-        android:maxSdkVersion="34" />
-    <uses-permission android:name="android.permission.BLUETOOTH_SCAN"
-        android:usesPermissionFlags="neverForLocation"
-        android:maxSdkVersion="34" />
+    <!-- No maxSdkVersion cap: these are the runtime permissions the printer
+         scan/connect needs, and targetSdkVersion is 35 — capping at 34 would
+         drop them on Android 15 devices and silently break Bluetooth there.
+         No neverForLocation flag: the capacitor-thermal-printer plugin hard-
+         requires ACCESS_FINE_LOCATION for scanning, so we declare location
+         for real rather than opting out of it. -->
+    <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
+    <uses-permission android:name="android.permission.BLUETOOTH_SCAN" />
 
-    <!-- Location ใช้สำหรับ Bluetooth scan บน Android 10-11 -->
-    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION"
-        android:maxSdkVersion="30" />
-    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION"
-        android:maxSdkVersion="30" />
+    <!-- ACCESS_FINE_LOCATION is REQUIRED by the capacitor-thermal-printer
+         plugin on ALL Android versions (it checks the manifest declaration and
+         refuses to scan without it) — must NOT be capped at maxSdkVersion. -->
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
 
     <uses-feature android:name="android.hardware.bluetooth" android:required="false" />
 </manifest>
