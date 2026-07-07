@@ -6,7 +6,7 @@ import CheckoutModal from '@/components/pos/CheckoutModal'
 import NumPad from '@/components/pos/NumPad'
 import SplitBillModal from '@/components/pos/SplitBillModal'
 import { loadBarSettings, DEFAULT_BAR_SETTINGS, type BarSettings } from '@/lib/printer'
-import { type CatEntry, CATEGORIES_CHANGED_EVENT, loadAllCategories } from '@/lib/categories'
+import { type CatEntry, CATEGORIES_CHANGED_EVENT, loadAllCategories, fetchCategories } from '@/lib/categories'
 
 const TABLES = ['T1', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7', 'T8', 'BAR', 'VIP1', 'VIP2']
 
@@ -115,22 +115,26 @@ export default function POSPage() {
   const [menuLoading, setMenuLoading] = useState(true)
 
   // Live-refresh category chips when Items → Categories adds/deletes/reorders —
-  // covers both same-tab edits (custom event) and another tab/window (storage event).
+  // covers same-tab edits (custom event), another tab/window on this device
+  // (storage event), and — via the initial fetchCategories() call — changes
+  // made on a different device entirely, since categories live in Supabase.
   // If the currently-selected category was deleted, fall back to "All" so the menu
   // doesn't silently show nothing with no chip highlighted.
+  const applyCategories = useCallback((next: CatEntry[]) => {
+    setCategories(next)
+    setCategory(prev => (prev === 'all' || next.some(c => c.value === prev) ? prev : 'all'))
+  }, [])
+
   useEffect(() => {
-    const refresh = () => {
-      const next = loadAllCategories()
-      setCategories(next)
-      setCategory(prev => (prev === 'all' || next.some(c => c.value === prev) ? prev : 'all'))
-    }
+    fetchCategories().then(applyCategories)
+    const refresh = () => applyCategories(loadAllCategories())
     window.addEventListener(CATEGORIES_CHANGED_EVENT, refresh)
     window.addEventListener('storage', refresh)
     return () => {
       window.removeEventListener(CATEGORIES_CHANGED_EVENT, refresh)
       window.removeEventListener('storage', refresh)
     }
-  }, [])
+  }, [applyCategories])
 
   // Fix #2: per-table carts stored in a map keyed by table
   const [carts, setCarts] = useState<Record<string, CartItem[]>>({})

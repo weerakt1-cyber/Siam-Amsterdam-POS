@@ -4,7 +4,7 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 import type { MenuItem, Variant, VariantOption, InventoryItem, MenuIngredient } from '@/lib/types'
 import NumPad from '@/components/pos/NumPad'
 import { useAuth } from '@/lib/pos-auth'
-import { type CatEntry, loadAllCategories, saveAllCategories } from '@/lib/categories'
+import { type CatEntry, loadAllCategories, fetchCategories, persistCategories } from '@/lib/categories'
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -281,19 +281,32 @@ export default function ItemsPage() {
   const [items, setItems] = useState<MenuItem[]>([])
   const [filterCat, setFilterCat] = useState<string>('all')
 
-  // All categories — one fully editable, reorderable, deletable list, persisted in localStorage
-  // and shared with the POS ordering screen's category chips (see @/lib/categories).
+  // All categories — one fully editable, reorderable, deletable list. Canonical
+  // data lives in Supabase (shared with the POS ordering screen and the
+  // customer-facing QR ordering page); localStorage is just an instant-paint
+  // cache, see @/lib/categories.
   const [allCategories, setAllCategories] = useState<CatEntry[]>(() => loadAllCategories())
   const [newCatName, setNewCatName] = useState('')
   const [newCatColor, setNewCatColor] = useState(COLOR_SWATCHES[0].classes)
 
   const categoriesWithAll: CatEntry[] = [{ value: 'all', label: 'All', color: 'bg-gray-200 text-gray-700' }, ...allCategories]
 
+  // Fetch the authoritative list on mount — another device may have changed it.
+  const skipNextPersistRef = useRef(true)
+  useEffect(() => {
+    fetchCategories().then(list => {
+      skipNextPersistRef.current = true
+      setAllCategories(list)
+    })
+  }, [])
+
   // Persist whenever the list changes (and notify the POS page to refresh live) — functional
   // updaters below always read the latest state, so rapid successive clicks (e.g. double-tapping
-  // ↑) apply correctly.
+  // ↑) apply correctly. Skipped for the initial-mount value and the fetch-resolved value above,
+  // since those aren't user edits and re-saving them would just be a wasted round-trip.
   useEffect(() => {
-    saveAllCategories(allCategories)
+    if (skipNextPersistRef.current) { skipNextPersistRef.current = false; return }
+    persistCategories(allCategories)
   }, [allCategories])
 
   function addCustomCat() {

@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef, use, useCallback } from 'react'
 import type { MenuItem } from '@/lib/types'
-import { type CatEntry, CATEGORIES_CHANGED_EVENT, loadAllCategories } from '@/lib/categories'
+import { type CatEntry, CATEGORIES_CHANGED_EVENT, loadAllCategories, fetchCategories } from '@/lib/categories'
 import { type Lang, type OrderStringKey, LANGS, STRINGS, loadOrderLang, saveOrderLang } from '@/lib/order-i18n'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -68,13 +68,22 @@ export default function OrderPage({ params }: { params: Promise<{ tableNo: strin
   const [category, setCategory] = useState('all')
   const [allCats, setAllCats]   = useState<CatEntry[]>(() => loadAllCategories())
 
-  // Live-refresh category tabs when Items → Categories adds/deletes/reorders —
-  // same mechanism as the POS ordering screen, so both stay in sync.
+  // Categories live in Supabase, not localStorage — this page runs on the
+  // customer's own phone, a different device from the staff POS tablet that
+  // configures categories, so it can't read that device's local cache at all.
+  // Fetch the real list on mount, then re-poll periodically in case staff add/
+  // rename/reorder categories while a customer already has this page open.
   useEffect(() => {
+    fetchCategories().then(setAllCats)
+    const iv = setInterval(() => { fetchCategories().then(setAllCats) }, 60000)
+    // Same-device custom event/storage listeners — a no-op in the normal
+    // cross-device case, but keeps this page in sync if it's ever opened on
+    // the same device/browser that just edited categories (e.g. staff testing).
     const refresh = () => setAllCats(loadAllCategories())
     window.addEventListener(CATEGORIES_CHANGED_EVENT, refresh)
     window.addEventListener('storage', refresh)
     return () => {
+      clearInterval(iv)
       window.removeEventListener(CATEGORIES_CHANGED_EVENT, refresh)
       window.removeEventListener('storage', refresh)
     }
@@ -97,7 +106,12 @@ export default function OrderPage({ params }: { params: Promise<{ tableNo: strin
   const [customerName, setCustomerName] = useState('')
   const [infoError, setInfoError]       = useState('')
 
-  const [lang, setLangState] = useState<Lang>(() => loadOrderLang())
+  // Always starts 'en' (matches what the server renders) and picks up the
+  // real saved language after mount — reading localStorage during the
+  // initial render would make the server/client HTML disagree (hydration
+  // mismatch) whenever a returning customer had picked ru/zh before.
+  const [lang, setLangState] = useState<Lang>('en')
+  useEffect(() => { setLangState(loadOrderLang()) }, [])
   function setLang(l: Lang) { setLangState(l); saveOrderLang(l) }
   const t = (key: OrderStringKey) => STRINGS[lang][key]
 

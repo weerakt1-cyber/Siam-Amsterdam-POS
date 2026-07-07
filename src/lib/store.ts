@@ -10,6 +10,7 @@ import type {
   PosUser, UserRole,
   MenuIngredient,
 } from './types'
+import type { CatEntry } from './categories'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -160,6 +161,45 @@ function mapStaff(row: Record<string, unknown>): PosUser {
     createdAt: row.created_at as string,
     updatedAt: row.updated_at as string,
   }
+}
+
+// ─── Categories ───────────────────────────────────────────────────────────────
+// Shared across the Items → Categories manager, the POS ordering screen, and the
+// customer-facing QR ordering page — previously only in the staff device's
+// localStorage, which the QR page (a different device) could never read.
+
+function mapCategory(row: Record<string, unknown>): CatEntry {
+  return {
+    value: row.value as string,
+    label: row.label as string,
+    color: row.color as string,
+    icon:  (row.icon as string | undefined) ?? undefined,
+  }
+}
+
+export async function getCategories(): Promise<CatEntry[]> {
+  const { data, error } = await supabase
+    .from('categories')
+    .select('*')
+    .order('sort_order', { ascending: true })
+  if (error) throw error
+  return (data ?? []).map(mapCategory)
+}
+
+// Full-replace semantics — matches how the Categories manager already mutates
+// the whole array client-side (add/delete/reorder), so persisting is one shot.
+export async function saveCategories(cats: CatEntry[]): Promise<CatEntry[]> {
+  const { error: delErr } = await supabase.from('categories').delete().neq('value', '__none__')
+  if (delErr) throw delErr
+  if (cats.length === 0) return []
+  const rows = cats.map((c, i) => ({
+    value: c.value, label: c.label, color: c.color, icon: c.icon ?? null, sort_order: i,
+  }))
+  const { data, error } = await supabase.from('categories').insert(rows).select()
+  if (error) throw error
+  return (data ?? [])
+    .sort((a, b) => Number(a.sort_order) - Number(b.sort_order))
+    .map(mapCategory)
 }
 
 // ─── Menu ─────────────────────────────────────────────────────────────────────
