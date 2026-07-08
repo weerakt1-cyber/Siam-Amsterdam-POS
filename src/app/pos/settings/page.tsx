@@ -342,9 +342,27 @@ export default function SettingsPage() {
   const native = isNativePlatform()
 
   useEffect(() => {
-    setCfg(loadBarSettings())
-    loadPrinterDevice().then(setSavedDevice).catch(() => {})
-    checkPrinterConnected().then(setConnected).catch(() => {})
+    const cfg0 = loadBarSettings()
+    setCfg(cfg0)
+    ;(async () => {
+      const saved = await loadPrinterDevice().catch(() => null)
+      setSavedDevice(saved)
+      const already = await checkPrinterConnected().catch(() => false)
+      if (already) { setConnected(true); return }
+      // Auto-connect to the saved Bluetooth printer when this page opens, so
+      // the printer is ready without a manual Reconnect tap. Time-boxed so a
+      // sleeping/off printer can't leave the UI stuck — falls back to the
+      // Reconnect button on failure. (LAN printers hold no persistent socket.)
+      if (saved && (cfg0.printerConnectionType ?? 'bluetooth') === 'bluetooth') {
+        setBtStatus('connecting')
+        const ok = await Promise.race([
+          connectPrinter(saved.address).then(() => true).catch(() => false),
+          new Promise<boolean>(res => setTimeout(() => res(false), 8000)),
+        ])
+        setConnected(ok)
+        setBtStatus('idle')
+      }
+    })()
     return () => { stopScanRef.current?.() }
   }, [])
 
@@ -472,7 +490,16 @@ export default function SettingsPage() {
     setBtError('')
     setBtStatus('connecting')
     try {
-      await connectPrinter(savedDevice.address)
+      // Clear any stale / half-open connection first — otherwise a lingering
+      // socket (e.g. left over after a Test Print) can make the fresh connect
+      // fail or hang.
+      await disconnectPrinter().catch(() => {})
+      const name = await Promise.race([
+        connectPrinter(savedDevice.address),
+        new Promise<string>((_, rej) => setTimeout(() => rej(new Error('เชื่อมต่อไม่สำเร็จ — ตรวจสอบว่าเปิดเครื่องพิมพ์และเปิด Location')), 12000)),
+      ])
+      await savePrinterDevice(savedDevice.address, name)
+      setSavedDevice({ address: savedDevice.address, name })
       setConnected(true)
       setBtStatus('idle')
     } catch (err) {
