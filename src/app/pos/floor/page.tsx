@@ -28,11 +28,11 @@ type TileStatus = 'empty' | 'pending' | 'ready'
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
-const GRID      = 40
-const CANVAS_W  = 800
-const CANVAS_H  = 520
-const LS_KEY    = 'pos_floor_layout'
-const INACTIVE  = new Set(['paid', 'cancelled', 'delivered'])
+const GRID     = 40
+const CANVAS_W = 800
+const CANVAS_H = 520
+const LS_KEY   = 'pos_floor_layout'
+const INACTIVE = new Set(['paid', 'cancelled', 'delivered'])
 
 const DEFAULT_TILES: TableTile[] = [
   { id: 'dt-T1',   tableNo: 'T1',   x: 40,  y: 40,  w: 120, h: 80,  shape: 'rect',  capacity: 4  },
@@ -47,8 +47,8 @@ const DEFAULT_TILES: TableTile[] = [
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-function snapTo(n: number)                              { return Math.round(n / GRID) * GRID }
-function clamp(v: number, lo: number, hi: number)      { return Math.max(lo, Math.min(hi, v)) }
+function snapTo(n: number)                         { return Math.round(n / GRID) * GRID }
+function clamp(v: number, lo: number, hi: number)  { return Math.max(lo, Math.min(hi, v)) }
 
 function tileStatus(orders: RawOrder[], tableNo: string): { status: TileStatus; total: number; elapsed: number } {
   const active = orders.filter(o => o.tableNo === tableNo && !INACTIVE.has(o.status))
@@ -59,6 +59,35 @@ function tileStatus(orders: RawOrder[], tableNo: string): { status: TileStatus; 
   const total    = active.reduce((s, o) => s + o.total, 0)
   return { status: hasReady ? 'ready' : 'pending', total, elapsed }
 }
+
+// Scan canvas top-left → right → down and return first non-overlapping position
+function findFreePosition(w: number, h: number, currentTiles: TableTile[]): { x: number; y: number } {
+  for (let r = 0; r * GRID + h <= CANVAS_H; r++) {
+    for (let c = 0; c * GRID + w <= CANVAS_W; c++) {
+      const x = c * GRID
+      const y = r * GRID
+      const blocked = currentTiles.some(
+        t => x < t.x + t.w && x + w > t.x && y < t.y + t.h && y + h > t.y
+      )
+      if (!blocked) return { x, y }
+    }
+  }
+  return { x: 0, y: 0 }
+}
+
+// ── Small helpers ─────────────────────────────────────────────────────────────
+
+function Field({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div>
+      <label className="text-[10px] text-stone-500 mb-1 block">{label}</label>
+      {children}
+    </div>
+  )
+}
+
+const INPUT  = 'w-full bg-stone-50 border border-stone-200 rounded-lg px-2 py-1.5 text-xs outline-none focus:border-amber-400 transition'
+const SELECT = 'w-full bg-stone-50 border border-stone-200 rounded-lg px-2 py-1.5 text-xs outline-none focus:border-amber-400 transition'
 
 // ── Tile card ─────────────────────────────────────────────────────────────────
 
@@ -75,7 +104,6 @@ function TileCard({
   onClick: (e: React.MouseEvent) => void
 }) {
   const round = tile.shape === 'round'
-
   const surface =
     status === 'ready'   ? 'bg-emerald-50 border-emerald-400 text-emerald-900' :
     status === 'pending' ? 'bg-amber-50   border-amber-400   text-amber-900'   :
@@ -95,7 +123,6 @@ function TileCard({
       onClick={onClick}
     >
       <p className="font-black text-sm leading-none">{tile.tableNo}</p>
-
       {status === 'empty' ? (
         <p className="text-[9px] text-stone-300 mt-1">{tile.capacity}p</p>
       ) : (
@@ -127,15 +154,18 @@ export default function FloorPage() {
     return DEFAULT_TILES
   })
 
-  const [editMode,    setEditMode]    = useState(false)
-  const [selectedId,  setSelectedId]  = useState<string | null>(null)
-  const [orders,      setOrders]      = useState<RawOrder[]>([])
-  const [saved,       setSaved]       = useState(false)
+  const [editMode,   setEditMode]   = useState(false)
+  const [selectedId, setSelectedId] = useState<string | null>(null)
+  const [orders,     setOrders]     = useState<RawOrder[]>([])
+  const [saved,      setSaved]      = useState(false)
+  const [addError,   setAddError]   = useState('')
 
-  // Add-tile form
+  // Add-tile form state
   const [newNo,    setNewNo]    = useState('')
   const [newShape, setNewShape] = useState<'rect' | 'round'>('rect')
   const [newCap,   setNewCap]   = useState('4')
+  const [newW,     setNewW]     = useState('120')
+  const [newH,     setNewH]     = useState('80')
 
   // Pointer-drag state (works for mouse + touch via Pointer Events API)
   const dragRef = useRef<{
@@ -169,10 +199,18 @@ export default function FloorPage() {
   }
 
   function resetLayout() {
-    if (!confirm('Reset floor plan to default layout?')) return
+    if (!confirm('รีเซ็ตผังโต๊ะเป็นค่าเริ่มต้น?\nการเปลี่ยนแปลงทั้งหมดจะหายไป')) return
     setTiles(DEFAULT_TILES)
     localStorage.setItem(LS_KEY, JSON.stringify(DEFAULT_TILES))
     setSelectedId(null)
+  }
+
+  // ── Shape change → auto-resize ──────────────────────────────────────────────
+
+  function handleNewShapeChange(shape: 'rect' | 'round') {
+    setNewShape(shape)
+    if (shape === 'round') { setNewW('100'); setNewH('100') }
+    else                   { setNewW('120'); setNewH('80')  }
   }
 
   // ── Table CRUD ──────────────────────────────────────────────────────────────
@@ -180,13 +218,18 @@ export default function FloorPage() {
   function addTile() {
     const no = newNo.trim().toUpperCase()
     if (!no) return
-    const round = newShape === 'round'
+    if (tiles.some(t => t.tableNo === no)) {
+      setAddError(`โต๊ะ "${no}" มีอยู่แล้ว`)
+      return
+    }
+    setAddError('')
+    const w = Math.max(GRID * 2, snapTo(parseInt(newW) || 120))
+    const h = Math.max(GRID * 2, snapTo(parseInt(newH) || 80))
+    const { x, y } = findFreePosition(w, h, tiles)
     const t: TableTile = {
       id:       crypto.randomUUID(),
       tableNo:  no,
-      x:        snapTo(40), y: snapTo(40),
-      w:        round ? 100 : 120,
-      h:        round ? 100 :  80,
+      x, y, w, h,
       shape:    newShape,
       capacity: Math.max(1, parseInt(newCap) || 4),
     }
@@ -196,9 +239,13 @@ export default function FloorPage() {
   }
 
   function deleteTile(id: string) {
-    if (!confirm('Delete this table from the floor plan?')) return
+    if (!confirm('ลบโต๊ะนี้ออกจากผังโต๊ะ?')) return
     setTiles(p => p.filter(t => t.id !== id))
     if (selectedId === id) setSelectedId(null)
+  }
+
+  function updateTile(id: string, patch: Partial<TableTile>) {
+    setTiles(p => p.map(t => t.id === id ? { ...t, ...patch } : t))
   }
 
   // ── Pointer drag (Pointer Events API: handles mouse + touch uniformly) ──────
@@ -244,9 +291,9 @@ export default function FloorPage() {
         {!editMode && (
           <div className="flex items-center gap-3 ml-2">
             {[
-              { color: 'bg-white border-stone-300',   label: 'Empty'   },
-              { color: 'bg-amber-50 border-amber-400', label: 'Ordered' },
-              { color: 'bg-emerald-50 border-emerald-400', label: 'Ready' },
+              { color: 'bg-white border-stone-300',        label: 'Empty'   },
+              { color: 'bg-amber-50 border-amber-400',     label: 'Ordered' },
+              { color: 'bg-emerald-50 border-emerald-400', label: 'Ready'   },
             ].map(({ color, label }) => (
               <span key={label} className="flex items-center gap-1.5 text-xs text-stone-400">
                 <span className={`w-3 h-3 rounded border ${color} inline-block`} />
@@ -254,6 +301,12 @@ export default function FloorPage() {
               </span>
             ))}
           </div>
+        )}
+
+        {editMode && (
+          <span className="text-xs text-amber-600 font-semibold ml-2">
+            {tiles.length} tables · drag to move
+          </span>
         )}
 
         <div className="flex-1" />
@@ -264,9 +317,9 @@ export default function FloorPage() {
               <>
                 <button
                   onClick={resetLayout}
-                  className="text-xs text-stone-500 hover:text-stone-700 border border-stone-200 hover:border-stone-400 px-3 py-1.5 rounded-xl transition"
+                  className="text-xs text-red-500 hover:text-red-700 border border-red-200 hover:border-red-300 px-3 py-1.5 rounded-xl transition"
                 >
-                  Reset
+                  🔄 Reset Default
                 </button>
                 <button
                   onClick={saveLayout}
@@ -279,7 +332,7 @@ export default function FloorPage() {
               </>
             )}
             <button
-              onClick={() => { setEditMode(m => !m); setSelectedId(null) }}
+              onClick={() => { setEditMode(m => !m); setSelectedId(null); setAddError('') }}
               className={`text-xs font-bold px-3 py-1.5 rounded-xl border transition active:scale-95 ${
                 editMode
                   ? 'bg-amber-500 border-amber-400 text-white shadow-sm'
@@ -295,7 +348,7 @@ export default function FloorPage() {
       {/* ── Body ─────────────────────────────────────────────────────────────── */}
       <div className="flex-1 flex overflow-hidden">
 
-        {/* Canvas (scrollable) */}
+        {/* Canvas */}
         <div className="flex-1 overflow-auto p-4">
           <div
             ref={canvasRef}
@@ -318,7 +371,6 @@ export default function FloorPage() {
               </svg>
             )}
 
-            {/* Tiles */}
             {tiles.map(tile => {
               const { status, total, elapsed } = tileStatus(orders, tile.tableNo)
               return (
@@ -347,95 +399,164 @@ export default function FloorPage() {
 
         {/* ── Edit sidebar ──────────────────────────────────────────────────── */}
         {editMode && (
-          <div className="w-52 bg-white border-l border-stone-200 shrink-0 flex flex-col overflow-y-auto">
-            <div className="p-4 flex flex-col gap-5 flex-1">
+          <div className="w-56 bg-white border-l border-stone-200 shrink-0 flex flex-col overflow-y-auto">
+            <div className="p-3 flex flex-col gap-4">
 
-              {/* Add table */}
-              <div>
-                <p className="text-[10px] font-bold text-stone-400 uppercase tracking-widest mb-3">
-                  Add Table
+              {/* ── Add table ─────────────────────────────────────────────── */}
+              <section>
+                <p className="text-[10px] font-bold text-stone-400 uppercase tracking-widest mb-2">
+                  + Add Table
                 </p>
                 <div className="flex flex-col gap-2">
-                  <div>
-                    <label className="text-[10px] text-stone-500 mb-1 block">Table Number</label>
+
+                  <Field label="Table No *">
                     <input
                       value={newNo}
-                      onChange={e => setNewNo(e.target.value.toUpperCase())}
+                      onChange={e => { setNewNo(e.target.value.toUpperCase()); setAddError('') }}
                       onKeyDown={e => e.key === 'Enter' && addTile()}
                       placeholder="T7, VIP2, BAR2…"
-                      className="w-full bg-stone-50 border border-stone-200 rounded-lg px-2.5 py-2 text-sm font-mono outline-none focus:border-amber-400 transition"
+                      className={`${INPUT} font-mono`}
                     />
-                  </div>
-                  <div>
-                    <label className="text-[10px] text-stone-500 mb-1 block">Shape</label>
+                  </Field>
+
+                  <Field label="Shape">
                     <select
                       value={newShape}
-                      onChange={e => setNewShape(e.target.value as 'rect' | 'round')}
-                      className="w-full bg-stone-50 border border-stone-200 rounded-lg px-2.5 py-2 text-sm outline-none focus:border-amber-400 transition"
+                      onChange={e => handleNewShapeChange(e.target.value as 'rect' | 'round')}
+                      className={SELECT}
                     >
                       <option value="rect">■  Rectangle</option>
                       <option value="round">●  Round</option>
                     </select>
+                  </Field>
+
+                  <div className="flex gap-1.5">
+                    <Field label="W (px)">
+                      <input
+                        type="number" min={GRID * 2} step={GRID}
+                        value={newW}
+                        onChange={e => setNewW(e.target.value)}
+                        className={INPUT}
+                      />
+                    </Field>
+                    <Field label="H (px)">
+                      <input
+                        type="number" min={GRID * 2} step={GRID}
+                        value={newH}
+                        onChange={e => setNewH(e.target.value)}
+                        className={INPUT}
+                      />
+                    </Field>
                   </div>
-                  <div>
-                    <label className="text-[10px] text-stone-500 mb-1 block">Capacity</label>
+
+                  <Field label="Capacity">
                     <input
-                      type="number"
-                      min="1"
-                      max="99"
+                      type="number" min="1" max="99"
                       value={newCap}
                       onChange={e => setNewCap(e.target.value)}
-                      className="w-full bg-stone-50 border border-stone-200 rounded-lg px-2.5 py-2 text-sm outline-none focus:border-amber-400 transition"
+                      className={INPUT}
                     />
-                  </div>
+                  </Field>
+
+                  {addError && (
+                    <p className="text-[10px] text-red-500 bg-red-50 rounded-lg px-2 py-1">{addError}</p>
+                  )}
+
                   <button
                     onClick={addTile}
                     disabled={!newNo.trim()}
-                    className="w-full py-2 text-sm font-bold bg-amber-500 hover:bg-amber-400 text-black rounded-xl transition active:scale-95 disabled:opacity-40"
+                    className="w-full py-2 text-xs font-bold bg-amber-500 hover:bg-amber-400 text-black rounded-xl transition active:scale-95 disabled:opacity-40"
                   >
                     + Add Table
                   </button>
                 </div>
-              </div>
+              </section>
 
-              {/* Selected table */}
-              <div>
-                <p className="text-[10px] font-bold text-stone-400 uppercase tracking-widest mb-3">
+              <div className="h-px bg-stone-100" />
+
+              {/* ── Selected table editor ─────────────────────────────────── */}
+              <section>
+                <p className="text-[10px] font-bold text-stone-400 uppercase tracking-widest mb-2">
                   Selected
                 </p>
+
                 {selectedTile ? (
                   <div className="flex flex-col gap-2">
-                    <div className="bg-stone-50 border border-stone-200 rounded-xl p-3">
-                      <div className="flex items-center gap-2 mb-1">
-                        <span
-                          className={`w-8 h-8 flex items-center justify-center font-black text-xs border border-stone-300 bg-white ${
-                            selectedTile.shape === 'round' ? 'rounded-full' : 'rounded-lg'
-                          }`}
-                        >
-                          {selectedTile.tableNo.slice(0, 3)}
-                        </span>
-                        <div>
-                          <p className="text-sm font-bold">{selectedTile.tableNo}</p>
-                          <p className="text-[10px] text-stone-400">
-                            {selectedTile.shape} · {selectedTile.capacity}p
-                          </p>
-                        </div>
-                      </div>
-                      <p className="text-[9px] text-stone-300 font-mono">
-                        ({selectedTile.x}, {selectedTile.y}) {selectedTile.w}×{selectedTile.h}px
-                      </p>
+
+                    <Field label="Table No">
+                      <input
+                        value={selectedTile.tableNo}
+                        onChange={e => {
+                          const val = e.target.value.toUpperCase()
+                          const dup = tiles.some(t => t.id !== selectedTile.id && t.tableNo === val)
+                          if (!dup) updateTile(selectedTile.id, { tableNo: val })
+                        }}
+                        className={`${INPUT} font-mono`}
+                      />
+                    </Field>
+
+                    <Field label="Shape">
+                      <select
+                        value={selectedTile.shape}
+                        onChange={e => updateTile(selectedTile.id, { shape: e.target.value as 'rect' | 'round' })}
+                        className={SELECT}
+                      >
+                        <option value="rect">■  Rectangle</option>
+                        <option value="round">●  Round</option>
+                      </select>
+                    </Field>
+
+                    <div className="flex gap-1.5">
+                      <Field label="W (px)">
+                        <input
+                          type="number" min={GRID * 2} step={GRID}
+                          value={selectedTile.w}
+                          onChange={e => updateTile(selectedTile.id, {
+                            w: Math.max(GRID * 2, snapTo(parseInt(e.target.value) || GRID * 2)),
+                          })}
+                          className={INPUT}
+                        />
+                      </Field>
+                      <Field label="H (px)">
+                        <input
+                          type="number" min={GRID * 2} step={GRID}
+                          value={selectedTile.h}
+                          onChange={e => updateTile(selectedTile.id, {
+                            h: Math.max(GRID * 2, snapTo(parseInt(e.target.value) || GRID * 2)),
+                          })}
+                          className={INPUT}
+                        />
+                      </Field>
                     </div>
+
+                    <Field label="Capacity">
+                      <input
+                        type="number" min="1" max="99"
+                        value={selectedTile.capacity}
+                        onChange={e => updateTile(selectedTile.id, {
+                          capacity: Math.max(1, parseInt(e.target.value) || 1),
+                        })}
+                        className={INPUT}
+                      />
+                    </Field>
+
+                    <p className="text-[9px] text-stone-300 font-mono">
+                      pos ({selectedTile.x}, {selectedTile.y}) · {selectedTile.w}×{selectedTile.h}
+                    </p>
+
                     <button
                       onClick={() => deleteTile(selectedTile.id)}
-                      className="w-full py-2 text-sm font-semibold text-red-600 bg-red-50 hover:bg-red-100 border border-red-200 rounded-xl transition active:scale-95"
+                      className="w-full py-1.5 text-xs font-semibold text-red-600 bg-red-50 hover:bg-red-100 border border-red-200 rounded-xl transition active:scale-95"
                     >
-                      Delete Table
+                      🗑 Delete Table
                     </button>
                   </div>
                 ) : (
-                  <p className="text-xs text-stone-300 text-center py-2">Click a table to select</p>
+                  <p className="text-xs text-stone-300 text-center py-3">
+                    Click a table to edit
+                  </p>
                 )}
-              </div>
+              </section>
 
               <div className="flex-1" />
               <p className="text-[9px] text-stone-300 text-center pb-1">
