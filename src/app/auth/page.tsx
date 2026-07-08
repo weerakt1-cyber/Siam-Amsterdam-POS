@@ -13,24 +13,50 @@ const ROLE_COLORS: Record<string, string> = {
 
 export default function AuthPage() {
   const router  = useRouter()
-  const [loading, setLoading] = useState<'google' | 'line' | null>(null)
+  const [loading, setLoading] = useState<'google' | 'line' | 'password' | null>(null)
   const [error,   setError]   = useState('')
   const [checking, setChecking] = useState(true)
+  const [email,    setEmail]    = useState('')
+  const [password, setPassword] = useState('')
+
+  // Route to the right screen after a session is established (shared by every
+  // login method).
+  async function routeAfterLogin(userId: string) {
+    const profile = await fetchProfile(userId)
+    if (!profile) router.replace('/auth/setup')
+    else if (profile.status !== 'approved') router.replace('/auth/status')
+    else router.replace('/pos')
+  }
 
   // If already logged in → skip to POS
   useEffect(() => {
     const sb = getSupabaseBrowser()
     sb.auth.getSession().then(async ({ data: { session } }) => {
-      if (session) {
-        const profile = await fetchProfile(session.user.id)
-        if (!profile) router.replace('/auth/setup')
-        else if (profile.status !== 'approved') router.replace('/auth/status')
-        else router.replace('/pos')
-      } else {
-        setChecking(false)
-      }
+      if (session) await routeAfterLogin(session.user.id)
+      else setChecking(false)
     })
-  }, [router])
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  // Email + password — works fully inside the native app WebView (no external
+  // browser / OAuth handoff), so it's the reliable login for the Android tablet.
+  async function loginPassword(e: React.FormEvent) {
+    e.preventDefault()
+    if (!email.trim() || !password) return
+    setLoading('password')
+    setError('')
+    const sb = getSupabaseBrowser()
+    const { data, error: err } = await sb.auth.signInWithPassword({
+      email: email.trim(),
+      password,
+    })
+    if (err || !data.session) {
+      setError(err?.message ?? 'อีเมลหรือรหัสผ่านไม่ถูกต้อง')
+      setLoading(null)
+      return
+    }
+    await routeAfterLogin(data.session.user.id)
+  }
 
   async function loginGoogle() {
     setLoading('google')
@@ -90,6 +116,41 @@ export default function AuthPage() {
           <div className="text-center mb-1">
             <p className="text-white font-semibold text-lg">เข้าสู่ระบบ</p>
             <p className="text-gray-400 text-sm mt-1">เลือกวิธีเข้าสู่ระบบ</p>
+          </div>
+
+          {/* Email + password — primary login (works in the native app) */}
+          <form onSubmit={loginPassword} className="flex flex-col gap-3">
+            <input
+              type="email"
+              inputMode="email"
+              autoCapitalize="none"
+              autoCorrect="off"
+              value={email}
+              onChange={e => setEmail(e.target.value)}
+              placeholder="อีเมล / Email"
+              className="w-full px-4 py-3 bg-gray-800 border border-gray-700 rounded-xl text-white text-sm placeholder-gray-500 outline-none focus:border-amber-500 transition"
+            />
+            <input
+              type="password"
+              value={password}
+              onChange={e => setPassword(e.target.value)}
+              placeholder="รหัสผ่าน / Password"
+              className="w-full px-4 py-3 bg-gray-800 border border-gray-700 rounded-xl text-white text-sm placeholder-gray-500 outline-none focus:border-amber-500 transition"
+            />
+            <button
+              type="submit"
+              disabled={!!loading || !email.trim() || !password}
+              className="w-full flex items-center justify-center gap-2 px-4 py-3.5 bg-amber-500 hover:bg-amber-400 disabled:opacity-50 rounded-xl text-black font-bold text-sm transition-all active:scale-95"
+            >
+              {loading === 'password' ? 'กำลังเข้าสู่ระบบ…' : 'เข้าสู่ระบบ'}
+            </button>
+          </form>
+
+          {/* Divider */}
+          <div className="flex items-center gap-3 my-1">
+            <div className="flex-1 h-px bg-gray-800" />
+            <span className="text-[10px] text-gray-600 uppercase tracking-widest">หรือ</span>
+            <div className="flex-1 h-px bg-gray-800" />
           </div>
 
           {/* Google */}
