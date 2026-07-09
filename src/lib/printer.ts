@@ -331,33 +331,58 @@ export function buildReceiptBytes(d: ReceiptData, cfg: BarSettings): Uint8Array 
 
 // ─── Bluetooth: print + cash drawer ──────────────────────────────────────────
 
-// The thermal printer drops its Bluetooth SPP link after a short idle, but the
-// plugin keeps reporting isConnected() === true (a stale flag). Writing to that
-// dead socket silently "succeeds" and nothing prints. So before EVERY print we
-// re-establish a fresh connection to the saved printer. Reconnecting when the
-// link is already live is cheap and safe (~1s), and it makes printing reliable
+// Two problems with printing at checkout, both fixed here:
+//  1. The printer drops its Bluetooth SPP link after a short idle, yet the plugin
+//     keeps reporting isConnected() === true (stale flag) — writing to that dead
+//     socket silently "succeeds" and nothing prints. So we always reconnect to
+//     the saved printer immediately before writing.
+//  2. The npm builder (printer.begin().raw().write()) is a Proxy that hits the
+//     Capacitor "then() is not implemented on android" thenable trap, so the
+//     await rejects and nothing prints. We therefore talk to the RAW native
+//     plugin directly with the exact connect → begin → raw{data} → write
+//     sequence that is proven to print.
+interface NativeThermalPrinter {
+  connect(opts: { address: string }): Promise<{ name?: string; address: string } | null>
+  begin(opts?: Record<string, never>): Promise<void>
+  raw(opts: { data: string }): Promise<void>
+  write(opts?: Record<string, never>): Promise<void>
+}
+
+async function getNativePrinter(): Promise<NativeThermalPrinter> {
+  const { registerPlugin } = await import('@capacitor/core')
+  return registerPlugin<NativeThermalPrinter>('CapacitorThermalPrinter')
+}
+
+function bytesToBase64(bytes: Uint8Array): string {
+  let bin = ''
+  const CHUNK = 0x8000
+  for (let i = 0; i < bytes.length; i += CHUNK) {
+    bin += String.fromCharCode(...bytes.subarray(i, i + CHUNK))
+  }
+  return btoa(bin)
+}
+
+// Reconnect to the saved printer, then write raw ESC/POS bytes via the native
+// plugin. Reconnecting a live link is cheap (~1s) and makes printing reliable
 // no matter how long the app has been idle.
-async function reconnectSavedForPrint(
-  printer: Awaited<ReturnType<typeof getPlugin>>,
-): Promise<void> {
-  const saved = await loadPrinterDevice()
+async function reconnectAndWrite(bytes: Uint8Array): Promise<void> {
+  const native = await getNativePrinter()
+  const saved  = await loadPrinterDevice()
   if (!saved) throw new Error('ยังไม่ได้ตั้งค่าปริ้นเตอร์ — ไปที่ Settings → Printer')
-  const device = await printer.connect({ address: saved.address })
+  const device = await native.connect({ address: saved.address })
   if (!device) throw new Error('เชื่อมต่อปริ้นเตอร์ไม่สำเร็จ — ตรวจสอบว่าเปิดเครื่องพิมพ์และอยู่ใกล้')
+  await native.begin({})
+  await native.raw({ data: bytesToBase64(bytes) })
+  await native.write({})
 }
 
 export async function printReceiptBluetooth(d: ReceiptData, cfg: BarSettings): Promise<void> {
-  const printer = await getPlugin()
-  const bytes   = buildReceiptBytes(d, cfg)
-  await reconnectSavedForPrint(printer)
-  await printer.begin().raw(Array.from(bytes)).write()
+  await reconnectAndWrite(buildReceiptBytes(d, cfg))
 }
 
 export async function openCashDrawerBluetooth(): Promise<void> {
-  const printer = await getPlugin()
-  await reconnectSavedForPrint(printer)
   // ESC p 0 25ms 250ms — kick cash drawer via RJ11/RJ12
-  await printer.begin().raw([0x1B, 0x70, 0x00, 0x19, 0xFA]).write()
+  await reconnectAndWrite(new Uint8Array([0x1B, 0x70, 0x00, 0x19, 0xFA]))
 }
 
 // ─── LAN: send raw bytes via /api/printer/send (TCP proxy) ───────────────────
@@ -382,8 +407,7 @@ export async function printReceipt(d: ReceiptData, cfg: BarSettings): Promise<vo
     if (!cfg.printerLanIp) throw new Error('ยังไม่ได้ตั้งค่า IP ปริ้นเตอร์ — ไปที่ Settings → Printer')
     await sendBytesViaLan(bytes, cfg.printerLanIp, cfg.printerLanPort ?? 9100)
   } else {
-    const printer = await getPlugin()
-    await printer.begin().raw(Array.from(bytes)).write()
+    await printReceiptBluetooth(d, cfg)
   }
 }
 
@@ -394,7 +418,6 @@ export async function openCashDrawer(cfg: BarSettings): Promise<void> {
     if (!cfg.printerLanIp) return
     await sendBytesViaLan(drawerBytes, cfg.printerLanIp, cfg.printerLanPort ?? 9100)
   } else {
-    const printer = await getPlugin()
-    await printer.begin().raw(Array.from(drawerBytes)).write()
+    await openCashDrawerBluetooth()
   }
 }

@@ -2,8 +2,8 @@
 
 import { useState, useEffect, useRef } from 'react'
 import {
-  loadBarSettings, connectPrinter, checkPrinterConnected, loadPrinterDevice,
-  disconnectPrinter, printReceipt, openCashDrawer, DEFAULT_BAR_SETTINGS,
+  loadBarSettings, loadPrinterDevice,
+  printReceipt, openCashDrawer, DEFAULT_BAR_SETTINGS,
   type BarSettings, type ReceiptData,
 } from '@/lib/printer'
 import OmisePaymentModal, { type OmisePayType } from './OmisePaymentModal'
@@ -271,23 +271,14 @@ export default function CheckoutModal({
       note:      note || undefined,
     }
     try {
-      const mode = cfg.printerConnectionType ?? 'bluetooth'
-      if (mode === 'bluetooth') {
-        const isConnected = await checkPrinterConnected()
-        if (!isConnected) {
-          setBtStatus('connecting')
-          const saved = await loadPrinterDevice()
-          if (!saved) throw new Error('ยังไม่ได้ตั้งค่าปริ้นเตอร์ — ไปที่ Settings → Printer')
-          const name = await connectPrinter(saved.address)
-          setBtName(name)
-        }
-      }
+      // printReceipt / openCashDrawer reconnect to the saved printer via the
+      // native plugin themselves before writing, so we no longer pre-connect or
+      // trust the (stale) isConnected flag here.
       setBtStatus('printing')
       await printReceipt(data, cfg)
       if (payment === 'cash') await openCashDrawer(cfg).catch(() => {})
       setBtStatus('done')
     } catch (err) {
-      if ((cfg.printerConnectionType ?? 'bluetooth') === 'bluetooth') await disconnectPrinter()
       setBtStatus('error')
       setBtError(err instanceof Error ? err.message : 'เกิดข้อผิดพลาด')
     }
