@@ -3,6 +3,7 @@ import AppAuthGuard from '@/components/pos/AppAuthGuard'
 import AIChatPanel from '@/components/pos/AIChatPanel'
 import LockScreen from '@/components/pos/LockScreen'
 import NotificationBell from '@/components/pos/NotificationBell'
+import PrinterAutoConnect from '@/components/pos/PrinterAutoConnect'
 import { PosAuthProvider } from '@/lib/pos-auth'
 
 export const metadata = {
@@ -23,6 +24,7 @@ export default function POSLayout({ children }: { children: React.ReactNode }) {
         <AIChatPanel />
         <NotificationBell />
         <LockScreen />
+        <PrinterAutoConnect />
       </AppAuthGuard>
     </PosAuthProvider>
   )

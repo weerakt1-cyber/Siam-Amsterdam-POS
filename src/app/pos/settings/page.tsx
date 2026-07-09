@@ -1,16 +1,15 @@
 'use client'
 
-import { useState, useEffect, useRef, useCallback } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import QRCode from 'qrcode'
 import { useAuth } from '@/lib/pos-auth'
 import {
   loadBarSettings, saveBarSettings,
-  connectPrinter, disconnectPrinter, checkPrinterConnected,
-  startScanPrinters,
-  savePrinterDevice, loadPrinterDevice, clearPrinterDevice,
+  loadPrinterDevice, clearPrinterDevice,
   printReceipt, openCashDrawer, isNativePlatform,
   type BarSettings, type PrinterDevice, type ReceiptTemplate,
 } from '@/lib/printer'
+import { useBluetooth, bluetoothManager } from '@/lib/bluetooth-manager'
 import { OwnerProfileBadge } from '@/components/pos/GoogleAuthGuard'
 
 // ─── Section title ─────────────────────────────────────────────────────────────
@@ -322,14 +321,24 @@ export default function SettingsPage() {
   const [cfg, setCfg]         = useState<BarSettings | null>(null)
   const [cfgSaved, setCfgSaved] = useState(false)
 
-  // Bluetooth printer state
-  const [connected,    setConnected]    = useState(false)
+  // Bluetooth printer — driven by the shared BluetoothManager (auto-reconnect,
+  // health-check every 8s, robust runtime permissions). This card only tracks
+  // the persisted device (for the "Saved · Reconnect" UI), the Test-Print
+  // status, and local errors; connection state lives in the manager.
+  const bt = useBluetooth()
   const [savedDevice,  setSavedDevice]  = useState<PrinterDevice | null>(null)
-  const [btStatus,     setBtStatus]     = useState<'idle' | 'scanning' | 'connecting' | 'printing' | 'done' | 'error'>('idle')
-  const [btError,      setBtError]      = useState('')
-  const [scanResults,  setScanResults]  = useState<PrinterDevice[]>([])
-  const [scanning,     setScanning]     = useState(false)
-  const stopScanRef = useRef<(() => void) | null>(null)
+  const [printStatus,  setPrintStatus]  = useState<'idle' | 'printing' | 'done' | 'error'>('idle')
+  const [localError,   setLocalError]   = useState('')
+
+  const connected    = bt.isConnected
+  const scanning     = bt.isScanning
+  const scanResults  = bt.scannedDevices
+  const btConnecting = bt.isConnecting
+  // Scan / Connect / Reconnect / Test-Print are disabled while busy.
+  // NOTE: the Forget button is NEVER gated on this — a slow/hung connect must
+  // always leave the user a way out.
+  const btBusy       = scanning || btConnecting || printStatus === 'printing'
+  const btError      = localError || bt.lastError
 
   // Cash drawer
   const [drawerStatus, setDrawerStatus] = useState<'idle' | 'opening' | 'done' | 'error'>('idle')
@@ -344,22 +353,20 @@ export default function SettingsPage() {
   useEffect(() => {
     const cfg0 = loadBarSettings()
     setCfg(cfg0)
-    loadPrinterDevice().then(saved => {
-      setSavedDevice(saved)
-      checkPrinterConnected().then(already => {
-        if (already) { setConnected(true); return }
-        // Quietly try to connect to the saved Bluetooth printer in the
-        // background so it's ready without a manual tap. Deliberately does NOT
-        // touch btStatus — a slow/hung connect must never lock the card's
-        // buttons (Forget/Reconnect/Scan stay usable). On success the dot goes
-        // green; otherwise it stays amber and the user can act.
-        if (saved && (cfg0.printerConnectionType ?? 'bluetooth') === 'bluetooth') {
-          connectPrinter(saved.address).then(() => setConnected(true)).catch(() => {})
-        }
-      }).catch(() => {})
-    }).catch(() => {})
-    return () => { stopScanRef.current?.() }
+    loadPrinterDevice().then(setSavedDevice).catch(() => {})
+    // The shared manager auto-connects on POS startup; opening this page also
+    // (re)connects a saved Bluetooth printer so it's ready without a manual tap.
+    // connectWithTimeout guarantees this can't lock the card on "connecting".
+    if ((cfg0.printerConnectionType ?? 'bluetooth') === 'bluetooth') {
+      bluetoothManager.autoConnectOnStartup().catch(() => {})
+    }
+    return () => { bluetoothManager.stopScan() }
   }, [])
+
+  // Keep the "Saved" device label in sync whenever the manager connects.
+  useEffect(() => {
+    if (bt.connectedDevice) setSavedDevice(bt.connectedDevice)
+  }, [bt.connectedDevice])
 
   // ─── Cash Drawer ──────────────────────────────────────────────────────────
 
@@ -432,105 +439,60 @@ export default function SettingsPage() {
   }
 
   // ─── Bluetooth Scan ───────────────────────────────────────────────────────
+  // All connection logic now lives in the shared BluetoothManager: it requests
+  // runtime permissions, auto-restarts BLE scan before Android's 30s cutoff,
+  // reconnects with backoff, and runs an 8s health-check. These handlers just
+  // drive it and surface local Test-Print / error state.
 
   async function handleStartScan() {
-    setBtError('')
-    setScanResults([])
-    setScanning(true)
-    setBtStatus('scanning')
-    try {
-      const stop = await startScanPrinters(
-        (devices) => setScanResults(devices),
-        ()        => setScanning(false),
-      )
-      stopScanRef.current = stop
-      // หยุด scan อัตโนมัติหลัง 15 วินาที
-      setTimeout(() => stop(), 15000)
-    } catch (err) {
-      setBtError(err instanceof Error ? err.message : 'Scan failed')
-      setBtStatus('error')
-      setScanning(false)
-    }
+    setLocalError('')
+    bt.clearError()
+    await bt.scan(() => {})
   }
 
   function handleStopScan() {
-    stopScanRef.current?.()
-    setScanning(false)
-    setBtStatus('idle')
+    bt.stopScan()
   }
 
   // ─── Bluetooth Connect ────────────────────────────────────────────────────
 
   async function handleConnect(device: PrinterDevice) {
-    setBtError('')
-    setBtStatus('connecting')
-    handleStopScan()
-    try {
-      const name = await connectPrinter(device.address)
-      await savePrinterDevice(device.address, name)
-      setSavedDevice({ address: device.address, name })
-      setConnected(true)
-      setBtStatus('idle')
-    } catch (err) {
-      setBtError(err instanceof Error ? err.message : 'Connection failed')
-      setBtStatus('error')
-      setConnected(false)
-    }
+    setLocalError('')
+    bt.clearError()
+    await bt.connect(device) // manager saves the device + starts health-check
   }
 
   // ─── Reconnect to saved printer ───────────────────────────────────────────
 
   async function handleReconnect() {
     if (!savedDevice) return
-    setBtError('')
-    setBtStatus('connecting')
-    try {
-      // Clear any stale / half-open connection first — otherwise a lingering
-      // socket (e.g. left over after a Test Print) can make the fresh connect
-      // fail or hang.
-      await disconnectPrinter().catch(() => {})
-      const name = await Promise.race([
-        connectPrinter(savedDevice.address),
-        new Promise<string>((_, rej) => setTimeout(() => rej(new Error('เชื่อมต่อไม่สำเร็จ — ตรวจสอบว่าเปิดเครื่องพิมพ์และเปิด Location')), 12000)),
-      ])
-      await savePrinterDevice(savedDevice.address, name)
-      setSavedDevice({ address: savedDevice.address, name })
-      setConnected(true)
-      setBtStatus('idle')
-    } catch (err) {
-      setBtError(err instanceof Error ? err.message : 'Reconnect failed')
-      setBtStatus('error')
-      setConnected(false)
-    }
+    setLocalError('')
+    bt.clearError()
+    await bt.reconnectSaved() // backoff reconnect, each attempt has a 12s timeout
   }
 
   // ─── Disconnect ───────────────────────────────────────────────────────────
 
   async function handleDisconnect() {
-    await disconnectPrinter()
-    setConnected(false)
-    setBtStatus('idle')
-    setBtError('')
+    setLocalError('')
+    await bt.disconnect()
   }
 
   // ─── Forget printer ───────────────────────────────────────────────────────
 
   async function handleForget() {
-    await disconnectPrinter()
+    await bt.disconnect()
     await clearPrinterDevice()
     setSavedDevice(null)
-    setConnected(false)
-    setScanResults([])
-    setBtStatus('idle')
-    setBtError('')
+    setLocalError('')
   }
 
   // ─── Test print ───────────────────────────────────────────────────────────
 
   async function handleTestPrint() {
     if (!cfg) return
-    setBtError('')
-    setBtStatus('printing')
+    setLocalError('')
+    setPrintStatus('printing')
     try {
       await printReceipt({
         orderId: 'TEST001', tableNo: 'T1',
@@ -541,15 +503,14 @@ export default function SettingsPage() {
         subtotal: 480, discountAmount: 48, total: 432, vatIncluded: 28,
         paymentMethod: 'cash', received: 500, change: 68,
       }, cfg)
-      setBtStatus('done')
-      setTimeout(() => setBtStatus('idle'), 3000)
+      setPrintStatus('done')
+      setTimeout(() => setPrintStatus('idle'), 3000)
     } catch (err) {
-      setBtError(err instanceof Error ? err.message : 'Print failed')
-      setBtStatus('error')
+      setLocalError(err instanceof Error ? err.message : 'Print failed')
+      setPrintStatus('error')
+      setTimeout(() => setPrintStatus('idle'), 3000)
     }
   }
-
-  const btBusy = btStatus === 'connecting' || btStatus === 'printing' || btStatus === 'scanning'
 
   // ─── Google Sheets ────────────────────────────────────────────────────────
 
@@ -1198,7 +1159,7 @@ export default function SettingsPage() {
                     ) : savedDevice ? (
                       <div className="flex gap-2">
                         <button onClick={handleReconnect} disabled={btBusy} className="px-4 py-2 rounded-xl text-xs font-bold bg-blue-500 hover:bg-blue-600 disabled:opacity-40 text-white transition active:scale-95">
-                          {btStatus === 'connecting' ? '...' : 'Reconnect'}
+                          {btConnecting ? '...' : 'Reconnect'}
                         </button>
                         <button onClick={handleForget} className="px-3 py-2 rounded-xl text-xs font-semibold border border-red-100 text-red-400 hover:bg-red-50 transition">
                           Forget
@@ -1252,10 +1213,10 @@ export default function SettingsPage() {
                   <div className="flex gap-2">
                     <button onClick={handleTestPrint} disabled={btBusy}
                       className={`flex-1 py-2.5 rounded-xl text-sm font-semibold transition active:scale-95 ${
-                        btStatus === 'done' ? 'bg-emerald-100 text-emerald-700 border border-emerald-200' :
-                        btBusy             ? 'bg-gray-100 text-gray-400 cursor-not-allowed' :
-                                             'bg-gray-100 hover:bg-gray-200 text-gray-700'}`}>
-                      {btStatus === 'printing' ? '⏳ Printing...' : btStatus === 'done' ? '✓ Printed!' : '🖨️ Test Print'}
+                        printStatus === 'done' ? 'bg-emerald-100 text-emerald-700 border border-emerald-200' :
+                        btBusy               ? 'bg-gray-100 text-gray-400 cursor-not-allowed' :
+                                               'bg-gray-100 hover:bg-gray-200 text-gray-700'}`}>
+                      {printStatus === 'printing' ? '⏳ Printing...' : printStatus === 'done' ? '✓ Printed!' : '🖨️ Test Print'}
                     </button>
                     <button onClick={handleTestDrawer} disabled={btBusy || drawerStatus === 'opening'}
                       className={`flex-1 py-2.5 rounded-xl text-sm font-semibold transition active:scale-95 ${
