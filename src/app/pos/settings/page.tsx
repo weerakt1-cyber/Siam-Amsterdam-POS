@@ -693,12 +693,19 @@ export default function SettingsPage() {
   }
 
   // ─── QR Self-Ordering ────────────────────────────────────────────────────
+  // Table list is sourced directly from the Floor Plan (localStorage
+  // 'pos_floor_layout') — same key floor/page.tsx writes to. This guarantees
+  // QR codes always match real tables (name, count) instead of a separate
+  // prefix+count formula that could drift out of sync (e.g. rename T5 →
+  // Gameroom on the floor plan, but QR sheet still printed "T5").
 
-  const [qrCount,   setQrCount]   = useState(10)
-  const [qrPrefix,  setQrPrefix]  = useState('T')
-  const [qrBaseUrl, setQrBaseUrl] = useState('')
-  const [qrImages,  setQrImages]  = useState<{ tableNo: string; dataUrl: string }[]>([])
-  const [qrLoading, setQrLoading] = useState(false)
+  const FLOOR_LS_KEY = 'pos_floor_layout'
+
+  const [qrBaseUrl,   setQrBaseUrl]   = useState('')
+  const [qrImages,    setQrImages]    = useState<{ tableNo: string; dataUrl: string }[]>([])
+  const [qrLoading,   setQrLoading]   = useState(false)
+  const [floorTables, setFloorTables] = useState<string[]>([])
+  const [selectedQrTables, setSelectedQrTables] = useState<Set<string>>(new Set())
 
   // ตั้งค่าเริ่มต้นหลัง mount เท่านั้น — กัน hydration mismatch (window ไม่มีฝั่ง server)
   // ค่าเริ่มต้นคือ origin ปัจจุบัน ซึ่งตอน dev local จะเป็น localhost — ใช้ไม่ได้ถ้าสแกนจากมือถือ
@@ -707,19 +714,46 @@ export default function SettingsPage() {
     setQrBaseUrl(window.location.origin)
   }, [])
 
+  const loadFloorTables = useCallback(() => {
+    try {
+      const raw = localStorage.getItem(FLOOR_LS_KEY)
+      if (raw) {
+        const tiles = JSON.parse(raw) as { tableNo: string }[]
+        const names = tiles.map(t => t.tableNo).filter(Boolean)
+        setFloorTables(names)
+        setSelectedQrTables(new Set(names))
+        return
+      }
+    } catch { /* ignore */ }
+    setFloorTables([])
+    setSelectedQrTables(new Set())
+  }, [])
+
+  useEffect(() => { loadFloorTables() }, [loadFloorTables])
+
+  function toggleQrTable(tableNo: string) {
+    setSelectedQrTables(prev => {
+      const next = new Set(prev)
+      if (next.has(tableNo)) next.delete(tableNo)
+      else next.add(tableNo)
+      return next
+    })
+  }
+
   const generateQRs = useCallback(async () => {
+    const tableNos = floorTables.filter(t => selectedQrTables.has(t))
+    if (!tableNos.length) return
     setQrLoading(true)
     const base = qrBaseUrl || window.location.origin
     const results: { tableNo: string; dataUrl: string }[] = []
-    for (let i = 1; i <= qrCount; i++) {
-      const tableNo = `${qrPrefix}${i}`
+    for (const tableNo of tableNos) {
       const url     = `${base}/order/${tableNo}`
       const dataUrl = await QRCode.toDataURL(url, { width: 300, margin: 2, color: { dark: '#111111', light: '#FFFFFF' } })
       results.push({ tableNo, dataUrl })
     }
     setQrImages(results)
     setQrLoading(false)
-  }, [qrCount, qrPrefix, qrBaseUrl])
+  }, [floorTables, selectedQrTables, qrBaseUrl])
 
   function downloadQR(tableNo: string, dataUrl: string) {
     const a = document.createElement('a')
@@ -1610,45 +1644,81 @@ export default function SettingsPage() {
                 )}
               </div>
 
-              <div className="flex gap-3">
-                <div className="flex flex-col gap-1">
-                  <label className="text-xs font-semibold text-gray-400 uppercase tracking-wide">Tables</label>
-                  <input
-                    type="number"
-                    min={1} max={50}
-                    value={qrCount}
-                    onChange={e => setQrCount(Math.max(1, Math.min(50, Number(e.target.value))))}
-                    className="w-20 border border-gray-200 rounded-xl px-3 py-2 text-sm font-bold text-center focus:outline-none focus:border-amber-400 transition"
-                  />
-                </div>
-                <div className="flex flex-col gap-1">
-                  <label className="text-xs font-semibold text-gray-400 uppercase tracking-wide">Prefix</label>
-                  <input
-                    type="text"
-                    value={qrPrefix}
-                    maxLength={4}
-                    onChange={e => setQrPrefix(e.target.value.toUpperCase())}
-                    placeholder="T"
-                    className="w-20 border border-gray-200 rounded-xl px-3 py-2 text-sm font-bold text-center focus:outline-none focus:border-amber-400 transition"
-                  />
-                </div>
-                <div className="flex flex-col gap-1 flex-1">
-                  <label className="text-xs font-semibold text-gray-400 uppercase tracking-wide">Preview</label>
-                  <div className="border border-gray-100 rounded-xl px-3 py-2 text-xs text-gray-400 font-mono bg-gray-50">
-                    {qrPrefix || 'T'}1 … {qrPrefix || 'T'}{qrCount}
+              {/* Table source: real Floor Plan tiles — kept in sync via loadFloorTables() */}
+              <div className="flex flex-col gap-2">
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-semibold text-gray-400 uppercase tracking-wide">
+                    Tables from Floor Plan ({floorTables.length})
+                  </label>
+                  <div className="flex items-center gap-3">
+                    {floorTables.length > 0 && (
+                      <>
+                        <button
+                          onClick={() => setSelectedQrTables(new Set(floorTables))}
+                          className="text-[11px] font-semibold text-amber-600 hover:text-amber-700"
+                        >
+                          Select all
+                        </button>
+                        <button
+                          onClick={() => setSelectedQrTables(new Set())}
+                          className="text-[11px] font-semibold text-gray-400 hover:text-gray-600"
+                        >
+                          Clear
+                        </button>
+                      </>
+                    )}
+                    <button
+                      onClick={loadFloorTables}
+                      className="text-[11px] font-semibold text-gray-400 hover:text-gray-600"
+                    >
+                      🔄 Refresh
+                    </button>
                   </div>
                 </div>
+
+                {floorTables.length === 0 ? (
+                  <div className="border-2 border-dashed border-gray-100 rounded-xl py-6 text-center text-gray-300">
+                    <p className="text-sm">ยังไม่มีโต๊ะในผังโต๊ะ (Floor Plan)</p>
+                    <a href="/pos/floor" className="inline-block mt-2 text-xs font-bold text-amber-600 hover:text-amber-700">
+                      ไปตั้งค่า Floor Plan →
+                    </a>
+                  </div>
+                ) : (
+                  <div className="flex flex-wrap gap-2 border border-gray-100 rounded-xl p-3 bg-gray-50 max-h-40 overflow-y-auto">
+                    {floorTables.map(tableNo => {
+                      const checked = selectedQrTables.has(tableNo)
+                      return (
+                        <button
+                          key={tableNo}
+                          onClick={() => toggleQrTable(tableNo)}
+                          className={`px-3 py-1.5 rounded-lg text-xs font-bold font-mono border transition active:scale-95 ${
+                            checked
+                              ? 'bg-amber-500 border-amber-500 text-black'
+                              : 'bg-white border-gray-200 text-gray-400 hover:border-gray-300'
+                          }`}
+                        >
+                          {checked ? '✓ ' : ''}{tableNo}
+                        </button>
+                      )
+                    })}
+                  </div>
+                )}
+                <p className="text-[11px] text-gray-400">
+                  รายชื่อโต๊ะดึงมาจากผัง Floor Plan โดยตรง — เปลี่ยนชื่อ/เพิ่ม/ลบโต๊ะที่นั่น แล้วกด 🔄 Refresh
+                </p>
               </div>
 
               <div className="flex gap-2">
                 <button
                   onClick={generateQRs}
-                  disabled={qrLoading}
+                  disabled={qrLoading || selectedQrTables.size === 0}
                   className={`flex-1 py-2.5 rounded-xl text-sm font-bold transition active:scale-95 ${
-                    qrLoading ? 'bg-gray-200 text-gray-400 cursor-wait' : 'bg-amber-500 hover:bg-amber-400 text-black'
+                    qrLoading || selectedQrTables.size === 0
+                      ? 'bg-gray-200 text-gray-400 cursor-not-allowed'
+                      : 'bg-amber-500 hover:bg-amber-400 text-black'
                   }`}
                 >
-                  {qrLoading ? '⏳ Generating...' : '⚡ Generate QR Codes'}
+                  {qrLoading ? '⏳ Generating...' : `⚡ Generate QR Codes (${selectedQrTables.size})`}
                 </button>
                 {qrImages.length > 0 && (
                   <button

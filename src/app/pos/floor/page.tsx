@@ -216,7 +216,7 @@ export default function FloorPage() {
   // ── Table CRUD ──────────────────────────────────────────────────────────────
 
   function addTile() {
-    const no = newNo.trim().toUpperCase()
+    const no = newNo.trim()
     if (!no) return
     if (tiles.some(t => t.tableNo === no)) {
       setAddError(`โต๊ะ "${no}" มีอยู่แล้ว`)
@@ -412,9 +412,9 @@ export default function FloorPage() {
                   <Field label="Table No *">
                     <input
                       value={newNo}
-                      onChange={e => { setNewNo(e.target.value.toUpperCase()); setAddError('') }}
+                      onChange={e => { setNewNo(e.target.value); setAddError('') }}
                       onKeyDown={e => e.key === 'Enter' && addTile()}
-                      placeholder="T7, VIP2, BAR2…"
+                      placeholder="T7, VIP2, Gameroom…"
                       className={`${INPUT} font-mono`}
                     />
                   </Field>
@@ -487,7 +487,7 @@ export default function FloorPage() {
                       <input
                         value={selectedTile.tableNo}
                         onChange={e => {
-                          const val = e.target.value.toUpperCase()
+                          const val = e.target.value
                           const dup = tiles.some(t => t.id !== selectedTile.id && t.tableNo === val)
                           if (!dup) updateTile(selectedTile.id, { tableNo: val })
                         }}
