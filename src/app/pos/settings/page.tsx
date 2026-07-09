@@ -344,25 +344,20 @@ export default function SettingsPage() {
   useEffect(() => {
     const cfg0 = loadBarSettings()
     setCfg(cfg0)
-    ;(async () => {
-      const saved = await loadPrinterDevice().catch(() => null)
+    loadPrinterDevice().then(saved => {
       setSavedDevice(saved)
-      const already = await checkPrinterConnected().catch(() => false)
-      if (already) { setConnected(true); return }
-      // Auto-connect to the saved Bluetooth printer when this page opens, so
-      // the printer is ready without a manual Reconnect tap. Time-boxed so a
-      // sleeping/off printer can't leave the UI stuck — falls back to the
-      // Reconnect button on failure. (LAN printers hold no persistent socket.)
-      if (saved && (cfg0.printerConnectionType ?? 'bluetooth') === 'bluetooth') {
-        setBtStatus('connecting')
-        const ok = await Promise.race([
-          connectPrinter(saved.address).then(() => true).catch(() => false),
-          new Promise<boolean>(res => setTimeout(() => res(false), 8000)),
-        ])
-        setConnected(ok)
-        setBtStatus('idle')
-      }
-    })()
+      checkPrinterConnected().then(already => {
+        if (already) { setConnected(true); return }
+        // Quietly try to connect to the saved Bluetooth printer in the
+        // background so it's ready without a manual tap. Deliberately does NOT
+        // touch btStatus — a slow/hung connect must never lock the card's
+        // buttons (Forget/Reconnect/Scan stay usable). On success the dot goes
+        // green; otherwise it stays amber and the user can act.
+        if (saved && (cfg0.printerConnectionType ?? 'bluetooth') === 'bluetooth') {
+          connectPrinter(saved.address).then(() => setConnected(true)).catch(() => {})
+        }
+      }).catch(() => {})
+    }).catch(() => {})
     return () => { stopScanRef.current?.() }
   }, [])
 
