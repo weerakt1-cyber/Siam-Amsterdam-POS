@@ -5,6 +5,7 @@ import { getOrders, getMenu, createOrder, recordCouponUse } from '@/lib/store'
 import { appendOrderToSheet } from '@/lib/sheets'
 import { sendOrderAlert } from '@/lib/telegram'
 import { sendLineOrderAlert } from '@/lib/line'
+import { romanizeName } from '@/lib/romanize'
 import { fireWebhook } from '@/lib/webhooks'
 import type { OrderItem } from '@/lib/types'
 
@@ -86,8 +87,11 @@ export async function POST(req: NextRequest) {
     const notifyPayload = {
       orderId:        order.id,
       tableNo:        order.tableNo,
-      memberName:     order.memberName,
-      customerName:   order.customerName,
+      // Romanize non-Latin names so foreign customer names show an English
+      // version in parentheses, e.g. "Иван (Ivan)" / "李明 (Li Ming)".
+      memberName:     romanizeName(order.memberName),
+      customerName:   romanizeName(order.customerName),
+      note:           order.note || undefined,
       couponCode:     notifyCoupon || undefined,
       items:          order.items.map(i => ({ name: i.name, qty: i.qty, price: i.price })),
       subtotal:       order.subtotal,

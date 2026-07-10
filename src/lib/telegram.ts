@@ -42,6 +42,12 @@ export type OrderNotifyData = {
   received?:      number
   change?:        number
   couponCode?:    string
+  note?:          string
+}
+
+// Escape user-supplied free text for Telegram's HTML parse mode.
+function esc(s: string): string {
+  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
 }
 
 export async function sendOrderAlert(data: OrderNotifyData): Promise<boolean> {
@@ -54,16 +60,17 @@ export async function sendOrderAlert(data: OrderNotifyData): Promise<boolean> {
     ? `\n🏷 Discount${data.couponCode ? ` [${data.couponCode}]` : ''}: -฿${data.discountAmount.toLocaleString()}`
     : ''
 
-  const staffLine    = data.staffName    ? `\n👤 Staff: ${data.staffName}`      : ''
-  const memberLine   = data.memberName   ? `\n⭐ Member: ${data.memberName}`    : ''
-  const customerLine = data.customerName ? `\n🙋 Customer: ${data.customerName}` : ''
+  const staffLine    = data.staffName    ? `\n👤 Staff: ${esc(data.staffName)}`      : ''
+  const memberLine   = data.memberName   ? `\n⭐ Member: ${esc(data.memberName)}`    : ''
+  const customerLine = data.customerName ? `\n🙋 Customer: ${esc(data.customerName)}` : ''
+  const noteLine     = data.note?.trim() ? `\n📝 <b>Note:</b> ${esc(data.note.trim())}` : ''
 
   // No "Paid" line here — orders (especially QR self-orders) aren't
   // necessarily settled yet when this alert fires. Ends at Subtotal.
   const text = [
     `🍹 <b>New Order</b> — Baze POS`,
     `━━━━━━━━━━━━━━━━`,
-    `🪑 Table: <b>${data.tableNo}</b>  |  #${shortId}${staffLine}${memberLine}${customerLine}`,
+    `🪑 Table: <b>${esc(data.tableNo)}</b>  |  #${shortId}${staffLine}${memberLine}${customerLine}${noteLine}`,
     ``,
     `🛒 <b>Items:</b>`,
     itemLines,

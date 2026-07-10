@@ -61,13 +61,14 @@ function formatOrderAlert(data: OrderNotifyData): string {
   const staffLine    = data.staffName    ? `\n👤 Staff: ${data.staffName}`       : ''
   const memberLine   = data.memberName   ? `\n⭐ Member: ${data.memberName}`     : ''
   const customerLine = data.customerName ? `\n🙋 Customer: ${data.customerName}` : ''
+  const noteLine     = data.note?.trim() ? `\n📝 Note: ${data.note.trim()}`      : ''
 
   // No "Paid" line here — orders (especially QR self-orders) aren't
   // necessarily settled yet when this alert fires. Ends at Subtotal.
   return [
     `🍹 New Order — Baze POS`,
     `━━━━━━━━━━━━`,
-    `🪑 Table: ${data.tableNo}  |  #${shortId}${staffLine}${memberLine}${customerLine}`,
+    `🪑 Table: ${data.tableNo}  |  #${shortId}${staffLine}${memberLine}${customerLine}${noteLine}`,
     ``,
     `🛒 Items:`,
     itemLines,
