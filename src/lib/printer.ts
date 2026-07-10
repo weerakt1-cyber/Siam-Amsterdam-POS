@@ -348,9 +348,12 @@ interface NativeThermalPrinter {
   write(opts?: Record<string, never>): Promise<void>
 }
 
-async function getNativePrinter(): Promise<NativeThermalPrinter> {
-  const { registerPlugin } = await import('@capacitor/core')
-  return registerPlugin<NativeThermalPrinter>('CapacitorThermalPrinter')
+// IMPORTANT: grab the native plugin SYNCHRONOUSLY off window.Capacitor.Plugins.
+// Returning the plugin proxy from an async function makes the Promise machinery
+// probe its `.then`, which triggers the Capacitor "then() is not implemented"
+// trap and hangs forever. So never `return`/`await` the proxy object itself.
+function getNativePrinter(): NativeThermalPrinter | null {
+  return (cap()?.Plugins?.CapacitorThermalPrinter ?? null) as NativeThermalPrinter | null
 }
 
 function bytesToBase64(bytes: Uint8Array): string {
@@ -366,8 +369,9 @@ function bytesToBase64(bytes: Uint8Array): string {
 // plugin. Reconnecting a live link is cheap (~1s) and makes printing reliable
 // no matter how long the app has been idle.
 async function reconnectAndWrite(bytes: Uint8Array): Promise<void> {
-  const native = await getNativePrinter()
-  const saved  = await loadPrinterDevice()
+  const native = getNativePrinter()
+  if (!native) throw new Error('เครื่องพิมพ์ใช้ได้เฉพาะใน Android app')
+  const saved = await loadPrinterDevice()
   if (!saved) throw new Error('ยังไม่ได้ตั้งค่าปริ้นเตอร์ — ไปที่ Settings → Printer')
   const device = await native.connect({ address: saved.address })
   if (!device) throw new Error('เชื่อมต่อปริ้นเตอร์ไม่สำเร็จ — ตรวจสอบว่าเปิดเครื่องพิมพ์และอยู่ใกล้')
