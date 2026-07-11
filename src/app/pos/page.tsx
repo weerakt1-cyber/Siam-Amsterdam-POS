@@ -5,7 +5,7 @@ import type { MenuItem, Order } from '@/lib/types'
 import CheckoutModal from '@/components/pos/CheckoutModal'
 import NumPad from '@/components/pos/NumPad'
 import SplitBillModal from '@/components/pos/SplitBillModal'
-import { loadBarSettings, DEFAULT_BAR_SETTINGS, type BarSettings } from '@/lib/printer'
+import { loadBarSettings, DEFAULT_BAR_SETTINGS, printReceipt, type BarSettings } from '@/lib/printer'
 import { type CatEntry, CATEGORIES_CHANGED_EVENT, loadAllCategories, fetchCategories } from '@/lib/categories'
 
 const TABLES = ['T1', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7', 'T8', 'BAR', 'VIP1', 'VIP2']
@@ -427,25 +427,28 @@ export default function POSPage() {
     : 0
   const finalTotal = Math.max(0, afterCouponManual - actualPointsDiscount)
 
-  // พิมพ์ Check Bill ให้ลูกค้าดูก่อนชำระเงิน (ไม่ต้องเปิด Checkout Modal)
-  function handlePrintTicket() {
+  // พิมพ์ Check Bill ให้ลูกค้าดูก่อนชำระเงิน — พิมพ์ผ่านเครื่องพิมพ์ (Bluetooth/LAN)
+  // โดยตรง ไม่เปิดแท็บเบราว์เซอร์ (บนแอป Android การเปิดแท็บจะไปที่ Chrome แล้วกลับ
+  // แอปไม่ได้)
+  async function handlePrintTicket() {
     if (cart.length === 0) return
     const cfg = loadBarSettings()
-    const discountLabel = appliedCoupon
-      ? appliedCoupon.code
-      : discountType === 'percent' && parsedDiscount > 0
-      ? `${parsedDiscount}%`
-      : undefined
-    const html = buildTicketHtml({
-      cart, table, memberName, subtotal,
-      discountAmount: discountAmount + actualPointsDiscount, total: finalTotal, discountLabel, cfg,
-    })
-    const win = window.open('', '_blank', 'width=340,height=700,toolbar=0,menubar=0')
-    if (!win) return
-    win.document.write(html)
-    win.document.close()
-    win.focus()
-    setTimeout(() => win.print(), 600)
+    try {
+      await printReceipt({
+        orderId:        'CHECK' + Date.now().toString().slice(-8),
+        tableNo:        table,
+        createdAt:      new Date().toISOString(),
+        memberName:     memberName || undefined,
+        couponCode:     appliedCoupon?.code,
+        items:          cart.map(c => ({ name: c.name, qty: c.qty, price: c.price })),
+        subtotal,
+        discountAmount: discountAmount + actualPointsDiscount,
+        total:          finalTotal,
+        vatIncluded:    Math.round(finalTotal * 7 / 107),
+      }, cfg)
+    } catch (e) {
+      alert(e instanceof Error ? e.message : 'พิมพ์ไม่สำเร็จ — ตรวจสอบการเชื่อมต่อเครื่องพิมพ์')
+    }
   }
 
   // Fix #5/B-04: pass couponId so orders API records use atomically

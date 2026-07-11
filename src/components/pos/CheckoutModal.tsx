@@ -47,16 +47,8 @@ function cashOptions(total: number): number[] {
   return [...opts].sort((a, b) => a - b).slice(0, 3)
 }
 
-function printWindow(html: string) {
-  const win = window.open('', '_blank', 'width=340,height=700,toolbar=0,menubar=0')
-  if (!win) return
-  win.document.write(html)
-  win.document.close()
-  win.focus()
-  setTimeout(() => { win.print() }, 600)
-}
-
-// ─── HTML receipt ─────────────────────────────────────────────────────────────
+// ─── HTML receipt (unused: printing goes through the Bluetooth/LAN device only,
+// never a browser tab) ────────────────────────────────────────────────────────
 
 function buildReceiptHtml({
   cart, table, note, discount, memberName,
@@ -244,18 +236,6 @@ export default function CheckoutModal({
   const dateStr = now.toLocaleDateString('en-GB')
   const timeStr = now.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })
 
-  function receiptArgs(isDraft: boolean, pmt?: string) {
-    return {
-      cart, table, note, discount, memberName, subtotal, total, vatIncluded,
-      payment: pmt, received: receivedNum, change,
-      orderRef, isDraft, dateStr, timeStr, staffName,
-      cfg: cfg ?? DEFAULT_BAR_SETTINGS,
-    }
-  }
-
-  function printPreview() { printWindow(buildReceiptHtml(receiptArgs(true))) }
-  function printFinal()   { printWindow(buildReceiptHtml(receiptArgs(false, payment))) }
-
   async function handleBTPrint() {
     if (!cfg) return
     setBtError('')
@@ -425,16 +405,10 @@ export default function CheckoutModal({
               )}
             </div>
 
-            <div className="px-5 pt-4 pb-2 border-t border-stone-100 flex gap-3 bg-white">
-              <button
-                onClick={printPreview}
-                className="flex-1 py-3 rounded-xl border border-stone-200 bg-stone-50 text-stone-500 hover:bg-stone-100 hover:text-stone-700 text-sm font-semibold transition flex items-center justify-center gap-2 active:scale-95"
-              >
-                🖨️ Preview
-              </button>
+            <div className="px-5 pt-4 pb-2 border-t border-stone-100 bg-white">
               <button
                 onClick={() => setStep(2)}
-                className="flex-1 py-3 rounded-xl bg-stone-900 hover:bg-stone-800 active:scale-95 text-white font-bold text-sm transition"
+                className="w-full py-3 rounded-xl bg-stone-900 hover:bg-stone-800 active:scale-95 text-white font-bold text-sm transition"
               >
                 Payment →
               </button>
@@ -627,15 +601,8 @@ export default function CheckoutModal({
               {staffName && <p className="text-xs text-stone-300 mt-0.5">Staff: {staffName}</p>}
             </div>
 
-            {/* Print buttons */}
+            {/* Print — device connection only (no browser tab) */}
             <div className="flex flex-col gap-2 w-full">
-              <button
-                onClick={printFinal}
-                className="w-full py-3 rounded-xl border border-stone-200 bg-white text-stone-700 hover:bg-stone-50 hover:border-stone-400 font-semibold transition active:scale-95 flex items-center justify-center gap-2 text-sm"
-              >
-                🖨️ Print Receipt
-              </button>
-
               <button
                 onClick={handleBTPrint}
                 disabled={btDisabled}
