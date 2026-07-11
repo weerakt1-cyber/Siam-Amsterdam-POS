@@ -1,17 +1,5 @@
 import type { MenuItem } from './types'
 
-// ── Demo staff users shown when database has no users yet ──────────────────────
-export const DEMO_USERS = [
-  { id: 'demo-1', name: 'Boss',   role: 'admin',     color: '#ef4444' },
-  { id: 'demo-2', name: 'Nok',    role: 'bartender', color: '#f59e0b' },
-  { id: 'demo-3', name: 'Ping',   role: 'bartender', color: '#10b981' },
-  { id: 'demo-4', name: 'Pam',    role: 'staff',     color: '#6366f1' },
-]
-
-export function isDemoUser(id: string) {
-  return id.startsWith('demo-')
-}
-
 // ── Demo menu items shown when database has no menu yet ────────────────────────
 export const DEMO_MENU: MenuItem[] = [
   { id: 'dm-c1', name: 'Mojito',       nameTh: 'โมฮิโต',       price: 280, category: 'cocktail', available: true },

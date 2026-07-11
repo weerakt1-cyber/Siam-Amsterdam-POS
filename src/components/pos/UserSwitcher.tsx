@@ -2,7 +2,6 @@
 
 import { useState, useEffect } from 'react'
 import type { ActiveUser } from '@/lib/pos-auth'
-import { DEMO_USERS, isDemoUser } from '@/lib/demo-data'
 
 type StaffUser = { id: string; name: string; role: string; color: string }
 
@@ -35,7 +34,8 @@ export default function UserSwitcher({
   mode?:    'switch' | 'lock'  // 'lock' = mandatory PIN re-entry after inactivity, no dismiss
   lockUser?: ActiveUser | null // preselected user when opened as a lock screen
 }) {
-  const [users, setUsers]         = useState<StaffUser[]>(DEMO_USERS)
+  const [users, setUsers]         = useState<StaffUser[]>([])
+  const [usersLoading, setUsersLoading] = useState(true)
   const [step, setStep]           = useState<'pick' | 'pin'>(mode === 'lock' && lockUser ? 'pin' : 'pick')
   const [picked, setPicked]       = useState<StaffUser | null>(
     mode === 'lock' && lockUser ? { id: lockUser.id, name: lockUser.name, role: lockUser.role, color: lockUser.color } : null
@@ -44,19 +44,19 @@ export default function UserSwitcher({
   const [error, setError]         = useState(false)
   const [checking, setChecking]   = useState(false)
 
+  // Only real staff saved in Settings → Users are ever shown or allowed to
+  // log in here — no demo/sample fallback. Every PIN goes through the server
+  // check below.
   useEffect(() => {
     fetch('/api/users')
       .then(r => r.ok ? r.json() : null)
-      .then(d => { if (d?.users?.length) setUsers(d.users) })
-      .catch(() => {})
+      .then(d => setUsers(Array.isArray(d?.users) ? d.users : []))
+      .catch(() => setUsers([]))
+      .finally(() => setUsersLoading(false))
   }, [])
 
   useEffect(() => {
     if (pin.length !== 4 || !picked || checking) return
-    if (isDemoUser(picked.id)) {
-      onLogin({ id: picked.id, name: picked.name, role: picked.role, color: picked.color })
-      return
-    }
     setChecking(true)
     fetch('/api/users/verify-pin', {
       method: 'POST',
@@ -104,23 +104,34 @@ export default function UserSwitcher({
             {isLock && (
               <p className="px-5 pt-3 text-xs text-stone-400">Inactive too long — pick who&apos;s continuing</p>
             )}
-            <div className="p-4 grid grid-cols-2 gap-3">
-              {users.map(u => (
-                <button
-                  key={u.id}
-                  onPointerDown={() => { setPicked(u); setPin(''); setError(false); setStep('pin') }}
-                  className="flex flex-col items-center gap-2 p-4 bg-stone-50 hover:bg-stone-100 border border-stone-100 hover:border-stone-300 rounded-xl transition-all active:scale-95"
-                >
-                  <div className="w-12 h-12 rounded-full flex items-center justify-center text-xl font-bold text-white shadow-sm" style={{ background: u.color }}>
-                    {u.name.charAt(0).toUpperCase()}
-                  </div>
-                  <div className="text-center">
-                    <p className="text-sm font-semibold text-stone-900">{u.name}</p>
-                    <p className="text-[10px] text-stone-400">{ROLE_LABELS[u.role] ?? u.role}</p>
-                  </div>
-                </button>
-              ))}
-            </div>
+            {usersLoading ? (
+              <div className="p-10 flex items-center justify-center">
+                <div className="w-6 h-6 border-2 border-amber-500/30 border-t-amber-500 rounded-full animate-spin" />
+              </div>
+            ) : users.length === 0 ? (
+              <div className="p-6 text-center">
+                <p className="text-sm font-medium text-stone-500">No staff accounts yet</p>
+                <p className="text-xs text-stone-400 mt-1">Add staff in Settings → Users to enable switching</p>
+              </div>
+            ) : (
+              <div className="p-4 grid grid-cols-2 gap-3">
+                {users.map(u => (
+                  <button
+                    key={u.id}
+                    onPointerDown={() => { setPicked(u); setPin(''); setError(false); setStep('pin') }}
+                    className="flex flex-col items-center gap-2 p-4 bg-stone-50 hover:bg-stone-100 border border-stone-100 hover:border-stone-300 rounded-xl transition-all active:scale-95"
+                  >
+                    <div className="w-12 h-12 rounded-full flex items-center justify-center text-xl font-bold text-white shadow-sm" style={{ background: u.color }}>
+                      {u.name.charAt(0).toUpperCase()}
+                    </div>
+                    <div className="text-center">
+                      <p className="text-sm font-semibold text-stone-900">{u.name}</p>
+                      <p className="text-[10px] text-stone-400">{ROLE_LABELS[u.role] ?? u.role}</p>
+                    </div>
+                  </button>
+                ))}
+              </div>
+            )}
           </>
         ) : (
           <>
