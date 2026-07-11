@@ -33,8 +33,24 @@ export default function AppAuthGuard({ children }: { children: React.ReactNode }
         router.replace('/auth/status'); return
       }
 
+      // The Google/email login only gates device access. The POS operating
+      // identity is a real staff (PIN) account — so we do NOT auto-set the
+      // profile as the active user (that made the owner's name, e.g. "Fluke",
+      // leak in as the POS user). StaffGate will prompt for a staff PIN.
+      // Exception — bootstrap: if there are no staff accounts yet, let the
+      // authenticated admin operate so they can reach Settings → Users. Also
+      // bootstrap on a fetch error, to avoid locking the tablet out.
       if (!user) {
-        login({ id: profile.id, name: profile.name, role: profile.role, color: profile.color })
+        try {
+          const r = await fetch('/api/users')
+          const d = r.ok ? await r.json() : null
+          const staff = Array.isArray(d?.users) ? d.users : []
+          if (staff.length === 0) {
+            login({ id: profile.id, name: profile.name, role: profile.role, color: profile.color })
+          }
+        } catch {
+          login({ id: profile.id, name: profile.name, role: profile.role, color: profile.color })
+        }
       }
       setState('ready')
     }

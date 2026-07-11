@@ -2,6 +2,7 @@ import Sidebar from '@/components/pos/Sidebar'
 import AppAuthGuard from '@/components/pos/AppAuthGuard'
 import AIChatPanel from '@/components/pos/AIChatPanel'
 import LockScreen from '@/components/pos/LockScreen'
+import StaffGate from '@/components/pos/StaffGate'
 import PrinterAutoConnect from '@/components/pos/PrinterAutoConnect'
 import { PosAuthProvider } from '@/lib/pos-auth'
 
@@ -22,6 +23,7 @@ export default function POSLayout({ children }: { children: React.ReactNode }) {
         </div>
         <AIChatPanel />
         <LockScreen />
+        <StaffGate />
         <PrinterAutoConnect />
       </AppAuthGuard>
     </PosAuthProvider>

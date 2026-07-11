@@ -9,7 +9,7 @@ import UserSwitcher from './UserSwitcher'
 // minutes of inactivity elapse. No dismiss — only a valid PIN or full Logout gets past it.
 export default function LockScreen() {
   const router = useRouter()
-  const { user, locked, login, logout } = useAuth()
+  const { locked, login, logout } = useAuth()
 
   if (!locked) return null
 
@@ -19,10 +19,11 @@ export default function LockScreen() {
     router.replace('/auth')
   }
 
+  // Always show the real staff list to pick from — never pre-select a name — so
+  // whoever resumes identifies themselves from the single staff base.
   return (
     <UserSwitcher
       mode="lock"
-      lockUser={user}
       onLogin={login}
       onLogout={handleLogout}
     />

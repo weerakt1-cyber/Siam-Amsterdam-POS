@@ -26,13 +26,15 @@ function PinDots({ count, error }: { count: number; error?: boolean }) {
 }
 
 export default function UserSwitcher({
-  onLogin, onLogout, onClose, mode = 'switch', lockUser,
+  onLogin, onLogout, onClose, mode = 'switch', lockUser, heading, subtext,
 }: {
   onLogin:  (u: ActiveUser) => void
   onLogout: () => void
   onClose?: () => void
-  mode?:    'switch' | 'lock'  // 'lock' = mandatory PIN re-entry after inactivity, no dismiss
-  lockUser?: ActiveUser | null // preselected user when opened as a lock screen
+  mode?:    'switch' | 'lock'  // 'lock' = mandatory, no dismiss (inactivity lock or first-time user select)
+  lockUser?: ActiveUser | null // preselected user (optional) when opened as a lock screen
+  heading?: string             // overrides the panel title
+  subtext?: string             // overrides the sub-line under the title
 }) {
   const [users, setUsers]         = useState<StaffUser[]>([])
   const [usersLoading, setUsersLoading] = useState(true)
@@ -78,6 +80,8 @@ export default function UserSwitcher({
 
   const KEYS = ['1','2','3','4','5','6','7','8','9','','0','⌫']
   const isLock = mode === 'lock'
+  const title = heading ?? (isLock ? '🔒 Screen Locked' : 'Switch User')
+  const sub   = subtext ?? (isLock ? "Inactive too long — pick who's continuing" : null)
 
   return (
     <div
@@ -88,7 +92,7 @@ export default function UserSwitcher({
         {step === 'pick' ? (
           <>
             <div className="flex items-center justify-between px-5 py-4 border-b border-stone-100">
-              <h2 className="text-base font-bold text-stone-900">{isLock ? '🔒 Screen Locked' : 'Switch User'}</h2>
+              <h2 className="text-base font-bold text-stone-900">{title}</h2>
               <div className="flex items-center gap-2">
                 <button
                   onPointerDown={onLogout}
@@ -101,8 +105,8 @@ export default function UserSwitcher({
                 )}
               </div>
             </div>
-            {isLock && (
-              <p className="px-5 pt-3 text-xs text-stone-400">Inactive too long — pick who&apos;s continuing</p>
+            {sub && (
+              <p className="px-5 pt-3 text-xs text-stone-400">{sub}</p>
             )}
             {usersLoading ? (
               <div className="p-10 flex items-center justify-center">
