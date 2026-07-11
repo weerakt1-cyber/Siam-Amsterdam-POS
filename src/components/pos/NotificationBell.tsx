@@ -1,8 +1,9 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import type { Alert, AlertSeverity } from '@/lib/alerts'
 import { loadBarSettings } from '@/lib/printer'
+import { requestNotifyPermission, fireLocalNotification } from '@/lib/local-notify'
 
 const POLL_MS = 90_000
 const SEEN_KEY = 'pos_alerts_seen'
@@ -25,8 +26,15 @@ export default function NotificationBell() {
   const [alerts, setAlerts] = useState<Alert[]>([])
   const [open, setOpen]     = useState(false)
   const [seen, setSeen]     = useState<Set<string>>(new Set())
+  // Alert ids already pushed as a native notification this session. null =
+  // not yet seeded — the first fetch after mount seeds this from whatever
+  // alerts already exist (so opening the app doesn't spam notifications for
+  // long-standing issues); only alerts appearing after that fire a real
+  // device notification.
+  const notifiedRef = useRef<Set<string> | null>(null)
 
   useEffect(() => { setSeen(loadSeen()) }, [])
+  useEffect(() => { requestNotifyPermission().catch(() => {}) }, [])
 
   const fetchAlerts = useCallback(async () => {
     try {
@@ -39,7 +47,18 @@ export default function NotificationBell() {
       const r = await fetch(`/api/alerts?${qs}`)
       if (!r.ok) return
       const d = await r.json()
-      setAlerts(Array.isArray(d.alerts) ? d.alerts : [])
+      const list: Alert[] = Array.isArray(d.alerts) ? d.alerts : []
+      setAlerts(list)
+
+      if (notifiedRef.current === null) {
+        notifiedRef.current = new Set(list.map(a => a.id))
+      } else {
+        for (const a of list) {
+          if (notifiedRef.current.has(a.id)) continue
+          notifiedRef.current.add(a.id)
+          fireLocalNotification(a.id, a.title, a.detail).catch(() => {})
+        }
+      }
     } catch { /* ignore */ }
   }, [])
 
@@ -68,32 +87,33 @@ export default function NotificationBell() {
   }
 
   return (
-    <>
-      {/* Floating bell — bottom-left, clears the sidebar on desktop, mirrors the AI chat button */}
+    <div className="relative">
+      {/* Inline button — sits next to Open Drawer in the POS header, same
+          pill style. Shown only on the POS page (not floating/global). */}
       <button
         onClick={toggle}
         title="Notifications & alerts"
-        className={`fixed z-[65] bottom-20 left-4 sm:bottom-6 sm:left-20 w-14 h-14 rounded-full shadow-xl flex items-center justify-center text-2xl bg-white border border-stone-200 transition-all active:scale-95 ${
-          hasNew && hasUrgent ? 'ring-4 ring-red-200 animate-pulse' : ''
+        className={`bg-stone-100 hover:bg-stone-200 active:scale-95 text-stone-700 transition text-sm font-semibold px-3 py-2 rounded-xl flex items-center gap-1.5 relative ${
+          hasNew && hasUrgent ? 'ring-2 ring-red-300' : ''
         }`}
       >
-        🔔
+        🔔 <span className="hidden sm:inline">Alerts</span>
         {actionable.length > 0 && (
-          <span className={`absolute -top-1 -right-1 min-w-[22px] h-[22px] rounded-full text-white text-xs font-black flex items-center justify-center px-1 shadow ${
+          <span className={`absolute -top-1.5 -right-1.5 min-w-[20px] h-[20px] rounded-full text-white text-[11px] font-black flex items-center justify-center px-1 shadow ${
             hasUrgent ? 'bg-red-500' : 'bg-sky-500'
           }`}>
             {actionable.length}
           </span>
         )}
         {actionable.length === 0 && alerts.length > 0 && (
-          <span className="absolute -top-0.5 -right-0.5 w-3.5 h-3.5 rounded-full bg-emerald-500 border-2 border-white" />
+          <span className="absolute -top-0.5 -right-0.5 w-3 h-3 rounded-full bg-emerald-500 border-2 border-white" />
         )}
       </button>
 
       {open && (
         <>
           <div className="fixed inset-0 z-[64]" onClick={() => setOpen(false)} />
-          <div className="fixed z-[66] bottom-36 left-4 sm:bottom-24 sm:left-20 w-[calc(100vw-2rem)] max-w-sm bg-white rounded-2xl shadow-2xl border border-stone-200 overflow-hidden flex flex-col max-h-[70vh]">
+          <div className="absolute z-[66] top-full right-0 mt-2 w-80 max-w-[90vw] bg-white rounded-2xl shadow-2xl border border-stone-200 overflow-hidden flex flex-col max-h-[70vh]">
             {/* Header */}
             <div className="flex items-center justify-between px-4 py-3 border-b border-stone-100 shrink-0">
               <div className="flex items-center gap-2">
@@ -144,6 +164,6 @@ export default function NotificationBell() {
           </div>
         </>
       )}
-    </>
+    </div>
   )
 }

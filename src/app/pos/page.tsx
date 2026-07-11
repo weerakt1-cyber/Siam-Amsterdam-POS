@@ -5,6 +5,7 @@ import type { MenuItem, Order } from '@/lib/types'
 import CheckoutModal from '@/components/pos/CheckoutModal'
 import NumPad from '@/components/pos/NumPad'
 import SplitBillModal from '@/components/pos/SplitBillModal'
+import NotificationBell from '@/components/pos/NotificationBell'
 import { loadBarSettings, DEFAULT_BAR_SETTINGS, printReceipt, type BarSettings } from '@/lib/printer'
 import { type CatEntry, CATEGORIES_CHANGED_EVENT, loadAllCategories, fetchCategories } from '@/lib/categories'
 
@@ -1033,7 +1034,7 @@ export default function POSPage() {
           })}
         </div>
 
-        {/* Clock + Drawer */}
+        {/* Clock + Drawer + Alerts */}
         <div className="flex items-center gap-2 ml-1 shrink-0">
           <span className="font-mono text-sm text-stone-400 hidden md:block">{clock}</span>
           <button
@@ -1042,6 +1043,7 @@ export default function POSPage() {
           >
             💰 <span className="hidden sm:inline">Open Drawer</span>
           </button>
+          <NotificationBell />
         </div>
       </div>
 
