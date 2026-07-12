@@ -740,7 +740,7 @@ export default function ItemsPage() {
         <div className="flex flex-1 overflow-hidden">
 
           {/* ── Left: Item List ── */}
-          <div className="flex flex-col w-72 shrink-0 border-r border-gray-200 bg-gray-50 overflow-hidden">
+          <div className="flex flex-col flex-1 min-w-0 border-r border-gray-200 bg-gray-50 overflow-hidden">
 
             {/* Search */}
             <div className="p-3 border-b border-gray-200">

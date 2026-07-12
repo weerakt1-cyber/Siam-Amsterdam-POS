@@ -636,7 +636,7 @@ export default function UsersPage() {
     <div className="flex-1 flex overflow-hidden h-full">
 
       {/* ── Left panel ─────────────────────────────────────────────────── */}
-      <div className="w-64 border-r border-gray-100 flex flex-col bg-white shrink-0">
+      <div className="flex-1 min-w-0 border-r border-gray-100 flex flex-col bg-white">
 
         {/* Tabs */}
         <div className="px-3 pt-3 pb-0 border-b border-gray-100">
