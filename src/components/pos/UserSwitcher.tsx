@@ -11,11 +11,11 @@ const ROLE_LABELS: Record<string, string> = {
 
 function PinDots({ count, error }: { count: number; error?: boolean }) {
   return (
-    <div className="flex justify-center gap-3 py-3">
+    <div className="flex justify-center gap-4 py-4">
       {Array(4).fill(0).map((_, i) => (
         <div
           key={i}
-          className={`w-3.5 h-3.5 rounded-full transition-all duration-100 ${
+          className={`w-5 h-5 rounded-full transition-all duration-100 ${
             error     ? 'bg-red-500 scale-110' :
             i < count ? 'bg-amber-500 scale-110' : 'bg-stone-200'
           }`}
@@ -84,53 +84,57 @@ export default function UserSwitcher({
   const sub   = subtext ?? (isLock ? "Inactive too long — pick who's continuing" : null)
 
   return (
+    // Full-screen, fully OPAQUE takeover — no dimmed peek-through of the POS
+    // content behind it. This gates higher-privilege features (Analytics,
+    // Settings, Users), so it needs the same weight/security feel as the real
+    // /auth login page, not a small dismissible-looking modal.
     <div
-      className="fixed inset-0 bg-black/60 z-[100] flex items-center justify-center p-4"
+      className="fixed inset-0 bg-[#FAF8F4] z-[100] flex items-center justify-center p-6"
       onPointerDown={isLock ? undefined : onClose}
     >
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden" onPointerDown={e => e.stopPropagation()}>
+      <div className="bg-white rounded-3xl shadow-2xl w-full max-w-2xl overflow-hidden" onPointerDown={e => e.stopPropagation()}>
         {step === 'pick' ? (
           <>
-            <div className="flex items-center justify-between px-5 py-4 border-b border-stone-100">
-              <h2 className="text-base font-bold text-stone-900">{title}</h2>
-              <div className="flex items-center gap-2">
+            <div className="flex items-center justify-between px-8 py-6 border-b border-stone-100">
+              <h2 className="text-2xl font-bold text-stone-900">{title}</h2>
+              <div className="flex items-center gap-3">
                 <button
                   onPointerDown={onLogout}
-                  className="text-xs text-red-400 hover:text-red-600 border border-red-100 hover:border-red-300 px-2.5 py-1 rounded-lg transition"
+                  className="text-sm text-red-400 hover:text-red-600 border border-red-100 hover:border-red-300 px-3.5 py-1.5 rounded-lg transition"
                 >
                   Logout
                 </button>
                 {!isLock && (
-                  <button onPointerDown={onClose} className="text-stone-400 hover:text-stone-700 text-xl leading-none">✕</button>
+                  <button onPointerDown={onClose} className="text-stone-400 hover:text-stone-700 text-2xl leading-none">✕</button>
                 )}
               </div>
             </div>
             {sub && (
-              <p className="px-5 pt-3 text-xs text-stone-400">{sub}</p>
+              <p className="px-8 pt-4 text-sm text-stone-400">{sub}</p>
             )}
             {usersLoading ? (
-              <div className="p-10 flex items-center justify-center">
-                <div className="w-6 h-6 border-2 border-amber-500/30 border-t-amber-500 rounded-full animate-spin" />
+              <div className="p-16 flex items-center justify-center">
+                <div className="w-8 h-8 border-2 border-amber-500/30 border-t-amber-500 rounded-full animate-spin" />
               </div>
             ) : users.length === 0 ? (
-              <div className="p-6 text-center">
-                <p className="text-sm font-medium text-stone-500">No staff accounts yet</p>
-                <p className="text-xs text-stone-400 mt-1">Add staff in Settings → Users to enable switching</p>
+              <div className="p-10 text-center">
+                <p className="text-base font-medium text-stone-500">No staff accounts yet</p>
+                <p className="text-sm text-stone-400 mt-1">Add staff in Settings → Users to enable switching</p>
               </div>
             ) : (
-              <div className="p-4 grid grid-cols-2 gap-3">
+              <div className="p-6 grid grid-cols-2 sm:grid-cols-3 gap-4">
                 {users.map(u => (
                   <button
                     key={u.id}
                     onPointerDown={() => { setPicked(u); setPin(''); setError(false); setStep('pin') }}
-                    className="flex flex-col items-center gap-2 p-4 bg-stone-50 hover:bg-stone-100 border border-stone-100 hover:border-stone-300 rounded-xl transition-all active:scale-95"
+                    className="flex flex-col items-center gap-2.5 p-5 bg-stone-50 hover:bg-stone-100 border border-stone-100 hover:border-stone-300 rounded-2xl transition-all active:scale-95"
                   >
-                    <div className="w-12 h-12 rounded-full flex items-center justify-center text-xl font-bold text-white shadow-sm" style={{ background: u.color }}>
+                    <div className="w-20 h-20 rounded-full flex items-center justify-center text-3xl font-bold text-white shadow-sm" style={{ background: u.color }}>
                       {u.name.charAt(0).toUpperCase()}
                     </div>
                     <div className="text-center">
-                      <p className="text-sm font-semibold text-stone-900">{u.name}</p>
-                      <p className="text-[10px] text-stone-400">{ROLE_LABELS[u.role] ?? u.role}</p>
+                      <p className="text-base font-semibold text-stone-900">{u.name}</p>
+                      <p className="text-xs text-stone-400">{ROLE_LABELS[u.role] ?? u.role}</p>
                     </div>
                   </button>
                 ))}
@@ -139,26 +143,26 @@ export default function UserSwitcher({
           </>
         ) : (
           <>
-            <div className="flex items-center justify-between px-5 py-4 border-b border-stone-100">
-              <button onPointerDown={() => { setStep('pick'); setPin('') }} className="text-stone-400 hover:text-stone-700 text-sm">← Back</button>
-              <div className="flex items-center gap-2">
-                <div className="w-7 h-7 rounded-full flex items-center justify-center text-sm font-bold text-white" style={{ background: picked?.color }}>
+            <div className="flex items-center justify-between px-8 py-6 border-b border-stone-100">
+              <button onPointerDown={() => { setStep('pick'); setPin('') }} className="text-stone-400 hover:text-stone-700 text-base">← Back</button>
+              <div className="flex items-center gap-3">
+                <div className="w-9 h-9 rounded-full flex items-center justify-center text-base font-bold text-white" style={{ background: picked?.color }}>
                   {picked?.name.charAt(0).toUpperCase()}
                 </div>
-                <span className="text-sm font-semibold text-stone-900">{picked?.name}</span>
+                <span className="text-base font-semibold text-stone-900">{picked?.name}</span>
               </div>
               {isLock ? (
-                <button onPointerDown={onLogout} className="text-xs text-red-400 hover:text-red-600">Logout</button>
+                <button onPointerDown={onLogout} className="text-sm text-red-400 hover:text-red-600">Logout</button>
               ) : (
-                <button onPointerDown={onClose} className="text-stone-400 hover:text-stone-700 text-xl leading-none">✕</button>
+                <button onPointerDown={onClose} className="text-stone-400 hover:text-stone-700 text-2xl leading-none">✕</button>
               )}
             </div>
-            <div className="px-6 pb-6 pt-2">
-              <p className="text-xs text-stone-400 text-center mb-1">
+            <div className="px-8 pb-10 pt-4 max-w-xs mx-auto">
+              <p className="text-sm text-stone-400 text-center mb-1">
                 {isLock ? '🔒 Enter PIN to unlock' : 'Enter 4-digit PIN'}
               </p>
               <PinDots count={pin.length} error={error} />
-              <div className="grid grid-cols-3 gap-2 mt-3">
+              <div className="grid grid-cols-3 gap-3 mt-3">
                 {KEYS.map((k, i) => (
                   <button
                     key={i}
@@ -167,7 +171,7 @@ export default function UserSwitcher({
                       else if (k && pin.length < 4) setPin(p => p + k)
                     }}
                     disabled={checking}
-                    className={`h-12 rounded-xl text-lg font-semibold transition-all active:scale-95 disabled:opacity-50 ${
+                    className={`h-16 sm:h-20 rounded-2xl text-2xl font-semibold transition-all active:scale-95 disabled:opacity-50 ${
                       k === '' ? 'invisible' :
                       k === '⌫' ? 'bg-stone-100 text-stone-500 hover:bg-stone-200' :
                       'bg-stone-50 text-stone-900 border border-stone-200 hover:bg-stone-100 hover:border-stone-400'
@@ -177,7 +181,7 @@ export default function UserSwitcher({
                   </button>
                 ))}
               </div>
-              {error && <p className="text-xs text-red-500 text-center mt-3 animate-pulse">Incorrect PIN</p>}
+              {error && <p className="text-sm text-red-500 text-center mt-4 animate-pulse">Incorrect PIN</p>}
             </div>
           </>
         )}
