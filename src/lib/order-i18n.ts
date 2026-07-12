@@ -29,6 +29,7 @@ export type OrderStringKey =
   | 'orderReceived' | 'preparing' | 'ready' | 'delivered'
   | 'yourOrderReady' | 'staffBringShortly' | 'orderMore' | 'refreshing'
   | 'somethingWrong' | 'networkError'
+  | 'cancelOrder' | 'confirmCancel' | 'cancelling'
 
 export const STRINGS: Record<Lang, Record<OrderStringKey, string>> = {
   en: {
@@ -78,6 +79,9 @@ export const STRINGS: Record<Lang, Record<OrderStringKey, string>> = {
     refreshing:         'Refreshing every 5 seconds',
     somethingWrong:     'Something went wrong',
     networkError:       'Network error — please try again',
+    cancelOrder:        'Cancel Order',
+    confirmCancel:      'Cancel this order?',
+    cancelling:         'Cancelling...',
   },
   ru: {
     selectLanguage:    'Выберите язык',
@@ -126,6 +130,9 @@ export const STRINGS: Record<Lang, Record<OrderStringKey, string>> = {
     refreshing:         'Обновление каждые 5 секунд',
     somethingWrong:     'Что-то пошло не так',
     networkError:       'Ошибка сети — попробуйте снова',
+    cancelOrder:        'Отменить заказ',
+    confirmCancel:      'Отменить этот заказ?',
+    cancelling:         'Отмена...',
   },
   zh: {
     selectLanguage:    '选择语言',
@@ -174,6 +181,9 @@ export const STRINGS: Record<Lang, Record<OrderStringKey, string>> = {
     refreshing:         '每 5 秒自动刷新',
     somethingWrong:     '出错了',
     networkError:       '网络错误，请重试',
+    cancelOrder:        '取消订单',
+    confirmCancel:      '取消此订单？',
+    cancelling:         '取消中...',
   },
 }
 

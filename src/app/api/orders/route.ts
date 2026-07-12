@@ -93,7 +93,7 @@ export async function POST(req: NextRequest) {
       customerName:   romanizeName(order.customerName),
       note:           order.note || undefined,
       couponCode:     notifyCoupon || undefined,
-      items:          order.items.map(i => ({ name: i.name, qty: i.qty, price: i.price })),
+      items:          order.items.map(i => ({ name: i.name, qty: i.qty, price: i.price, variantLabel: i.variantLabel })),
       subtotal:       order.subtotal,
       discountAmount: order.discount?.amount ?? 0,
       total:          order.total,

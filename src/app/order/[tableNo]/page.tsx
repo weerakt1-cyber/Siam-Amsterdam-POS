@@ -152,6 +152,26 @@ export default function OrderPage({ params }: { params: Promise<{ tableNo: strin
     return () => clearInterval(iv)
   }, [phase, pollOrders])
 
+  // ── Cancel an order (only while still pending — before staff accepts) ─────────
+  const [cancelling, setCancelling] = useState<string | null>(null)
+
+  async function cancelOrder(orderId: string) {
+    if (typeof window !== 'undefined' && !window.confirm(t('confirmCancel'))) return
+    setCancelling(orderId)
+    try {
+      const r = await fetch(`/api/orders/${orderId}`, {
+        method:  'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({ status: 'cancelled' }),
+      })
+      if (r.ok) {
+        setOrders(prev => prev.map(o => o.id === orderId ? { ...o, status: 'cancelled' as OrderStatus } : o))
+      }
+    } catch { /* ignore — poll will reconcile */ } finally {
+      setCancelling(null)
+    }
+  }
+
   // ── Derived ───────────────────────────────────────────────────────────────────
 
   const categories = [ALL_CHIP, ...allCats]
@@ -412,6 +432,19 @@ export default function OrderPage({ params }: { params: Promise<{ tableNo: strin
                   </div>
                   {order.note && <p className="text-xs text-gray-400 mt-2 italic">{t('noteLabel')} {order.note}</p>}
                 </div>
+
+                {/* Cancel — allowed only before staff accepts (still pending) */}
+                {order.status === 'pending' && (
+                  <div className="px-5 pb-4">
+                    <button
+                      onClick={() => cancelOrder(order.id)}
+                      disabled={cancelling === order.id}
+                      className="w-full py-2.5 rounded-xl border border-red-200 text-red-500 hover:bg-red-50 font-bold text-sm transition active:scale-95 disabled:opacity-50"
+                    >
+                      {cancelling === order.id ? t('cancelling') : `✕ ${t('cancelOrder')}`}
+                    </button>
+                  </div>
+                )}
 
                 {/* Ready banner */}
                 {order.status === 'ready' && (

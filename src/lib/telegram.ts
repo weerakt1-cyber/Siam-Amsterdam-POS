@@ -34,7 +34,7 @@ export type OrderNotifyData = {
   staffName?:     string
   memberName?:    string
   customerName?:  string
-  items:          { name: string; qty: number; price: number }[]
+  items:          { name: string; qty: number; price: number; variantLabel?: string }[]
   subtotal:       number
   discountAmount: number
   total:          number
@@ -53,7 +53,7 @@ function esc(s: string): string {
 export async function sendOrderAlert(data: OrderNotifyData): Promise<boolean> {
   const shortId   = data.orderId.slice(-8).toUpperCase()
   const itemLines = data.items
-    .map(i => `  • ${i.name} ×${i.qty} — ฿${(i.price * i.qty).toLocaleString()}`)
+    .map(i => `  • ${esc(i.name)}${i.variantLabel ? ` (${esc(i.variantLabel)})` : ''} ×${i.qty} — ฿${(i.price * i.qty).toLocaleString()}`)
     .join('\n')
 
   const discountLine = data.discountAmount > 0

@@ -51,7 +51,7 @@ export async function sendLineMessage(text: string): Promise<boolean> {
 function formatOrderAlert(data: OrderNotifyData): string {
   const shortId   = data.orderId.slice(-8).toUpperCase()
   const itemLines = data.items
-    .map(i => `  • ${i.name} x${i.qty}  ฿${(i.price * i.qty).toLocaleString()}`)
+    .map(i => `  • ${i.name}${i.variantLabel ? ` (${i.variantLabel})` : ''} x${i.qty}  ฿${(i.price * i.qty).toLocaleString()}`)
     .join('\n')
 
   const discountLine = data.discountAmount > 0
