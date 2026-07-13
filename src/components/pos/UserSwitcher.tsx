@@ -157,12 +157,12 @@ export default function UserSwitcher({
                 <button onPointerDown={onClose} className="text-stone-400 hover:text-stone-700 text-2xl leading-none">✕</button>
               )}
             </div>
-            <div className="px-8 pb-10 pt-4 max-w-xs mx-auto">
+            <div className="px-8 pb-10 pt-4">
               <p className="text-sm text-stone-400 text-center mb-1">
                 {isLock ? '🔒 Enter PIN to unlock' : 'Enter 4-digit PIN'}
               </p>
               <PinDots count={pin.length} error={error} />
-              <div className="grid grid-cols-3 gap-3 mt-3">
+              <div className="grid grid-cols-3 gap-4 mt-3 max-w-md mx-auto">
                 {KEYS.map((k, i) => (
                   <button
                     key={i}
@@ -171,7 +171,7 @@ export default function UserSwitcher({
                       else if (k && pin.length < 4) setPin(p => p + k)
                     }}
                     disabled={checking}
-                    className={`h-16 sm:h-20 rounded-2xl text-2xl font-semibold transition-all active:scale-95 disabled:opacity-50 ${
+                    className={`aspect-square rounded-2xl text-3xl font-semibold transition-all active:scale-95 disabled:opacity-50 ${
                       k === '' ? 'invisible' :
                       k === '⌫' ? 'bg-stone-100 text-stone-500 hover:bg-stone-200' :
                       'bg-stone-50 text-stone-900 border border-stone-200 hover:bg-stone-100 hover:border-stone-400'
