@@ -1443,14 +1443,6 @@ export default function POSPage() {
               <span className="text-stone-200">·</span>
               <span className="text-xs font-mono font-bold text-stone-500">{clock}</span>
             </div>
-
-            {/* History link */}
-            <button
-              onClick={() => { setShowHistory(true); setShowAllHistory(false) }}
-              className="text-xs text-stone-400 hover:text-stone-600 transition text-center py-0.5"
-            >
-              {table}: {tableOrders.length} orders · All today: {todayOrders.length}
-            </button>
           </div>
         </div>
       </div>
@@ -1475,15 +1467,17 @@ export default function POSPage() {
       )}
 
       {/* Status bar */}
-      <div className="flex items-center justify-between px-4 py-1.5 bg-white border-t border-stone-100 text-xs text-stone-400 shrink-0">
+      <div className="grid grid-cols-3 items-center px-4 py-1.5 bg-white border-t border-stone-100 text-xs text-stone-400 shrink-0">
         <span>BAZE POS v1.0</span>
-        <span>
-          Today:{' '}
+        <button
+          onClick={() => { setShowHistory(true); setShowAllHistory(false) }}
+          className="justify-self-center hover:text-stone-600 transition"
+        >
+          {table}: {tableOrders.length} orders · Today:{' '}
           <span className="text-amber-600 font-semibold">{baht(todayTotal)}</span>
-          {' · '}
-          {todayOrders.length} orders
-        </span>
-        <span className="font-mono">{dateLabel}</span>
+          {' '}({todayOrders.length} orders)
+        </button>
+        <span />
       </div>
     </div>
   )
