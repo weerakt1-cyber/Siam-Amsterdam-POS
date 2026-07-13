@@ -149,8 +149,6 @@ export default function POSPage() {
     })
   }
 
-  const [discountType, setDiscountType] = useState<'percent' | 'fixed'>('percent')
-  const [discountValue, setDiscountValue] = useState('')
   const [search, setSearch] = useState('')
   const [memberName, setMemberName] = useState('')
   const [members, setMembers] = useState<{ id: string; name: string; points: number; tier?: string }[]>([])
@@ -166,7 +164,6 @@ export default function POSPage() {
   const [payingTicket, setPayingTicket] = useState<Order | null>(null)
   const [pointsToRedeem, setPointsToRedeem] = useState(0)
   const [voidConfirmId, setVoidConfirmId] = useState<string | null>(null)
-  const [showNumPad, setShowNumPad] = useState(false)
   const [orders, setOrders] = useState<Order[]>([])
   const [showHistory, setShowHistory] = useState(false)
   const [showAllHistory, setShowAllHistory] = useState(false)
@@ -330,7 +327,6 @@ export default function POSPage() {
       const { [table]: _dropped, ...rest } = prev
       return rest
     })
-    setDiscountValue('')
     setMemberName('')
     setAppliedCoupon(null)
     setCouponCode('')
@@ -377,8 +373,6 @@ export default function POSPage() {
         })
         setCouponCode('')
         setCouponError('')
-        // Fix #7: clear manual discount when coupon applied
-        setDiscountValue('')
       }
     } catch {
       setCouponError('Could not validate coupon')
@@ -400,15 +394,6 @@ export default function POSPage() {
   const pendingTableOrders = allOpenTableOrders.filter(o => !mergedOrderIds.has(o.id))
 
   const subtotal = cart.reduce((s, c) => s + itemEffectiveTotal(c), 0)
-  const parsedDiscount = parseFloat(discountValue) || 0
-
-  // Fix #7: manual discount is ignored when coupon is applied
-  const manualDiscountAmount =
-    !appliedCoupon && discountValue !== '' && parsedDiscount > 0
-      ? discountType === 'percent'
-        ? Math.round(subtotal * Math.min(parsedDiscount, 100) / 100)
-        : Math.min(parsedDiscount, subtotal)
-      : 0
 
   // Fix #13: recalculate coupon discount from current subtotal client-side
   const couponDiscountAmount = appliedCoupon
@@ -417,16 +402,17 @@ export default function POSPage() {
       : Math.min(appliedCoupon.value, subtotal)
     : 0
 
-  const discountAmount = appliedCoupon ? couponDiscountAmount : manualDiscountAmount
+  // Manual discount entry was removed — coupons are the only discount source now.
+  const discountAmount = couponDiscountAmount
 
-  // Points redemption — 1 point = ฿1, applied after coupon/manual discount
+  // Points redemption — 1 point = ฿1, applied after coupon discount
   const selectedMember = members.find(m => m.name === memberName) ?? null
   const memberAvailablePoints = selectedMember?.points ?? 0
-  const afterCouponManual = Math.max(0, subtotal - discountAmount)
+  const afterDiscount = Math.max(0, subtotal - discountAmount)
   const actualPointsDiscount = pointsToRedeem > 0
-    ? Math.min(pointsToRedeem, memberAvailablePoints, afterCouponManual)
+    ? Math.min(pointsToRedeem, memberAvailablePoints, afterDiscount)
     : 0
-  const finalTotal = Math.max(0, afterCouponManual - actualPointsDiscount)
+  const finalTotal = Math.max(0, afterDiscount - actualPointsDiscount)
 
   // พิมพ์ Check Bill ให้ลูกค้าดูก่อนชำระเงิน — พิมพ์ผ่านเครื่องพิมพ์ (Bluetooth/LAN)
   // โดยตรง ไม่เปิดแท็บเบราว์เซอร์ (บนแอป Android การเปิดแท็บจะไปที่ Chrome แล้วกลับ
@@ -618,7 +604,7 @@ export default function POSPage() {
           cart={cart}
           table={table}
           note=""
-          discount={{ type: discountType, value: parsedDiscount, amount: discountAmount + actualPointsDiscount, couponCode: appliedCoupon?.code }}
+          discount={{ type: appliedCoupon?.type ?? 'fixed', value: appliedCoupon?.value ?? 0, amount: discountAmount + actualPointsDiscount, couponCode: appliedCoupon?.code }}
           memberName={memberName.trim()}
           memberTier={selectedMember?.tier as 'bronze' | 'silver' | 'gold' | undefined}
           onConfirm={handleConfirmPayment}
@@ -1034,9 +1020,15 @@ export default function POSPage() {
           })}
         </div>
 
-        {/* Clock + Drawer + Alerts */}
+        {/* Hold Bill + Drawer + Alerts */}
         <div className="flex items-center gap-2 ml-1 shrink-0">
-          <span className="font-mono text-sm text-stone-400 hidden md:block">{clock}</span>
+          <button
+            onClick={handleHoldBill}
+            disabled={!cart.some(c => !c.fromOrderId)}
+            className="border-2 border-amber-400 bg-amber-50 hover:bg-amber-100 disabled:opacity-40 disabled:cursor-not-allowed active:scale-95 text-amber-600 transition text-sm font-bold px-3 py-2 rounded-xl flex items-center gap-1.5"
+          >
+            🧊 <span className="hidden sm:inline">Hold Bill</span>
+          </button>
           <button
             onClick={openDrawer}
             className="bg-stone-100 hover:bg-stone-200 active:scale-95 text-stone-700 transition text-sm font-semibold px-3 py-2 rounded-xl flex items-center gap-1.5"
@@ -1091,7 +1083,7 @@ export default function POSPage() {
           {/* Menu grid */}
           <div className="flex-1 overflow-y-auto p-3">
             {menuLoading ? (
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
+              <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
                 {Array.from({ length: 12 }).map((_, i) => (
                   <div key={i} className="rounded-2xl border border-stone-100 shadow-sm overflow-hidden flex flex-col animate-pulse">
                     <div className="w-full aspect-[3/2] bg-stone-100" />
@@ -1109,7 +1101,7 @@ export default function POSPage() {
                 <p>{search ? `No results for "${search}"` : 'No items in this category'}</p>
               </div>
             ) : (
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
+              <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
                 {filteredMenu.map((item) => {
                   const inCartQty = cart.filter(c => c.menuId === item.id).reduce((s, c) => s + c.qty, 0)
                   const inCart    = inCartQty > 0
@@ -1147,10 +1139,10 @@ export default function POSPage() {
                       )}
 
                       {/* Text content */}
-                      <div className={`flex flex-col flex-1 ${hasImage ? 'p-2.5' : 'p-3'}`}>
-                        <p className={`font-bold leading-snug text-stone-900 ${hasImage ? 'text-xs' : 'text-sm'}`}>{item.name}</p>
-                        <p className="text-[10px] text-stone-400 mt-0.5 leading-tight truncate">{item.nameTh}</p>
-                        <p className={`font-black mt-1.5 ${hasImage ? 'text-sm' : 'text-base mt-2'} ${inCart ? 'text-amber-600' : 'text-amber-500'}`}>
+                      <div className={`flex flex-col flex-1 ${hasImage ? 'p-2' : 'p-2.5'}`}>
+                        <p className={`font-bold leading-snug text-stone-900 ${hasImage ? 'text-[11px]' : 'text-xs'}`}>{item.name}</p>
+                        <p className="text-[9px] text-stone-400 mt-0.5 leading-tight truncate">{item.nameTh}</p>
+                        <p className={`font-black mt-1 ${hasImage ? 'text-xs' : 'text-sm mt-1.5'} ${inCart ? 'text-amber-600' : 'text-amber-500'}`}>
                           {baht(item.price)}
                         </p>
                       </div>
@@ -1295,54 +1287,10 @@ export default function POSPage() {
           {/* Cart footer */}
           <div className="px-4 pt-2.5 pb-3 border-t border-stone-100 flex flex-col gap-2 shrink-0 bg-stone-50/60">
 
-            {/* Subtotal */}
-            <div className="flex items-baseline justify-between">
-              <span className="text-stone-400 text-xs">Subtotal</span>
-              <span className="text-stone-600 font-semibold text-sm">{baht(subtotal)}</span>
-            </div>
-
             {cart.length > 0 && cart.every(c => c.fromOrderId) && (
-              <p className="text-[10px] text-amber-600 -mt-1">
+              <p className="text-[10px] text-amber-600">
                 All items are from held tickets — discounts apply only to items added manually.
               </p>
-            )}
-
-            {/* Fix #7: manual discount hidden when coupon is applied */}
-            {!appliedCoupon && (
-              <div className="flex items-start gap-1.5">
-                <span className="text-stone-400 text-xs w-14 shrink-0 pt-1.5">Discount</span>
-                <div className="flex rounded-lg overflow-hidden border border-stone-200 shrink-0">
-                  <button
-                    onClick={() => setDiscountType('percent')}
-                    className={`px-2.5 py-1 text-xs font-bold transition ${
-                      discountType === 'percent' ? 'bg-stone-900 text-white' : 'bg-white text-stone-400 hover:text-stone-600'
-                    }`}
-                  >%</button>
-                  <button
-                    onClick={() => setDiscountType('fixed')}
-                    className={`px-2.5 py-1 text-xs font-bold transition ${
-                      discountType === 'fixed' ? 'bg-stone-900 text-white' : 'bg-white text-stone-400 hover:text-stone-600'
-                    }`}
-                  >฿</button>
-                </div>
-                <div className="flex-1 min-w-0 flex flex-col gap-0.5">
-                  <button
-                    onClick={() => setShowNumPad(true)}
-                    className="w-full bg-white border border-stone-200 rounded-lg px-2 py-1 text-sm text-right hover:border-stone-400 transition"
-                  >
-                    <span className={discountValue ? 'text-stone-900' : 'text-stone-300'}>
-                      {discountValue || '0'}
-                    </span>
-                  </button>
-                  {/* Fix #12: max discount hint */}
-                  {discountType === 'percent' && parsedDiscount > 100 && (
-                    <p className="text-[10px] text-amber-600 text-right">Capped at 100%</p>
-                  )}
-                </div>
-                {manualDiscountAmount > 0 && (
-                  <span className="text-emerald-600 text-xs font-bold shrink-0 pt-1.5">-{baht(manualDiscountAmount)}</span>
-                )}
-              </div>
             )}
 
             {/* Coupon code */}
@@ -1413,22 +1361,12 @@ export default function POSPage() {
                 </div>
               ) : (
                 <button
-                  onClick={() => setPointsToRedeem(Math.min(memberAvailablePoints, afterCouponManual))}
+                  onClick={() => setPointsToRedeem(Math.min(memberAvailablePoints, afterDiscount))}
                   className="w-full text-xs px-3 py-2 rounded-xl bg-violet-50 border border-violet-200 text-violet-700 font-semibold hover:bg-violet-100 transition active:scale-95 text-left"
                 >
-                  ⭐ Use {memberAvailablePoints} pts = -{baht(Math.min(memberAvailablePoints, afterCouponManual))} discount
+                  ⭐ Use {memberAvailablePoints} pts = -{baht(Math.min(memberAvailablePoints, afterDiscount))} discount
                 </button>
               )
-            )}
-
-            {/* Hold Bill — send to kitchen now, collect payment later */}
-            {cart.some(c => !c.fromOrderId) && (
-              <button
-                onClick={handleHoldBill}
-                className="w-full py-2.5 rounded-2xl font-bold text-sm border-2 border-amber-400 text-amber-600 bg-amber-50 hover:bg-amber-100 transition active:scale-95"
-              >
-                🧊 Hold Bill (send to kitchen/bar)
-              </button>
             )}
 
             {/* Action buttons row */}
@@ -1499,6 +1437,13 @@ export default function POSPage() {
               </button>
             </div>
 
+            {/* Date + Clock */}
+            <div className="flex items-center justify-center gap-1.5">
+              <span className="text-[11px] font-semibold text-stone-400">{dateLabel}</span>
+              <span className="text-stone-200">·</span>
+              <span className="text-xs font-mono font-bold text-stone-500">{clock}</span>
+            </div>
+
             {/* History link */}
             <button
               onClick={() => { setShowHistory(true); setShowAllHistory(false) }}
@@ -1509,18 +1454,6 @@ export default function POSPage() {
           </div>
         </div>
       </div>
-
-      {/* Order-level Discount NumPad */}
-      {showNumPad && (
-        <NumPad
-          label="Discount"
-          value={discountValue}
-          onChange={setDiscountValue}
-          onClose={() => setShowNumPad(false)}
-          allowDecimal={discountType === 'percent'}
-          suffix={discountType === 'percent' ? '%' : '฿'}
-        />
-      )}
 
       {/* Per-item Discount NumPad */}
       {itemDiscountTarget && (
