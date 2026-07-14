@@ -9,8 +9,7 @@ import SplitBillModal from '@/components/pos/SplitBillModal'
 import NotificationBell from '@/components/pos/NotificationBell'
 import { loadBarSettings, DEFAULT_BAR_SETTINGS, printReceipt, type BarSettings } from '@/lib/printer'
 import { type CatEntry, CATEGORIES_CHANGED_EVENT, loadAllCategories, fetchCategories } from '@/lib/categories'
-
-const TABLES = ['T1', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7', 'T8', 'BAR', 'VIP1', 'VIP2']
+import { FLOOR_LAYOUT_CHANGED_EVENT, loadFloorTables } from '@/lib/floor'
 
 const ALL_CHIP: CatEntry = { value: 'all', label: 'All', color: 'bg-gray-200 text-gray-700', icon: '🍽️' }
 
@@ -110,7 +109,10 @@ ${discountRow}
 }
 
 export default function POSPage() {
-  const [table, setTable] = useState('T1')
+  // Table tabs mirror the Floor Plan layout (single source of truth in @/lib/floor),
+  // so the tables you can ring up always match the room drawn on the floor plan.
+  const [tables, setTables] = useState<string[]>(() => loadFloorTables())
+  const [table, setTable] = useState(() => loadFloorTables()[0] ?? 'T1')
   const [category, setCategory] = useState('all')
   const [categories, setCategories] = useState<CatEntry[]>(() => loadAllCategories())
   const [menu, setMenu] = useState<MenuItem[]>([])
@@ -190,6 +192,25 @@ export default function POSPage() {
   useEffect(() => {
     const t = new URLSearchParams(window.location.search).get('table')
     if (t) setTable(t.toUpperCase())
+  }, [])
+
+  // Keep the table tabs in sync with the Floor Plan — refresh on same-tab edits
+  // (custom event) and edits from another tab/window (storage event). Also
+  // reconcile once on mount, since the initial useState ran before hydration.
+  // If the selected table was removed from the layout, fall back to the first.
+  useEffect(() => {
+    const refresh = () => {
+      const next = loadFloorTables()
+      setTables(next)
+      setTable(prev => (next.includes(prev) ? prev : next[0] ?? prev))
+    }
+    refresh()
+    window.addEventListener(FLOOR_LAYOUT_CHANGED_EVENT, refresh)
+    window.addEventListener('storage', refresh)
+    return () => {
+      window.removeEventListener(FLOOR_LAYOUT_CHANGED_EVENT, refresh)
+      window.removeEventListener('storage', refresh)
+    }
   }, [])
 
   useEffect(() => {
@@ -1026,7 +1047,7 @@ export default function POSPage() {
 
         {/* Table tabs — amber dot on tables with items in cart */}
         <div className="flex gap-1 overflow-x-auto flex-1 py-0.5">
-          {TABLES.map((t) => {
+          {tables.map((t) => {
             const hasItems = (carts[t] ?? []).length > 0
             return (
               <button

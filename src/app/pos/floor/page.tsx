@@ -3,19 +3,9 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { useAuth } from '@/lib/pos-auth'
+import { type TableTile, DEFAULT_TILES, loadFloorTiles, saveFloorTiles } from '@/lib/floor'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
-
-type TableTile = {
-  id: string
-  tableNo: string
-  x: number
-  y: number
-  w: number
-  h: number
-  shape: 'rect' | 'round'
-  capacity: number
-}
 
 type RawOrder = {
   tableNo: string
@@ -31,19 +21,7 @@ type TileStatus = 'empty' | 'pending' | 'ready'
 const GRID     = 40
 const CANVAS_W = 800
 const CANVAS_H = 520
-const LS_KEY   = 'pos_floor_layout'
 const INACTIVE = new Set(['paid', 'cancelled', 'delivered'])
-
-const DEFAULT_TILES: TableTile[] = [
-  { id: 'dt-T1',   tableNo: 'T1',   x: 40,  y: 40,  w: 120, h: 80,  shape: 'rect',  capacity: 4  },
-  { id: 'dt-T2',   tableNo: 'T2',   x: 200, y: 40,  w: 120, h: 80,  shape: 'rect',  capacity: 4  },
-  { id: 'dt-T3',   tableNo: 'T3',   x: 360, y: 40,  w: 120, h: 80,  shape: 'rect',  capacity: 4  },
-  { id: 'dt-T4',   tableNo: 'T4',   x: 520, y: 40,  w: 120, h: 80,  shape: 'rect',  capacity: 4  },
-  { id: 'dt-T5',   tableNo: 'T5',   x: 40,  y: 200, w: 160, h: 80,  shape: 'rect',  capacity: 6  },
-  { id: 'dt-T6',   tableNo: 'T6',   x: 240, y: 200, w: 160, h: 80,  shape: 'rect',  capacity: 6  },
-  { id: 'dt-VIP1', tableNo: 'VIP1', x: 600, y: 180, w: 120, h: 120, shape: 'round', capacity: 8  },
-  { id: 'dt-BAR',  tableNo: 'BAR',  x: 40,  y: 400, w: 280, h: 80,  shape: 'rect',  capacity: 10 },
-]
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -146,13 +124,7 @@ export default function FloorPage() {
   const { user }  = useAuth()
   const isManager = ['admin', 'manager'].includes(user?.role ?? '')
 
-  const [tiles, setTiles] = useState<TableTile[]>(() => {
-    try {
-      const raw = localStorage.getItem(LS_KEY)
-      if (raw) return JSON.parse(raw) as TableTile[]
-    } catch { /* ignore */ }
-    return DEFAULT_TILES
-  })
+  const [tiles, setTiles] = useState<TableTile[]>(() => loadFloorTiles())
 
   const [editMode,   setEditMode]   = useState(false)
   const [selectedId, setSelectedId] = useState<string | null>(null)
@@ -193,7 +165,7 @@ export default function FloorPage() {
   // ── Layout persistence ──────────────────────────────────────────────────────
 
   function saveLayout() {
-    localStorage.setItem(LS_KEY, JSON.stringify(tiles))
+    saveFloorTiles(tiles)
     setSaved(true)
     setTimeout(() => setSaved(false), 2000)
   }
@@ -201,7 +173,7 @@ export default function FloorPage() {
   function resetLayout() {
     if (!confirm('รีเซ็ตผังโต๊ะเป็นค่าเริ่มต้น?\nการเปลี่ยนแปลงทั้งหมดจะหายไป')) return
     setTiles(DEFAULT_TILES)
-    localStorage.setItem(LS_KEY, JSON.stringify(DEFAULT_TILES))
+    saveFloorTiles(DEFAULT_TILES)
     setSelectedId(null)
   }
 
