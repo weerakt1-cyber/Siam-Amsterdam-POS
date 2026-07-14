@@ -99,6 +99,34 @@ export type CouponUse = {
   createdAt: string
 }
 
+// ─── Promotions (item-level auto-applied deals, separate from coupons) ─────────
+
+export type PromotionType = 'bundle' | 'free_item' | 'discount'
+
+export type Promotion = {
+  id: string
+  name: string
+  type: PromotionType
+  active: boolean
+  // Trigger target
+  targetType: 'item' | 'category'
+  targetId?: string          // menu item id (item) or category value (category)
+  // Mechanic params (used per type)
+  buyQty?: number            // bundle & free_item
+  bundlePrice?: number       // bundle: total for buyQty units
+  freeText?: string          // free_item: what's given free (tag/note only)
+  discountType?: CouponType  // discount: 'percent' | 'fixed'
+  discountValue?: number     // discount: percent 0–100, or ฿ off per unit
+  // Timing (both optional; combined)
+  startDate?: string         // YYYY-MM-DD
+  endDate?: string           // YYYY-MM-DD
+  startTime?: string         // "HH:MM" daily window start (wraps midnight if > endTime)
+  endTime?: string           // "HH:MM"
+  showOnQr: boolean          // advertise in the QR ordering popup
+  createdAt: string
+  updatedAt: string
+}
+
 // ─── Daily Cash Report ───────────────────────────────────────────────────────
 
 export type CashEntry = {

@@ -7,6 +7,7 @@ import type {
   InventoryItem, InventoryCategory, StockAdjustment, AdjustReason,
   DailyReport, CashEntry, ExpenseEntry, ExpenseCategory,
   Coupon, CouponUse, CouponType,
+  Promotion, PromotionType,
   PosUser, UserRole,
   MenuIngredient,
 } from './types'
@@ -681,6 +682,97 @@ export async function updateCoupon(id: string, data: Partial<Omit<Coupon, 'id' |
 
 export async function deleteCoupon(id: string): Promise<boolean> {
   const { error } = await supabase.from('coupons').delete().eq('id', id)
+  return !error
+}
+
+// ─── Promotions (item-level auto-applied deals) ────────────────────────────────
+
+function mapPromotion(row: Record<string, unknown>): Promotion {
+  return {
+    id:            row.id as string,
+    name:          row.name as string,
+    type:          row.type as PromotionType,
+    active:        Boolean(row.active),
+    targetType:    (row.target_type as 'item' | 'category') ?? 'item',
+    targetId:      (row.target_id as string | null) ?? undefined,
+    buyQty:        row.buy_qty == null ? undefined : Number(row.buy_qty),
+    bundlePrice:   row.bundle_price == null ? undefined : Number(row.bundle_price),
+    freeText:      (row.free_text as string | null) ?? undefined,
+    discountType:  (row.discount_type as CouponType | null) ?? undefined,
+    discountValue: row.discount_value == null ? undefined : Number(row.discount_value),
+    startDate:     (row.start_date as string | null) ?? undefined,
+    endDate:       (row.end_date as string | null) ?? undefined,
+    startTime:     (row.start_time as string | null) ?? undefined,
+    endTime:       (row.end_time as string | null) ?? undefined,
+    showOnQr:      Boolean(row.show_on_qr),
+    createdAt:     row.created_at as string,
+    updatedAt:     row.updated_at as string,
+  }
+}
+
+export async function getPromotions(): Promise<Promotion[]> {
+  const { data, error } = await supabase
+    .from('promotions').select('*').order('created_at', { ascending: false })
+  if (error) throw error
+  return (data ?? []).map(mapPromotion)
+}
+
+export async function createPromotion(data: Omit<Promotion, 'id' | 'createdAt' | 'updatedAt'>): Promise<Promotion> {
+  const ts = now()
+  const { data: row, error } = await supabase
+    .from('promotions')
+    .insert({
+      id:             makeId('promo'),
+      name:           data.name,
+      type:           data.type,
+      active:         data.active,
+      target_type:    data.targetType,
+      target_id:      data.targetId ?? null,
+      buy_qty:        data.buyQty ?? null,
+      bundle_price:   data.bundlePrice ?? null,
+      free_text:      data.freeText ?? null,
+      discount_type:  data.discountType ?? null,
+      discount_value: data.discountValue ?? null,
+      start_date:     data.startDate ?? null,
+      end_date:       data.endDate ?? null,
+      start_time:     data.startTime ?? null,
+      end_time:       data.endTime ?? null,
+      show_on_qr:     data.showOnQr,
+      created_at:     ts,
+      updated_at:     ts,
+    })
+    .select()
+    .single()
+  if (error) throw error
+  return mapPromotion(row)
+}
+
+export async function updatePromotion(id: string, data: Partial<Omit<Promotion, 'id' | 'createdAt'>>): Promise<Promotion | null> {
+  const u: Record<string, unknown> = { updated_at: now() }
+  if (data.name          !== undefined) u.name           = data.name
+  if (data.type          !== undefined) u.type           = data.type
+  if (data.active        !== undefined) u.active         = data.active
+  if (data.targetType    !== undefined) u.target_type    = data.targetType
+  if (data.targetId      !== undefined) u.target_id      = data.targetId ?? null
+  if (data.buyQty        !== undefined) u.buy_qty        = data.buyQty ?? null
+  if (data.bundlePrice   !== undefined) u.bundle_price   = data.bundlePrice ?? null
+  if (data.freeText      !== undefined) u.free_text      = data.freeText ?? null
+  if (data.discountType  !== undefined) u.discount_type  = data.discountType ?? null
+  if (data.discountValue !== undefined) u.discount_value = data.discountValue ?? null
+  if (data.startDate     !== undefined) u.start_date     = data.startDate ?? null
+  if (data.endDate       !== undefined) u.end_date       = data.endDate ?? null
+  if (data.startTime     !== undefined) u.start_time     = data.startTime ?? null
+  if (data.endTime       !== undefined) u.end_time       = data.endTime ?? null
+  if (data.showOnQr      !== undefined) u.show_on_qr     = data.showOnQr
+
+  const { data: row, error } = await supabase
+    .from('promotions').update(u).eq('id', id).select().single()
+  if (error || !row) return null
+  return mapPromotion(row)
+}
+
+export async function deletePromotion(id: string): Promise<boolean> {
+  const { error } = await supabase.from('promotions').delete().eq('id', id)
   return !error
 }
 

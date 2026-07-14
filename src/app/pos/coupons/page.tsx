@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import type { Coupon, CouponUse, CouponType } from '@/lib/types'
 import NumPad from '@/components/pos/NumPad'
+import PromotionsManager from '@/components/pos/PromotionsManager'
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -54,6 +55,7 @@ type NumPadTarget = 'value' | 'minOrder' | 'maxUses' | null
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
 export default function CouponsPage() {
+  const [tab, setTab] = useState<'coupons' | 'promotions'>('coupons')
   const [coupons, setCoupons] = useState<Coupon[]>([])
   const [uses, setUses] = useState<CouponUse[]>([])
   const [selectedId, setSelectedId] = useState<string | null>(null)
@@ -199,21 +201,33 @@ export default function CouponsPage() {
       )}
 
       {/* Header */}
-      <div className="px-5 pt-4 pb-3 bg-white border-b border-gray-200 shrink-0 flex items-center justify-between">
-        <div>
-          <h1 className="text-xl font-bold">Coupons</h1>
-          <p className="text-xs text-gray-500 mt-0.5">
-            {coupons.filter(c => couponStatus(c) === 'active').length} active · {coupons.length} total
-          </p>
+      <div className="px-5 pt-4 pb-3 bg-white border-b border-gray-200 shrink-0 flex items-center justify-between gap-4">
+        <div className="flex items-center gap-1 bg-gray-100 rounded-xl p-1">
+          {(['coupons', 'promotions'] as const).map(tb => (
+            <button
+              key={tb}
+              onClick={() => setTab(tb)}
+              className={`px-4 py-2 rounded-lg text-sm font-bold capitalize transition ${
+                tab === tb ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'
+              }`}
+            >
+              {tb === 'coupons' ? '🎟️ Coupons' : '🎁 Promotions'}
+            </button>
+          ))}
         </div>
-        <button
-          onClick={startCreate}
-          className="bg-amber-500 hover:bg-amber-400 active:scale-95 text-black font-bold text-sm px-4 py-2 rounded-xl transition"
-        >
-          + New Coupon
-        </button>
+        {tab === 'coupons' && (
+          <button
+            onClick={startCreate}
+            className="bg-amber-500 hover:bg-amber-400 active:scale-95 text-black font-bold text-sm px-4 py-2 rounded-xl transition"
+          >
+            + New Coupon
+          </button>
+        )}
       </div>
 
+      {tab === 'promotions' ? (
+        <PromotionsManager />
+      ) : (
       <div className="flex flex-1 overflow-hidden">
 
         {/* ── Left: List ── */}
@@ -585,6 +599,7 @@ export default function CouponsPage() {
           </div>
         )}
       </div>
+      )}
 
       {/* NumPads */}
       {numPadTarget === 'value' && (

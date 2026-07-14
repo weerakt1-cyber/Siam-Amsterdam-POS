@@ -1,7 +1,8 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
-import type { MenuItem, Order } from '@/lib/types'
+import type { MenuItem, Order, Promotion } from '@/lib/types'
+import { applyPromotions } from '@/lib/promotions'
 import CheckoutModal from '@/components/pos/CheckoutModal'
 import NumPad from '@/components/pos/NumPad'
 import SplitBillModal from '@/components/pos/SplitBillModal'
@@ -171,6 +172,7 @@ export default function POSPage() {
   const [clock, setClock] = useState('')
   const [bizName, setBizName] = useState(DEFAULT_BAR_SETTINGS.barName)
   const [coupons, setCoupons] = useState<{ id: string; code: string; name: string; type: string; value: number }[]>([])
+  const [promos, setPromos] = useState<Promotion[]>([])
   const [lowStockMap, setLowStockMap] = useState<Record<string, string[]>>({})
 
   // Fix #4: variant picker state
@@ -195,6 +197,10 @@ export default function POSPage() {
     fetch('/api/coupons')
       .then(r => r.json())
       .then(d => setCoupons((d.coupons ?? []).filter((c: { active: boolean }) => c.active)))
+      .catch(() => {})
+    fetch('/api/promotions')
+      .then(r => r.json())
+      .then(d => setPromos((d.promotions ?? []).filter((p: Promotion) => p.active)))
       .catch(() => {})
   }, [])
 
@@ -395,17 +401,29 @@ export default function POSPage() {
 
   const subtotal = cart.reduce((s, c) => s + itemEffectiveTotal(c), 0)
 
-  // Fix #13: recalculate coupon discount from current subtotal client-side
+  // Auto-applied item-level promotions (bundle / free-item / timed discount).
+  // Computed on each line's effective unit price; the resulting per-line
+  // discount is shown as a tag and folded into the order-level discount lump.
+  const menuCategoryOf = (menuId: string) => menu.find(m => m.id === menuId)?.category
+  const promoResult = applyPromotions(
+    cart.map(c => ({ key: cartKey(c), menuId: c.menuId, qty: c.qty, unitPrice: c.qty > 0 ? itemEffectiveTotal(c) / c.qty : c.price })),
+    promos, new Date(), menuCategoryOf,
+  )
+  const promoDiscount = promoResult.totalDiscount
+  const subtotalAfterPromo = Math.max(0, subtotal - promoDiscount)
+
+  // Fix #13: recalculate coupon discount from current subtotal client-side —
+  // coupon stacks after promotions (applied to the promo-reduced subtotal).
   const couponDiscountAmount = appliedCoupon
     ? appliedCoupon.type === 'percent'
-      ? Math.round(subtotal * appliedCoupon.value / 100)
-      : Math.min(appliedCoupon.value, subtotal)
+      ? Math.round(subtotalAfterPromo * appliedCoupon.value / 100)
+      : Math.min(appliedCoupon.value, subtotalAfterPromo)
     : 0
 
-  // Manual discount entry was removed — coupons are the only discount source now.
-  const discountAmount = couponDiscountAmount
+  // Coupons + auto promotions are the discount sources (manual entry removed).
+  const discountAmount = couponDiscountAmount + promoDiscount
 
-  // Points redemption — 1 point = ฿1, applied after coupon discount
+  // Points redemption — 1 point = ฿1, applied after coupon/promo discount
   const selectedMember = members.find(m => m.name === memberName) ?? null
   const memberAvailablePoints = selectedMember?.points ?? 0
   const afterDiscount = Math.max(0, subtotal - discountAmount)
@@ -413,6 +431,12 @@ export default function POSPage() {
     ? Math.min(pointsToRedeem, memberAvailablePoints, afterDiscount)
     : 0
   const finalTotal = Math.max(0, afterDiscount - actualPointsDiscount)
+
+  // Free-item promos are tag/note only (no line, no stock) — surfaced on the
+  // order note so the kitchen/staff hand them out.
+  const freebieNote = promoResult.freebies
+    .map(f => `🎁 ${f.text}${f.qty > 1 ? ` ×${f.qty}` : ''}`)
+    .join(', ')
 
   // พิมพ์ Check Bill ให้ลูกค้าดูก่อนชำระเงิน — พิมพ์ผ่านเครื่องพิมพ์ (Bluetooth/LAN)
   // โดยตรง ไม่เปิดแท็บเบราว์เซอร์ (บนแอป Android การเปิดแท็บจะไปที่ Chrome แล้วกลับ
@@ -432,6 +456,7 @@ export default function POSPage() {
         discountAmount: discountAmount + actualPointsDiscount,
         total:          finalTotal,
         vatIncluded:    Math.round(finalTotal * 7 / 107),
+        note:           freebieNote || undefined,
       }, cfg)
     } catch (e) {
       alert(e instanceof Error ? e.message : 'พิมพ์ไม่สำเร็จ — ตรวจสอบการเชื่อมต่อเครื่องพิมพ์')
@@ -473,6 +498,7 @@ export default function POSPage() {
           })),
           paymentMethod: method,
           source: 'pos',
+          note: freebieNote || undefined,
           discount: (discountAmount + actualPointsDiscount) > 0
             ? { type: 'fixed' as const, value: discountAmount + actualPointsDiscount, amount: discountAmount + actualPointsDiscount }
             : undefined,
@@ -526,6 +552,7 @@ export default function POSPage() {
           tableNo: table,
           hold: true,
           source: 'pos',
+          note: freebieNote || undefined,
           items: manualItems.map((c) => ({
             menuId: c.menuId,
             name: c.name,
@@ -603,7 +630,7 @@ export default function POSPage() {
         <CheckoutModal
           cart={cart}
           table={table}
-          note=""
+          note={freebieNote}
           discount={{ type: appliedCoupon?.type ?? 'fixed', value: appliedCoupon?.value ?? 0, amount: discountAmount + actualPointsDiscount, couponCode: appliedCoupon?.code }}
           memberName={memberName.trim()}
           memberTier={selectedMember?.tier as 'bronze' | 'silver' | 'gold' | undefined}
@@ -1217,6 +1244,9 @@ export default function POSPage() {
               cart.map((item) => {
                 const key = cartKey(item)
                 const hasDiscount = !!item.itemDiscount && item.itemDiscount > 0
+                const promoLine = promoResult.lineDiscounts[key]
+                const lineFinal = itemEffectiveTotal(item) - (promoLine?.amount ?? 0)
+                const showStrike = hasDiscount || !!promoLine
                 const isQr = !!item.fromOrderId
                 return (
                   <div key={key} className="flex items-center gap-1.5 py-2 border-b border-stone-100">
@@ -1229,6 +1259,11 @@ export default function POSPage() {
                       </div>
                       {item.variantLabel && (
                         <p className="text-[10px] text-stone-400 leading-tight mt-0.5">{item.variantLabel}</p>
+                      )}
+                      {promoLine && (
+                        <span className="inline-block text-[9px] bg-emerald-100 text-emerald-700 px-1.5 py-0.5 rounded font-bold mt-0.5">
+                          🎁 {promoLine.label}
+                        </span>
                       )}
                     </div>
                     {isQr ? (
@@ -1246,12 +1281,12 @@ export default function POSPage() {
                         >+</button>
                       </div>
                     )}
-                    {/* ราคา — แสดงขีดทับถ้ามีส่วนลด */}
+                    {/* ราคา — แสดงขีดทับถ้ามีส่วนลด (item-discount หรือ promo) */}
                     <div className="flex flex-col items-end shrink-0 min-w-[52px]">
-                      {hasDiscount ? (
+                      {showStrike ? (
                         <>
                           <span className="text-[10px] text-stone-300 line-through leading-none">{baht(item.price * item.qty)}</span>
-                          <span className="text-amber-600 text-sm font-bold leading-tight">{baht(itemEffectiveTotal(item))}</span>
+                          <span className="text-amber-600 text-sm font-bold leading-tight">{baht(lineFinal)}</span>
                         </>
                       ) : (
                         <span className="text-amber-600 text-sm font-bold">{baht(item.price * item.qty)}</span>
@@ -1328,6 +1363,17 @@ export default function POSPage() {
               )}
               {couponError && <p className="text-xs text-red-500 px-1">{couponError}</p>}
             </div>
+
+            {/* Free-item promo banner (tag/note — staff hand it out) */}
+            {promoResult.freebies.length > 0 && (
+              <div className="bg-emerald-50 border border-emerald-200 rounded-xl px-3 py-2 flex flex-col gap-0.5">
+                {promoResult.freebies.map(f => (
+                  <span key={f.promoId} className="text-emerald-700 text-xs font-bold">
+                    🎁 {f.text}{f.qty > 1 ? ` ×${f.qty}` : ''} <span className="font-normal text-emerald-500">— free with this order</span>
+                  </span>
+                ))}
+              </div>
+            )}
 
             {/* Total */}
             <div className="flex items-baseline justify-between border-t border-stone-200 pt-2">

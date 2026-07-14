@@ -30,6 +30,7 @@ export type OrderStringKey =
   | 'yourOrderReady' | 'staffBringShortly' | 'orderMore' | 'refreshing'
   | 'somethingWrong' | 'networkError'
   | 'cancelOrder' | 'confirmCancel' | 'cancelling'
+  | 'promoSavings' | 'promoPopupTitle' | 'promoPopupCta'
 
 export const STRINGS: Record<Lang, Record<OrderStringKey, string>> = {
   en: {
@@ -82,6 +83,9 @@ export const STRINGS: Record<Lang, Record<OrderStringKey, string>> = {
     cancelOrder:        'Cancel Order',
     confirmCancel:      'Cancel this order?',
     cancelling:         'Cancelling...',
+    promoSavings:       'Promo savings',
+    promoPopupTitle:    "🎉 Today's Deals",
+    promoPopupCta:      'Start Ordering',
   },
   ru: {
     selectLanguage:    'Выберите язык',
@@ -133,6 +137,9 @@ export const STRINGS: Record<Lang, Record<OrderStringKey, string>> = {
     cancelOrder:        'Отменить заказ',
     confirmCancel:      'Отменить этот заказ?',
     cancelling:         'Отмена...',
+    promoSavings:       'Скидка по акции',
+    promoPopupTitle:    '🎉 Акции сегодня',
+    promoPopupCta:      'Начать заказ',
   },
   zh: {
     selectLanguage:    '选择语言',
@@ -184,6 +191,9 @@ export const STRINGS: Record<Lang, Record<OrderStringKey, string>> = {
     cancelOrder:        '取消订单',
     confirmCancel:      '取消此订单？',
     cancelling:         '取消中...',
+    promoSavings:       '促销优惠',
+    promoPopupTitle:    '🎉 今日优惠',
+    promoPopupCta:      '开始点餐',
   },
 }
 

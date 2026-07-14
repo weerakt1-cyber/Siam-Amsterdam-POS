@@ -1,9 +1,10 @@
 'use client'
 
 import { useState, useEffect, useRef, use, useCallback } from 'react'
-import type { MenuItem } from '@/lib/types'
+import type { MenuItem, Promotion } from '@/lib/types'
 import { type CatEntry, CATEGORIES_CHANGED_EVENT, loadAllCategories, fetchCategories } from '@/lib/categories'
 import { type Lang, type OrderStringKey, LANGS, STRINGS, loadOrderLang, saveOrderLang } from '@/lib/order-i18n'
+import { applyPromotions, isPromotionActiveNow, promotionSummary } from '@/lib/promotions'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -93,6 +94,9 @@ export default function OrderPage({ params }: { params: Promise<{ tableNo: strin
   const [cartOpen, setCartOpen] = useState(false)
   const [note, setNote]         = useState('')
   const [addedKey, setAddedKey] = useState<string | null>(null)
+  const [promos, setPromos]     = useState<Promotion[]>([])
+  const [showPromoPopup, setShowPromoPopup] = useState(false)
+  const promoPopupShownRef = useRef(false)
 
   const [variantItem, setVariantItem] = useState<MenuItem | null>(null)
   const [variantSels, setVariantSels] = useState<Record<string, string>>({})
@@ -127,6 +131,10 @@ export default function OrderPage({ params }: { params: Promise<{ tableNo: strin
       .then(r => r.json())
       .then(d => { setMenu((d.menu ?? []).filter((m: MenuItem) => m.available)); setLoading(false) })
       .catch(() => setLoading(false))
+    fetch('/api/promotions')
+      .then(r => r.json())
+      .then(d => setPromos((d.promotions ?? []).filter((p: Promotion) => p.active)))
+      .catch(() => {})
   }, [])
 
   // ── Poll order status ─────────────────────────────────────────────────────────
@@ -178,6 +186,27 @@ export default function OrderPage({ params }: { params: Promise<{ tableNo: strin
   const filtered   = menu.filter(m => category === 'all' || m.category === category)
   const cartTotal  = cart.reduce((s, c) => s + c.price * c.qty, 0)
   const cartCount  = cart.reduce((s, c) => s + c.qty, 0)
+
+  // Auto-applied promotions (same engine as the POS cart).
+  const menuCategoryOf = (menuId: string) => menu.find(m => m.id === menuId)?.category
+  const promoResult = applyPromotions(
+    cart.map(c => ({ key: cartKey(c), menuId: c.menuId, qty: c.qty, unitPrice: c.price })),
+    promos, new Date(), menuCategoryOf,
+  )
+  const promoDiscount   = promoResult.totalDiscount
+  const cartTotalFinal  = Math.max(0, cartTotal - promoDiscount)
+  const freebieNote     = promoResult.freebies.map(f => `🎁 ${f.text}${f.qty > 1 ? ` ×${f.qty}` : ''}`).join(', ')
+
+  // Promotions worth advertising in the entry popup.
+  const qrPromos = promos.filter(p => p.showOnQr && isPromotionActiveNow(p, new Date()))
+
+  // Show the promo popup once, the first time the customer reaches the menu.
+  useEffect(() => {
+    if (phase === 'menu' && !promoPopupShownRef.current && qrPromos.length > 0) {
+      promoPopupShownRef.current = true
+      setShowPromoPopup(true)
+    }
+  }, [phase, qrPromos.length])
 
   const latestOrder  = orders[orders.length - 1] ?? null
   const latestStatus = latestOrder?.status ?? null
@@ -237,8 +266,11 @@ export default function OrderPage({ params }: { params: Promise<{ tableNo: strin
           tableNo: selectedTable,
           customerName: customerName.trim(),
           source: 'qr',
-          note: note.trim(),
+          note: [note.trim(), freebieNote].filter(Boolean).join(' · '),
           items: cart.map(c => ({ menuId: c.menuId, name: c.name, qty: c.qty, price: c.price, variantLabel: c.variantLabel })),
+          discount: promoDiscount > 0
+            ? { type: 'fixed' as const, value: promoDiscount, amount: promoDiscount }
+            : undefined,
         }),
       })
       if (!r.ok) {
@@ -253,8 +285,8 @@ export default function OrderPage({ params }: { params: Promise<{ tableNo: strin
         id:     d.order?.id ?? '',
         status: 'pending',
         items:  [...cart],
-        total:  cartTotal,
-        note:   note.trim(),
+        total:  cartTotalFinal,
+        note:   [note.trim(), freebieNote].filter(Boolean).join(' · '),
       }
       setOrders(prev => [...prev, placed])
       setCart([])
@@ -589,7 +621,7 @@ export default function OrderPage({ params }: { params: Promise<{ tableNo: strin
                 <span className="bg-amber-500 text-black text-xs font-black w-7 h-7 rounded-full flex items-center justify-center">{cartCount}</span>
                 <span className="font-semibold text-sm">{t('viewOrder')}</span>
               </div>
-              <span className="font-black">{baht(cartTotal)}</span>
+              <span className="font-black">{baht(cartTotalFinal)}</span>
             </button>
           </div>
         </div>
@@ -608,19 +640,32 @@ export default function OrderPage({ params }: { params: Promise<{ tableNo: strin
               <div className="flex flex-col divide-y divide-gray-50">
                 {cart.map(c => {
                   const key = cartKey(c)
+                  const promoLine = promoResult.lineDiscounts[key]
                   return (
                     <div key={key} className="flex items-center gap-3 py-3">
                       <div className="flex-1 min-w-0">
                         <p className="font-semibold text-sm text-gray-900 leading-snug">{c.name}</p>
                         {c.variantLabel && <p className="text-xs text-gray-400 mt-0.5">{c.variantLabel}</p>}
                         <p className="text-xs text-gray-400 mt-0.5">{baht(c.price)} {t('each')}</p>
+                        {promoLine && (
+                          <span className="inline-block text-[10px] bg-emerald-100 text-emerald-700 px-1.5 py-0.5 rounded font-bold mt-0.5">🎁 {promoLine.label}</span>
+                        )}
                       </div>
                       <div className="flex items-center gap-2 shrink-0">
                         <button onClick={() => changeQty(key, -1)} className="w-8 h-8 rounded-full bg-gray-100 active:bg-gray-200 flex items-center justify-center font-bold text-gray-600 transition">−</button>
                         <span className="w-5 text-center font-black text-sm">{c.qty}</span>
                         <button onClick={() => changeQty(key, 1)} className="w-8 h-8 rounded-full bg-gray-900 active:bg-gray-700 flex items-center justify-center font-bold text-white transition">+</button>
                       </div>
-                      <span className="text-sm font-bold text-amber-600 shrink-0 min-w-[52px] text-right">{baht(c.price * c.qty)}</span>
+                      <div className="flex flex-col items-end shrink-0 min-w-[52px]">
+                        {promoLine ? (
+                          <>
+                            <span className="text-[10px] text-gray-300 line-through leading-none">{baht(c.price * c.qty)}</span>
+                            <span className="text-sm font-bold text-emerald-600 leading-tight">{baht(c.price * c.qty - promoLine.amount)}</span>
+                          </>
+                        ) : (
+                          <span className="text-sm font-bold text-amber-600 text-right">{baht(c.price * c.qty)}</span>
+                        )}
+                      </div>
                     </div>
                   )
                 })}
@@ -639,9 +684,20 @@ export default function OrderPage({ params }: { params: Promise<{ tableNo: strin
               </div>
             </div>
             <div className="px-5 pt-3 pb-6 border-t border-gray-100 shrink-0">
+              {promoResult.freebies.map(f => (
+                <div key={f.promoId} className="flex items-center gap-1.5 text-xs font-bold text-emerald-600 mb-1">
+                  🎁 {f.text}{f.qty > 1 ? ` ×${f.qty}` : ''}
+                </div>
+              ))}
+              {promoDiscount > 0 && (
+                <div className="flex justify-between items-baseline mb-1 text-sm text-emerald-600 font-semibold">
+                  <span>{t('promoSavings')}</span>
+                  <span>−{baht(promoDiscount)}</span>
+                </div>
+              )}
               <div className="flex justify-between items-baseline mb-4">
                 <span className="text-sm text-gray-500">{t('total')}</span>
-                <span className="text-2xl font-black text-gray-900">{baht(cartTotal)}</span>
+                <span className="text-2xl font-black text-gray-900">{baht(cartTotalFinal)}</span>
               </div>
               {submitError && <p className="text-xs text-red-500 text-center mb-3">{submitError}</p>}
               <button
@@ -686,9 +742,18 @@ export default function OrderPage({ params }: { params: Promise<{ tableNo: strin
               {note.trim() && (
                 <p className="text-xs text-gray-500 mt-3 italic">{t('noteLabel')} {note.trim()}</p>
               )}
-              <div className="flex justify-between items-baseline mt-3 px-1">
+              {promoResult.freebies.map(f => (
+                <p key={f.promoId} className="text-xs font-bold text-emerald-600 mt-2">🎁 {f.text}{f.qty > 1 ? ` ×${f.qty}` : ''}</p>
+              ))}
+              {promoDiscount > 0 && (
+                <div className="flex justify-between items-baseline mt-2 px-1 text-sm text-emerald-600 font-semibold">
+                  <span>{t('promoSavings')}</span>
+                  <span>−{baht(promoDiscount)}</span>
+                </div>
+              )}
+              <div className="flex justify-between items-baseline mt-2 px-1">
                 <span className="text-sm text-gray-500">{t('total')}</span>
-                <span className="text-xl font-black text-gray-900">{baht(cartTotal)}</span>
+                <span className="text-xl font-black text-gray-900">{baht(cartTotalFinal)}</span>
               </div>
               <p className="text-xs text-gray-400 mt-1 px-1">{t('tableLabel')} {selectedTable}{customerName.trim() && ` · ${customerName.trim()}`}</p>
             </div>
@@ -708,6 +773,46 @@ export default function OrderPage({ params }: { params: Promise<{ tableNo: strin
                 className="w-full py-3 rounded-2xl font-bold text-sm text-gray-500 hover:bg-gray-50 transition active:scale-[0.98] disabled:opacity-40"
               >
                 {t('goBack')}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Promotions popup — advertises active QR deals on first reaching the menu */}
+      {showPromoPopup && qrPromos.length > 0 && (
+        <div className="fixed inset-0 z-[70] flex items-end sm:items-center justify-center p-4" onClick={() => setShowPromoPopup(false)}>
+          <div className="absolute inset-0 bg-black/60" />
+          <div className="relative bg-white rounded-3xl w-full max-w-sm overflow-hidden shadow-2xl" onClick={e => e.stopPropagation()}>
+            <div className="bg-gradient-to-br from-amber-400 to-amber-500 px-6 pt-6 pb-5 text-center">
+              <p className="text-4xl mb-1">🎉</p>
+              <h3 className="font-black text-lg text-black">{t('promoPopupTitle')}</h3>
+            </div>
+            <div className="px-5 py-4 flex flex-col gap-2.5 max-h-[50vh] overflow-y-auto">
+              {qrPromos.map(p => {
+                const target = p.targetType === 'category'
+                  ? (allCats.find(c => c.value === p.targetId)?.label ?? p.targetId)
+                  : (menu.find(m => m.id === p.targetId)?.name ?? '')
+                return (
+                  <div key={p.id} className="flex items-start gap-3 bg-amber-50 border border-amber-100 rounded-2xl px-4 py-3">
+                    <span className="text-2xl shrink-0">{p.type === 'bundle' ? '📦' : p.type === 'free_item' ? '🎁' : '🏷️'}</span>
+                    <div className="min-w-0">
+                      <p className="font-bold text-sm text-gray-900 leading-snug">{p.name}</p>
+                      <p className="text-xs text-amber-700 font-semibold mt-0.5">{promotionSummary(p)}{target ? ` · ${target}` : ''}</p>
+                      {p.startTime && p.endTime && (
+                        <p className="text-[10px] text-gray-400 mt-0.5">⏱ {p.startTime}–{p.endTime}</p>
+                      )}
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+            <div className="px-5 pb-5 pt-1">
+              <button
+                onClick={() => setShowPromoPopup(false)}
+                className="w-full py-3.5 rounded-2xl bg-gray-900 text-white font-black text-base active:scale-[0.98] transition"
+              >
+                {t('promoPopupCta')} →
               </button>
             </div>
           </div>
