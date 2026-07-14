@@ -1,10 +1,8 @@
 ﻿export const dynamic = "force-dynamic"
 
 import { NextRequest, NextResponse } from 'next/server'
-import { getMenu, createMenuItem } from '@/lib/store'
+import { getMenu, createMenuItem, getCategories } from '@/lib/store'
 import type { MenuCategory } from '@/lib/types'
-
-const VALID_CATEGORIES: MenuCategory[] = ['cocktail', 'beer', 'drink', 'snack', 'food', 'shot', 'other']
 
 export async function GET() {
   const menu = await getMenu()
@@ -20,12 +18,17 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'name and price are required' }, { status: 400 })
     }
 
-    // B-06: Enforce consistent category values
-    if (category && !VALID_CATEGORIES.includes(category as MenuCategory)) {
-      return NextResponse.json(
-        { error: `category must be one of: ${VALID_CATEGORIES.join(', ')}` },
-        { status: 400 }
-      )
+    // B-06: Enforce consistent category values — validated against the live,
+    // user-editable category list (Items → Categories), not a fixed enum, since
+    // staff can add their own categories beyond the built-in defaults.
+    if (category) {
+      const validCategories = (await getCategories()).map(c => c.value)
+      if (!validCategories.includes(category)) {
+        return NextResponse.json(
+          { error: `category must be one of: ${validCategories.join(', ')}` },
+          { status: 400 }
+        )
+      }
     }
 
     const item = await createMenuItem({
