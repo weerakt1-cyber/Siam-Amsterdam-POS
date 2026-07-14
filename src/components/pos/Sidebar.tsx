@@ -86,7 +86,7 @@ export default function Sidebar() {
         </div>
 
         <button
-          onPointerDown={() => setExpanded(true)}
+          onClick={() => setExpanded(true)}
           className="w-11 h-11 rounded-xl flex items-center justify-center text-2xl text-stone-300 hover:text-stone-100 hover:bg-stone-800 transition-all active:scale-95"
           title="Menu"
         >
@@ -120,7 +120,7 @@ export default function Sidebar() {
           expanded ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'
         }`}
       >
-        <div className="absolute inset-0 bg-black/40" onPointerDown={() => setExpanded(false)} />
+        <div className="absolute inset-0 bg-black/40" onClick={() => setExpanded(false)} />
         <nav
           className={`absolute inset-y-0 left-0 w-64 bg-stone-900 border-r border-stone-800 flex flex-col py-3 px-2.5 gap-1 shadow-2xl transition-transform duration-200 ${
             expanded ? 'translate-x-0' : '-translate-x-full'
@@ -132,7 +132,7 @@ export default function Sidebar() {
             </div>
             <span className="text-stone-200 font-bold text-sm flex-1">Menu</span>
             <button
-              onPointerDown={() => setExpanded(false)}
+              onClick={() => setExpanded(false)}
               className="w-9 h-9 rounded-lg flex items-center justify-center text-stone-400 hover:text-stone-100 hover:bg-stone-800 transition-all active:scale-95 text-lg"
               title="Close"
             >
@@ -163,7 +163,7 @@ export default function Sidebar() {
           <div className="border-t border-stone-800 mb-1" />
 
           <button
-            onPointerDown={() => { setShowSwitcher(true); setExpanded(false) }}
+            onClick={() => { setShowSwitcher(true); setExpanded(false) }}
             className="flex items-center gap-3 h-12 px-3 rounded-xl transition-all hover:bg-stone-800 active:scale-[0.98]"
           >
             {activeUser ? (
