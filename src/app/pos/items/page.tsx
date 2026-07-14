@@ -39,7 +39,7 @@ const UNITS = ['glass', 'bottle', 'draft', 'can', 'shot', 'piece', 'plate', 'set
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-type Tab = 'items' | 'coupons' | 'categories'
+type Tab = 'items' | 'categories'
 
 type AiSuggestion = {
   menuId:         string
@@ -613,7 +613,6 @@ export default function ItemsPage() {
           {([
             { id: 'items',      label: 'Menu Items' },
             { id: 'categories', label: 'Categories' },
-            { id: 'coupons',    label: 'Coupons'    },
           ] as const).map((t) => (
             <button
               key={t.id}
@@ -719,20 +718,6 @@ export default function ItemsPage() {
             >
               Add Category
             </button>
-          </div>
-        </div>
-      ) : tab === 'coupons' ? (
-        /* ── Coupons placeholder ── */
-        <div className="flex-1 flex items-center justify-center p-6">
-          <div className="text-center max-w-sm">
-            <p className="text-5xl mb-4">🎟️</p>
-            <h2 className="text-xl font-bold mb-2">Coupons & Discounts</h2>
-            <p className="text-gray-500 text-sm mb-4">Create discount codes, happy hour rules, and promotional offers.</p>
-            <div className="text-left bg-white border border-gray-200 rounded-2xl p-4 text-sm text-gray-500 flex flex-col gap-1.5">
-              {['% or fixed ฿ discount codes', 'Happy hour time-based pricing', 'Buy X get Y free', 'Member-only discounts', 'Single-use or multi-use'].map(f => (
-                <div key={f} className="flex gap-2"><span className="text-amber-500/50">◦</span>{f}</div>
-              ))}
-            </div>
           </div>
         </div>
       ) : (

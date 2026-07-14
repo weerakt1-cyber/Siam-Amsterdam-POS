@@ -387,7 +387,7 @@ export default function InventoryPage() {
                 <div className="flex gap-2 mb-3 flex-wrap">
                   {[1, 5, 10, 24].map(n => (
                     <button key={n} onClick={() => doAdjust(+n, 'restock')}
-                      className="flex-1 min-w-[3rem] py-2 text-sm font-bold rounded-xl bg-emerald-900/40 text-emerald-400 hover:bg-emerald-900/70 transition active:scale-95">
+                      className="flex-1 min-w-[3rem] py-2 text-sm font-bold rounded-xl bg-emerald-100 text-emerald-700 hover:bg-emerald-200 transition active:scale-95">
                       +{n}
                     </button>
                   ))}
