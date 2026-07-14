@@ -14,7 +14,7 @@ const NAV = [
   { href: '/pos/floor',      icon: '🗺️',  label: 'Floor'     },
   { href: '/pos/kitchen',    icon: '🍳',  label: 'Kitchen'   },
   { href: '/pos/inventory',  icon: '📦',  label: 'Inventory' },
-  { href: '/pos/items',      icon: '🍹',  label: 'Items'     },
+  { href: '/pos/items',      icon: '🍔🥤', label: 'Items'     },
   { href: '/pos/members',    icon: '👥',  label: 'Members'   },
   { href: '/pos/cash',       icon: '💰',  label: 'Cash'      },
   { href: '/pos/coupons',    icon: '🎟️',  label: 'Coupons'   },

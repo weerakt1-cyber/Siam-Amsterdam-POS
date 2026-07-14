@@ -79,10 +79,10 @@ function StockBar({ item }: { item: InventoryItem }) {
 // ─── Reason Label ─────────────────────────────────────────────────────────────
 
 const REASON_LABELS: Record<AdjustReason, { label: string; color: string }> = {
-  restock: { label: '+Restock', color: 'text-emerald-400' },
-  usage:   { label: 'Usage',    color: 'text-blue-400' },
+  restock: { label: '+Restock', color: 'text-emerald-600' },
+  usage:   { label: 'Usage',    color: 'text-blue-600' },
   manual:  { label: 'Manual',   color: 'text-gray-500' },
-  waste:   { label: 'Waste',    color: 'text-red-400' },
+  waste:   { label: 'Waste',    color: 'text-red-600' },
 }
 
 // ─── Main Page ────────────────────────────────────────────────────────────────
@@ -232,7 +232,7 @@ export default function InventoryPage() {
         <div className="flex gap-2">
           <button
             onClick={() => exportCSV(items)}
-            className="text-xs px-3 py-2 rounded-xl border border-gray-200 text-gray-500 hover:text-white hover:border-white/30 font-semibold transition active:scale-95"
+            className="text-xs px-3 py-2 rounded-xl border border-gray-200 text-gray-500 hover:text-gray-900 hover:border-gray-400 font-semibold transition active:scale-95"
           >
             ⬇ Export CSV
           </button>
@@ -418,7 +418,7 @@ export default function InventoryPage() {
                   value={adjustNote}
                   onChange={e => setAdjustNote(e.target.value)}
                   placeholder="Note (optional)..."
-                  className="w-full bg-gray-100/50 border border-gray-200 rounded-xl px-3 py-2 text-sm text-gray-900 placeholder-white/25 outline-none focus:border-amber-500/40 transition"
+                  className="w-full bg-gray-100/50 border border-gray-200 rounded-xl px-3 py-2 text-sm text-gray-900 placeholder-gray-300 outline-none focus:border-amber-500/40 transition"
                 />
               </div>
             )}
@@ -522,9 +522,10 @@ export default function InventoryPage() {
                   type="button"
                   onClick={() => { setNumPadVal(form.costPerUnit); setNumPadTarget('cost') }}
                   className="w-full bg-gray-100 border border-gray-200 rounded-xl px-3 py-2.5 text-sm text-left hover:border-amber-500/40 transition"
-                  style={{ color: form.costPerUnit ? 'white' : 'rgba(255,255,255,0.25)' }}
                 >
-                  {form.costPerUnit || 'Optional — for stock valuation'}
+                  <span className={form.costPerUnit ? 'text-gray-900' : 'text-gray-300'}>
+                    {form.costPerUnit || 'Optional — for stock valuation'}
+                  </span>
                 </button>
               </div>
 
@@ -542,7 +543,7 @@ export default function InventoryPage() {
                 </button>
                 {isCreating && (
                   <button onClick={() => { setIsCreating(false); setSelectedId(null) }}
-                    className="px-4 py-2.5 rounded-xl border border-gray-200 text-gray-500 hover:text-white hover:border-white/30 font-semibold text-sm transition">
+                    className="px-4 py-2.5 rounded-xl border border-gray-200 text-gray-500 hover:text-gray-900 hover:border-gray-400 font-semibold text-sm transition">
                     Cancel
                   </button>
                 )}
