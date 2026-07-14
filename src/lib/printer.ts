@@ -214,19 +214,6 @@ function b(...parts: (number[] | string | Uint8Array)[]): Uint8Array {
   return new Uint8Array(all)
 }
 
-function uLen(s: string): number { return [...s].length }
-
-function padR(s: string, n: number): string {
-  return s + ' '.repeat(Math.max(0, n - uLen(s)))
-}
-
-function col2(left: string, right: string, w: number): string {
-  const sp = Math.max(1, w - uLen(left) - uLen(right))
-  return left + ' '.repeat(sp) + right
-}
-
-function divider(w: number, c = '-'): string { return c.repeat(w) }
-
 // Build ESC/POS QR code bytes (GS ( k commands, model 2, error correction L)
 function buildQRBytes(url: string, moduleSize = 6): Uint8Array {
   const data = enc.encode(url)
@@ -262,65 +249,250 @@ export type ReceiptData = {
   note?:         string
 }
 
-// ─── Build ESC/POS bytes (ใช้กับทุก connection type) ─────────────────────────
+// ─── Raster receipt rendering ────────────────────────────────────────────────
+// Thermal printers can't print Thai from raw text bytes — they'd need a matching
+// TIS-620 code page the hardware often lacks, and even then the built-in Thai
+// font is crude. So instead we render the ENTIRE receipt to a monochrome bitmap
+// with a real Thai-capable font in the WebView, then ship it as an ESC/POS
+// raster image (GS v 0). This prints identically and beautifully on virtually
+// any ESC/POS printer regardless of its language support, and lets each of the
+// three templates have its own distinct, good-looking layout.
 
-export function buildReceiptBytes(d: ReceiptData, cfg: BarSettings): Uint8Array {
-  const W = cfg.width
-  const dt = new Date(d.createdAt)
+const PAY_LABEL: Record<string, string> = { cash: 'Cash', card: 'Card', promptpay: 'QR PromptPay' }
+
+// Drop emoji / pictographs so 1-bit thresholding doesn't leave grey blobs.
+function stripEmoji(s: string): string {
+  return s
+    .replace(/[\u{1F000}-\u{1FAFF}\u{2600}-\u{27BF}\u{2B00}-\u{2BFF}\u{FE00}-\u{FE0F}\u{200D}]/gu, '')
+    .replace(/\s{2,}/g, ' ')
+    .trim()
+}
+
+// Lay the receipt out on a canvas 2d context. Runs twice: once to measure
+// (draw=false) to compute total height, once to actually paint. y-advances must
+// be identical in both passes, so every y increment lives outside `if (draw)`.
+function layoutReceipt(ctx: CanvasRenderingContext2D, W: number, d: ReceiptData, cfg: BarSettings, draw: boolean): number {
+  const t     = cfg.receiptTemplate ?? 'classic'
+  const scale = W / 384                          // 1 @58mm, 1.5 @80mm
+  const S     = (n: number) => Math.round(n * scale)
+  const pad   = S(12)
+  const innerW = W - pad * 2
+
+  const sansFamily = "'Noto Sans Thai','Sarabun','Prompt',sans-serif"
+  const monoFamily = "'Noto Sans Thai Mono','Sarabun',monospace"
+  const bodyFamily = t === 'classic' ? monoFamily : sansFamily
+
+  let y = S(6)
+  ctx.fillStyle = '#000'
+  ctx.textBaseline = 'top'
+
+  const setFont = (size: number, bold: boolean, family = bodyFamily) => {
+    ctx.font = `${bold ? 'bold ' : ''}${S(size)}px ${family}`
+  }
+  const lh = (size: number) => S(size) + S(7)
+
+  function center(text: string, size: number, bold: boolean, family = bodyFamily) {
+    const s = stripEmoji(text); if (!s) return
+    setFont(size, bold, family)
+    if (draw) { ctx.textAlign = 'center'; ctx.fillText(s, W / 2, y) }
+    y += lh(size)
+  }
+  function left(text: string, size: number, bold = false) {
+    const s = stripEmoji(text); if (!s) return
+    setFont(size, bold)
+    if (draw) { ctx.textAlign = 'left'; ctx.fillText(s, pad, y) }
+    y += lh(size)
+  }
+  function row(l: string, r: string, size: number, bold = false) {
+    setFont(size, bold)
+    if (draw) {
+      ctx.textAlign = 'left';  ctx.fillText(stripEmoji(l), pad, y)
+      ctx.textAlign = 'right'; ctx.fillText(stripEmoji(r), W - pad, y)
+    }
+    y += lh(size)
+  }
+  function itemRow(name: string, qtyPrice: string, size: number) {
+    setFont(size, false)
+    const rightW  = ctx.measureText(qtyPrice).width
+    const maxNmW  = innerW - rightW - S(10)
+    const full    = stripEmoji(name)
+    let nm = full
+    if (ctx.measureText(nm).width > maxNmW) {
+      while (nm.length > 1 && ctx.measureText(nm + '…').width > maxNmW) nm = nm.slice(0, -1)
+      nm += '…'
+    }
+    if (draw) {
+      ctx.textAlign = 'left';  ctx.fillText(nm, pad, y)
+      ctx.textAlign = 'right'; ctx.fillText(qtyPrice, W - pad, y)
+    }
+    y += lh(size)
+  }
+  function hr(dashed = false) {
+    y += S(5)
+    if (draw) {
+      ctx.strokeStyle = '#000'; ctx.lineWidth = Math.max(1, S(1))
+      ctx.setLineDash(dashed ? [S(4), S(3)] : [])
+      ctx.beginPath(); ctx.moveTo(pad, y + 0.5); ctx.lineTo(W - pad, y + 0.5); ctx.stroke()
+      ctx.setLineDash([])
+    }
+    y += S(9)
+  }
+  const gap = (px: number) => { y += S(px) }
+
+  // ── Header ──
+  if (t === 'modern') {
+    const barH = S(46)
+    if (draw) {
+      ctx.fillStyle = '#000'; ctx.fillRect(pad, y, innerW, barH)
+      ctx.fillStyle = '#fff'
+      setFont(24, true, sansFamily)
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
+      ctx.fillText(stripEmoji(cfg.barName) || 'RECEIPT', W / 2, y + barH / 2 + S(1))
+      ctx.textBaseline = 'top'; ctx.fillStyle = '#000'
+    }
+    y += barH + S(8)
+    if (cfg.address) center(cfg.address, 15, false, sansFamily)
+    if (cfg.phone)   center('Tel: ' + cfg.phone, 14, false, sansFamily)
+  } else if (t === 'minimal') {
+    left(cfg.barName || 'Receipt', 26, true)
+    if (cfg.address) left(cfg.address, 14)
+  } else { // classic
+    center(cfg.barName || 'RECEIPT', 30, true)
+    if (cfg.address) center(cfg.address, 15, false)
+    if (cfg.phone)   center('Tel: ' + cfg.phone, 14, false)
+    if (cfg.taxId)   center('Tax: ' + cfg.taxId, 14, false)
+  }
+
+  const dashed = t === 'classic'
+  hr(dashed)
+
+  // ── Meta ──
+  const dt      = new Date(d.createdAt)
   const dateStr = dt.toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: '2-digit' })
   const timeStr = dt.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })
   const shortId = d.orderId.slice(-8).toUpperCase()
+  row('Date: ' + dateStr, timeStr, 15)
+  row('Table: ' + d.tableNo, '#' + shortId, 15)
+  if (d.staffName)  row('Staff', d.staffName, 15)
+  if (d.memberName) row('Member', d.memberName, 15, true)
+  hr(dashed)
 
-  const PAY: Record<string, string> = {
-    cash: 'Cash', card: 'Card', promptpay: 'QR PromptPay',
+  // ── Items ──
+  for (const item of d.items) {
+    itemRow(item.name, 'x' + item.qty + '  ฿' + (item.price * item.qty).toLocaleString(), 16)
+  }
+  hr(dashed)
+
+  // ── Totals ──
+  row('Subtotal', '฿' + d.subtotal.toLocaleString(), 15)
+  if (d.discountAmount > 0) {
+    row('Discount' + (d.couponCode ? ' [' + d.couponCode + ']' : ''), '-฿' + d.discountAmount.toLocaleString(), 15)
   }
 
-  const footerLines = cfg.footer.split(/\\n|\n/).filter(Boolean)
+  if (t === 'modern') {
+    gap(4)
+    const boxH = S(42)
+    if (draw) {
+      ctx.fillStyle = '#000'; ctx.fillRect(pad, y, innerW, boxH)
+      ctx.fillStyle = '#fff'; ctx.textBaseline = 'middle'
+      setFont(22, true, sansFamily)
+      ctx.textAlign = 'left';  ctx.fillText('TOTAL', pad + S(10), y + boxH / 2)
+      ctx.textAlign = 'right'; ctx.fillText('฿' + d.total.toLocaleString(), W - pad - S(10), y + boxH / 2)
+      ctx.textBaseline = 'top'; ctx.fillStyle = '#000'
+    }
+    y += boxH + S(4)
+  } else {
+    if (t === 'classic') hr(false) // solid rule above total
+    row('TOTAL', '฿' + d.total.toLocaleString(), 22, true)
+  }
+  row('VAT 7% (incl.)', '฿' + d.vatIncluded.toLocaleString(), 13)
 
-  const parts: Uint8Array[] = [
-    b(C.INIT),
-    b(C.CENTER, C.BOLD_ON, C.BIG, cfg.barName + '\n', C.NORMAL, C.BOLD_OFF),
-    cfg.address ? b(C.CENTER, cfg.address + '\n') : new Uint8Array(0),
-    cfg.phone   ? b(C.CENTER, 'Tel: ' + cfg.phone + '\n') : new Uint8Array(0),
-    cfg.taxId   ? b(C.CENTER, 'Tax: ' + cfg.taxId + '\n') : new Uint8Array(0),
-    b(C.LEFT, divider(W) + '\n'),
-    b(col2('Date: ' + dateStr, timeStr, W) + '\n'),
-    b(col2('Table: ' + d.tableNo, '#' + shortId, W) + '\n'),
-    d.staffName  ? b(col2('Staff:', d.staffName, W) + '\n') : new Uint8Array(0),
-    d.memberName ? b(C.BOLD_ON, col2('Member:', d.memberName, W) + '\n', C.BOLD_OFF) : new Uint8Array(0),
-    b(divider(W) + '\n'),
-    ...d.items.map(item => {
-      const price  = '฿' + (item.price * item.qty).toLocaleString()
-      const qty    = 'x' + item.qty
-      const maxNm  = W - uLen(qty) - uLen(price) - 2
-      return b(padR(item.name.slice(0, maxNm), maxNm) + ' ' + qty + ' ' + price + '\n')
-    }),
-    b(divider(W) + '\n'),
-    b(col2('Subtotal:', '฿' + d.subtotal.toLocaleString(), W) + '\n'),
-    d.discountAmount > 0 ? b(
-      col2('Discount' + (d.couponCode ? ' [' + d.couponCode + ']' : '') + ':',
-           '-฿' + d.discountAmount.toLocaleString(), W) + '\n'
-    ) : new Uint8Array(0),
-    b(divider(W, '=') + '\n'),
-    b(C.BOLD_ON, C.MEDIUM, col2('TOTAL:', '฿' + d.total.toLocaleString(), W) + '\n', C.NORMAL, C.BOLD_OFF),
-    b(col2('VAT 7% (incl.):', '฿' + d.vatIncluded.toLocaleString(), W) + '\n'),
-    b(divider(W) + '\n'),
-    d.paymentMethod ? b(col2('Payment:', PAY[d.paymentMethod] ?? d.paymentMethod, W) + '\n') : new Uint8Array(0),
-    d.paymentMethod === 'cash' && d.received != null ? b(
-      col2('Received:', '฿' + d.received.toLocaleString(), W) + '\n',
-      col2('Change:',   '฿' + (d.change ?? 0).toLocaleString(), W) + '\n',
-    ) : new Uint8Array(0),
-    d.note ? b(divider(W) + '\nNote: ' + d.note + '\n') : new Uint8Array(0),
-    b(divider(W) + '\n'),
-    b(C.CENTER),
-    b(divider(W) + '\n'),
-    cfg.googleReviewUrl ? b('Rate us on Google Maps!\n') : new Uint8Array(0),
-    cfg.googleReviewUrl ? buildQRBytes(cfg.googleReviewUrl, 6) : new Uint8Array(0),
-    cfg.googleReviewUrl ? b('\n') : new Uint8Array(0),
-    ...footerLines.map(line => b(line + '\n')),
-    b(C.LEFT, '\n\n\n'),
-    b(C.CUT),
-  ]
+  // ── Payment ──
+  if (d.paymentMethod) {
+    hr(dashed)
+    row('Payment', PAY_LABEL[d.paymentMethod] ?? d.paymentMethod, 15)
+    if (d.paymentMethod === 'cash' && d.received != null) {
+      row('Received', '฿' + d.received.toLocaleString(), 15)
+      row('Change', '฿' + (d.change ?? 0).toLocaleString(), 15)
+    }
+  }
+
+  // ── Note ──
+  if (d.note) {
+    hr(dashed)
+    left('Note: ' + d.note, 14)
+  }
+
+  // ── Footer ──
+  const footerLines = cfg.footer.split(/\\n|\n/).map(s => s.trim()).filter(Boolean)
+  if (footerLines.length) {
+    hr(dashed)
+    for (const line of footerLines) center(line, 15, false)
+  }
+
+  gap(6)
+  return y
+}
+
+function renderReceiptCanvas(d: ReceiptData, cfg: BarSettings): HTMLCanvasElement {
+  const W = cfg.width === 48 ? 576 : 384
+  const measure = document.createElement('canvas')
+  measure.width = W; measure.height = 8
+  const h = Math.ceil(layoutReceipt(measure.getContext('2d')!, W, d, cfg, false))
+
+  const canvas = document.createElement('canvas')
+  canvas.width = W; canvas.height = h + S1(cfg, 4)
+  const ctx = canvas.getContext('2d')!
+  ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, W, canvas.height)
+  layoutReceipt(ctx, W, d, cfg, true)
+  return canvas
+}
+
+// scale-1 helper for the bottom margin (kept tiny; layout owns everything else)
+function S1(cfg: BarSettings, n: number): number {
+  return Math.round(n * ((cfg.width === 48 ? 576 : 384) / 384))
+}
+
+// Pack a black/white canvas into ESC/POS GS v 0 raster commands, banded so no
+// single command exceeds a printer's image buffer.
+function canvasToRasterBytes(canvas: HTMLCanvasElement): Uint8Array {
+  const W = canvas.width, H = canvas.height
+  const img = canvas.getContext('2d')!.getImageData(0, 0, W, H).data
+  const bytesPerRow = W >> 3
+  const BAND = 128
+  const out: number[] = []
+  for (let y0 = 0; y0 < H; y0 += BAND) {
+    const rows = Math.min(BAND, H - y0)
+    out.push(GS, 0x76, 0x30, 0x00, bytesPerRow & 0xff, (bytesPerRow >> 8) & 0xff, rows & 0xff, (rows >> 8) & 0xff)
+    for (let yy = 0; yy < rows; yy++) {
+      const rowBase = (y0 + yy) * W
+      for (let xb = 0; xb < bytesPerRow; xb++) {
+        let byte = 0
+        for (let bit = 0; bit < 8; bit++) {
+          const i = (rowBase + xb * 8 + bit) * 4
+          const lum = img[i] * 0.299 + img[i + 1] * 0.587 + img[i + 2] * 0.114
+          if (img[i + 3] > 128 && lum < 128) byte |= 0x80 >> bit
+        }
+        out.push(byte)
+      }
+    }
+  }
+  return new Uint8Array(out)
+}
+
+// ─── Build ESC/POS bytes for the full receipt (raster image + optional QR) ────
+
+export async function buildReceiptBytes(d: ReceiptData, cfg: BarSettings): Promise<Uint8Array> {
+  if (typeof document === 'undefined') {
+    throw new Error('Receipt rendering requires a browser context')
+  }
+  const raster = canvasToRasterBytes(renderReceiptCanvas(d, cfg))
+
+  const parts: Uint8Array[] = [b(C.INIT), b(C.CENTER), raster]
+  if (cfg.googleReviewUrl) {
+    parts.push(b('\n', C.CENTER, 'Scan to rate us on Google!\n'), buildQRBytes(cfg.googleReviewUrl, 6), b('\n'))
+  }
+  parts.push(b(C.LEFT, '\n\n\n'), b(C.CUT))
 
   const total  = parts.reduce((s, p) => s + p.length, 0)
   const result = new Uint8Array(total)
@@ -381,7 +553,7 @@ async function reconnectAndWrite(bytes: Uint8Array): Promise<void> {
 }
 
 export async function printReceiptBluetooth(d: ReceiptData, cfg: BarSettings): Promise<void> {
-  await reconnectAndWrite(buildReceiptBytes(d, cfg))
+  await reconnectAndWrite(await buildReceiptBytes(d, cfg))
 }
 
 export async function openCashDrawerBluetooth(): Promise<void> {
@@ -406,7 +578,7 @@ export async function sendBytesViaLan(bytes: Uint8Array, ip: string, port = 9100
 // ─── Universal: route to Bluetooth or LAN based on cfg ───────────────────────
 
 export async function printReceipt(d: ReceiptData, cfg: BarSettings): Promise<void> {
-  const bytes = buildReceiptBytes(d, cfg)
+  const bytes = await buildReceiptBytes(d, cfg)
   if ((cfg.printerConnectionType ?? 'bluetooth') === 'lan') {
     if (!cfg.printerLanIp) throw new Error('ยังไม่ได้ตั้งค่า IP ปริ้นเตอร์ — ไปที่ Settings → Printer')
     await sendBytesViaLan(bytes, cfg.printerLanIp, cfg.printerLanPort ?? 9100)
