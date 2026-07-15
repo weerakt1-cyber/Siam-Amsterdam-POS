@@ -31,6 +31,7 @@ export type OrderStringKey =
   | 'somethingWrong' | 'networkError'
   | 'cancelOrder' | 'confirmCancel' | 'cancelling'
   | 'promoSavings' | 'promoPopupTitle' | 'promoPopupCta'
+  | 'payOnline' | 'paidLabel' | 'choosePayment' | 'payCard' | 'payPromptPay' | 'paidThanks'
 
 export const STRINGS: Record<Lang, Record<OrderStringKey, string>> = {
   en: {
@@ -86,6 +87,12 @@ export const STRINGS: Record<Lang, Record<OrderStringKey, string>> = {
     promoSavings:       'Promo savings',
     promoPopupTitle:    "🎉 Today's Deals",
     promoPopupCta:      'Start Ordering',
+    payOnline:          'Pay online',
+    paidLabel:          'Paid',
+    choosePayment:      'Choose how to pay',
+    payCard:            'Credit / Debit Card',
+    payPromptPay:       'PromptPay QR',
+    paidThanks:         'Paid — thank you! 🙏',
   },
   ru: {
     selectLanguage:    'Выберите язык',
@@ -140,6 +147,12 @@ export const STRINGS: Record<Lang, Record<OrderStringKey, string>> = {
     promoSavings:       'Скидка по акции',
     promoPopupTitle:    '🎉 Акции сегодня',
     promoPopupCta:      'Начать заказ',
+    payOnline:          'Оплатить онлайн',
+    paidLabel:          'Оплачено',
+    choosePayment:      'Выберите способ оплаты',
+    payCard:            'Банковская карта',
+    payPromptPay:       'PromptPay QR',
+    paidThanks:         'Оплачено — спасибо! 🙏',
   },
   zh: {
     selectLanguage:    '选择语言',
@@ -194,6 +207,12 @@ export const STRINGS: Record<Lang, Record<OrderStringKey, string>> = {
     promoSavings:       '促销优惠',
     promoPopupTitle:    '🎉 今日优惠',
     promoPopupCta:      '开始点餐',
+    payOnline:          '在线支付',
+    paidLabel:          '已支付',
+    choosePayment:      '选择支付方式',
+    payCard:            '信用卡 / 借记卡',
+    payPromptPay:       'PromptPay 二维码',
+    paidThanks:         '已支付，谢谢！🙏',
   },
 }
 

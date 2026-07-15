@@ -7,6 +7,7 @@ import {
   type BarSettings, type ReceiptData,
 } from '@/lib/printer'
 import { getTierByName, computePointsEarned, TIERS } from '@/lib/loyalty'
+import OmisePaymentModal, { type OmisePayType } from './OmisePaymentModal'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -164,6 +165,9 @@ export default function CheckoutModal({
   const [received, setReceived]         = useState('')
   const [isConfirming, setIsConfirming] = useState(false)
   const [orderRef, setOrderRef]             = useState('DRAFT')
+
+  const [showOmise, setShowOmise]   = useState(false)
+  const [omiseType, setOmiseType]   = useState<OmisePayType>('credit_card')
 
   // PromptPay static QR
   const [ppQr,      setPpQr]      = useState<string | null>(null)
@@ -454,6 +458,26 @@ export default function CheckoutModal({
                 ))}
               </div>
 
+              {/* Row 2: online (Omise) — Card + PromptPay */}
+              <p className="text-[9px] font-bold text-stone-300 uppercase tracking-widest text-center mb-1.5">Online Payment · Powered by Omise</p>
+              <div className="grid grid-cols-2 gap-2 mb-4">
+                {([
+                  { id: 'credit_card'  as OmisePayType, icon: '💳', label: 'Credit / Debit Card', accent: 'border-blue-400 bg-blue-50 text-blue-700'     },
+                  { id: 'promptpay_qr' as OmisePayType, icon: '📱', label: 'PromptPay QR',         accent: 'border-violet-400 bg-violet-50 text-violet-700' },
+                ]).map((pm) => (
+                  <button
+                    key={pm.id}
+                    onClick={() => { setPayment(pm.id); setReceived(''); setOmiseType(pm.id); setShowOmise(true) }}
+                    className={`py-3 rounded-xl flex flex-col items-center gap-1 transition active:scale-95 border-2 ${
+                      payment === pm.id ? pm.accent : 'bg-white text-stone-400 border-stone-200 hover:border-stone-300'
+                    }`}
+                  >
+                    <span className="text-xl">{pm.icon}</span>
+                    <span className="text-[10px] font-bold uppercase tracking-wide leading-tight text-center">{pm.label}</span>
+                  </button>
+                ))}
+              </div>
+
               {/* Cash panel — 3 preset banknote buttons */}
               {payment === 'cash' && (
                 <div className="flex flex-col gap-3">
@@ -610,6 +634,26 @@ export default function CheckoutModal({
         )}
       </div>
 
+      {/* Omise payment modal — overlays on top of CheckoutModal */}
+      {showOmise && (
+        <OmisePaymentModal
+          paymentType={omiseType}
+          total={total}
+          onSuccess={async () => {
+            setIsConfirming(true)
+            try {
+              const id = await onConfirm(omiseType)
+              setOrderRef(id.slice(-8).toUpperCase())
+              setStep(3)
+              setBtStatus('idle')
+            } catch { /* parent shows toast */ } finally {
+              setIsConfirming(false)
+              setShowOmise(false)
+            }
+          }}
+          onClose={() => { setShowOmise(false); setPayment('cash') }}
+        />
+      )}
     </div>
   )
 }

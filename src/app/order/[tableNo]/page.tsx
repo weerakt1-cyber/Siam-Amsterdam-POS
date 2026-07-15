@@ -5,6 +5,7 @@ import type { MenuItem, Promotion } from '@/lib/types'
 import { type CatEntry, CATEGORIES_CHANGED_EVENT, loadAllCategories, fetchCategories } from '@/lib/categories'
 import { type Lang, type OrderStringKey, LANGS, STRINGS, loadOrderLang, saveOrderLang } from '@/lib/order-i18n'
 import { applyPromotions, isPromotionActiveNow, promotionSummary } from '@/lib/promotions'
+import OmisePaymentModal, { type OmisePayType } from '@/components/pos/OmisePaymentModal'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -17,7 +18,7 @@ type CartItem = {
   variantLabel?: string
 }
 
-type OrderStatus = 'pending' | 'accepted' | 'ready' | 'delivered' | 'cancelled'
+type OrderStatus = 'pending' | 'accepted' | 'ready' | 'delivered' | 'cancelled' | 'paid'
 
 type PlacedOrder = {
   id: string
@@ -159,6 +160,21 @@ export default function OrderPage({ params }: { params: Promise<{ tableNo: strin
     const iv = setInterval(pollOrders, 5000)
     return () => clearInterval(iv)
   }, [phase, pollOrders])
+
+  // ── Online payment (Omise) — offered once the order is served (ready/delivered) ─
+  const [payOrder,  setPayOrder]  = useState<PlacedOrder | null>(null)
+  const [payMethod, setPayMethod] = useState<OmisePayType | null>(null)
+
+  async function markPaid(orderId: string, method: OmisePayType) {
+    try {
+      await fetch(`/api/orders/${orderId}`, {
+        method:  'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({ status: 'paid', paymentMethod: method }),
+      })
+      setOrders(prev => prev.map(o => o.id === orderId ? { ...o, status: 'paid' as OrderStatus } : o))
+    } catch { /* poll will reconcile */ }
+  }
 
   // ── Cancel an order (only while still pending — before staff accepts) ─────────
   const [cancelling, setCancelling] = useState<string | null>(null)
@@ -390,6 +406,7 @@ export default function OrderPage({ params }: { params: Promise<{ tableNo: strin
           {orders.map((order, i) => {
             const stepIdx     = statusIndex(order.status)
             const isCancelled = order.status === 'cancelled'
+            const isPaid      = order.status === 'paid'
             const currentStep = STATUS_STEPS[stepIdx]
             const isThisReady = order.status === 'ready' || order.status === 'delivered'
 
@@ -398,7 +415,7 @@ export default function OrderPage({ params }: { params: Promise<{ tableNo: strin
 
                 {/* Order header */}
                 <div className={`px-5 py-4 flex items-center justify-between ${
-                  isCancelled ? 'bg-gray-50' : isThisReady ? 'bg-emerald-50' : 'bg-white'
+                  isCancelled ? 'bg-gray-50' : isPaid ? 'bg-emerald-50' : isThisReady ? 'bg-emerald-50' : 'bg-white'
                 }`}>
                   <div>
                     <p className="text-xs text-gray-400 font-semibold uppercase tracking-widest">{t('orderNum')} #{i + 1}</p>
@@ -407,6 +424,10 @@ export default function OrderPage({ params }: { params: Promise<{ tableNo: strin
                   {isCancelled ? (
                     <span className="text-xs font-bold text-red-500 bg-red-50 border border-red-100 px-3 py-1.5 rounded-xl">
                       {t('cancelled')}
+                    </span>
+                  ) : isPaid ? (
+                    <span className="text-xs font-bold text-emerald-600 bg-emerald-50 border border-emerald-100 px-3 py-1.5 rounded-xl">
+                      ✓ {t('paidLabel')}
                     </span>
                   ) : (
                     <div className="text-right">
@@ -418,7 +439,7 @@ export default function OrderPage({ params }: { params: Promise<{ tableNo: strin
                 </div>
 
                 {/* Progress stepper */}
-                {!isCancelled && (
+                {!isCancelled && !isPaid && (
                   <div className="px-5 pb-4">
                     <div className="flex items-center mb-3">
                       {STATUS_STEPS.map((st, si) => (
@@ -487,6 +508,35 @@ export default function OrderPage({ params }: { params: Promise<{ tableNo: strin
                     <p className="text-xs text-emerald-500 mt-0.5">อาหารพร้อมแล้ว พนักงานกำลังนำมาส่ง</p>
                   </div>
                 )}
+
+                {/* Pay online — offered once the order is served, before it's paid */}
+                {(order.status === 'ready' || order.status === 'delivered') && (
+                  <div className="px-5 pb-5">
+                    <p className="text-[10px] font-bold text-gray-300 uppercase tracking-widest mb-2">{t('choosePayment')}</p>
+                    <div className="grid grid-cols-2 gap-2">
+                      <button
+                        onClick={() => { setPayOrder(order); setPayMethod('promptpay_qr') }}
+                        className="py-3 rounded-xl border-2 border-violet-300 bg-violet-50 text-violet-700 font-bold text-sm transition active:scale-95 flex flex-col items-center gap-1"
+                      >
+                        <span className="text-xl">📱</span>{t('payPromptPay')}
+                      </button>
+                      <button
+                        onClick={() => { setPayOrder(order); setPayMethod('credit_card') }}
+                        className="py-3 rounded-xl border-2 border-blue-300 bg-blue-50 text-blue-700 font-bold text-sm transition active:scale-95 flex flex-col items-center gap-1"
+                      >
+                        <span className="text-xl">💳</span>{t('payCard')}
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {/* Paid confirmation */}
+                {isPaid && (
+                  <div className="mx-4 mb-4 bg-emerald-50 border border-emerald-100 rounded-2xl p-4 text-center">
+                    <p className="text-2xl mb-1">✅</p>
+                    <p className="font-black text-emerald-800">{t('paidThanks')}</p>
+                  </div>
+                )}
               </div>
             )
           })}
@@ -499,6 +549,16 @@ export default function OrderPage({ params }: { params: Promise<{ tableNo: strin
           </button>
           <p className="text-xs text-center text-gray-400 pb-4">{t('tableLabel')} {selectedTable} · {t('refreshing')}</p>
         </main>
+
+        {/* Omise online payment (PromptPay QR / Card) */}
+        {payOrder && payMethod && (
+          <OmisePaymentModal
+            paymentType={payMethod}
+            total={payOrder.total}
+            onSuccess={async () => { await markPaid(payOrder.id, payMethod); setPayOrder(null); setPayMethod(null) }}
+            onClose={() => { setPayOrder(null); setPayMethod(null) }}
+          />
+        )}
       </div>
     )
   }
