@@ -2,15 +2,18 @@ export const dynamic = 'force-dynamic'
 
 import { NextRequest, NextResponse } from 'next/server'
 import QRCode from 'qrcode'
+import { getConfigMany } from '@/lib/store'
 
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const OmiseLib = require('omise')
 
-function getOmise() {
-  return OmiseLib({
-    secretKey:  process.env.OMISE_SECRET_KEY  ?? '',
-    publicKey:  process.env.NEXT_PUBLIC_OMISE_PUBLIC_KEY ?? '',
-  })
+// Keys come from Settings → Payment (app_config) first, then fall back to env.
+async function getOmise() {
+  const cfg = await getConfigMany(['omise_public_key', 'omise_secret_key'])
+  const secretKey = cfg.omise_secret_key || process.env.OMISE_SECRET_KEY || ''
+  const publicKey = cfg.omise_public_key || process.env.NEXT_PUBLIC_OMISE_PUBLIC_KEY || ''
+  if (!secretKey) throw new Error('Omise is not configured yet — add your keys in Settings → Payment')
+  return OmiseLib({ secretKey, publicKey })
 }
 
 export async function POST(req: NextRequest) {
@@ -22,7 +25,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Minimum charge is ฿20' }, { status: 400 })
     }
 
-    const omise = getOmise()
+    const omise = await getOmise()
 
     // ── Credit Card ──────────────────────────────────────────
     if (type === 'credit_card') {

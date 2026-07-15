@@ -187,6 +187,28 @@ export async function getCategories(): Promise<CatEntry[]> {
   return (data ?? []).map(mapCategory)
 }
 
+// ─── App config (key/value) ────────────────────────────────────────────────
+// Server-side settings that must not live in the browser (e.g. Omise secret key).
+
+export async function getConfig(key: string): Promise<string | null> {
+  const { data, error } = await supabase.from('app_config').select('value').eq('key', key).maybeSingle()
+  if (error || !data) return null
+  return (data.value as string | null) ?? null
+}
+
+export async function getConfigMany(keys: string[]): Promise<Record<string, string>> {
+  const { data, error } = await supabase.from('app_config').select('key, value').in('key', keys)
+  if (error || !data) return {}
+  const out: Record<string, string> = {}
+  for (const row of data) if (row.value != null) out[row.key as string] = row.value as string
+  return out
+}
+
+export async function setConfig(key: string, value: string): Promise<void> {
+  const { error } = await supabase.from('app_config').upsert({ key, value, updated_at: now() })
+  if (error) throw error
+}
+
 // Full-replace semantics — matches how the Categories manager already mutates
 // the whole array client-side (add/delete/reorder), so persisting is one shot.
 export async function saveCategories(cats: CatEntry[]): Promise<CatEntry[]> {

@@ -1,6 +1,7 @@
 export const dynamic = 'force-dynamic'
 
 import { NextRequest, NextResponse } from 'next/server'
+import { getConfig } from '@/lib/store'
 
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const OmiseLib = require('omise')
@@ -11,7 +12,8 @@ export async function GET(
 ) {
   try {
     const { chargeId } = await params
-    const omise = OmiseLib({ secretKey: process.env.OMISE_SECRET_KEY ?? '' })
+    const secretKey = (await getConfig('omise_secret_key')) || process.env.OMISE_SECRET_KEY || ''
+    const omise = OmiseLib({ secretKey })
     const charge = await omise.charges.retrieve(chargeId)
     return NextResponse.json({ status: charge.status, paid: charge.paid })
   } catch (err: unknown) {

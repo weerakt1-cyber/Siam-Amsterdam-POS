@@ -52,20 +52,28 @@ export default function OmisePaymentModal({ paymentType, total, onSuccess, onClo
 
   const meta = META[paymentType]
 
-  // Load Omise.js CDN for card tokenization
+  // Load Omise.js CDN for card tokenization. The publishable key comes from
+  // Settings → Payment (via /api/payment/config), falling back to the env var
+  // server-side, so no NEXT_PUBLIC_ env var is required to make cards work.
   useEffect(() => {
     if (paymentType !== 'credit_card') return
-    const pk = process.env.NEXT_PUBLIC_OMISE_PUBLIC_KEY ?? ''
-    if (typeof window !== 'undefined' && window.Omise) {
-      window.Omise.setPublicKey(pk)
-      setOmiseReady(true)
-      return
-    }
-    const script = document.createElement('script')
-    script.src = 'https://cdn.omise.co/omise.js'
-    script.onload = () => { window.Omise.setPublicKey(pk); setOmiseReady(true) }
-    document.body.appendChild(script)
-    return () => { try { document.body.removeChild(script) } catch { /* ignore */ } }
+    let cancelled = false
+    ;(async () => {
+      let pk = ''
+      try {
+        const r = await fetch('/api/payment/config')
+        if (r.ok) pk = (await r.json()).publicKey ?? ''
+      } catch { /* fall through — modal shows an error on submit if empty */ }
+      if (cancelled) return
+      if (typeof window !== 'undefined' && window.Omise) {
+        window.Omise.setPublicKey(pk); setOmiseReady(true); return
+      }
+      const script = document.createElement('script')
+      script.src = 'https://cdn.omise.co/omise.js'
+      script.onload = () => { window.Omise.setPublicKey(pk); setOmiseReady(true) }
+      document.body.appendChild(script)
+    })()
+    return () => { cancelled = true }
   }, [paymentType])
 
   // Auto-start QR flow for non-card types

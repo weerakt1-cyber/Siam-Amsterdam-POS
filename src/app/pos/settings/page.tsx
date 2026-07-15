@@ -43,6 +43,132 @@ function SettingInput({
   )
 }
 
+// ─── Payment (Omise) sub-component ────────────────────────────────────────────
+
+function PaymentSettings() {
+  const [publicKey, setPublicKey]   = useState('')
+  const [secretKey, setSecretKey]   = useState('')          // only sent if the user types a new one
+  const [secretSet, setSecretSet]   = useState(false)
+  const [secretLast4, setSecretLast4] = useState<string | null>(null)
+  const [mode, setMode]             = useState<'test' | 'live' | null>(null)
+  const [fromEnv, setFromEnv]       = useState(false)
+  const [loading, setLoading]       = useState(true)
+  const [saving, setSaving]         = useState(false)
+  const [saved, setSaved]           = useState(false)
+  const [error, setError]           = useState('')
+
+  const load = useCallback(async () => {
+    try {
+      const r = await fetch('/api/payment/config')
+      const d = await r.json()
+      setPublicKey(d.publicKey ?? '')
+      setSecretSet(!!d.secretConfigured)
+      setSecretLast4(d.secretLast4 ?? null)
+      setMode(d.mode ?? null)
+      setFromEnv(!!d.fromEnv)
+    } catch { /* ignore */ } finally {
+      setLoading(false)
+    }
+  }, [])
+
+  useEffect(() => { load() }, [load])
+
+  // Live vs test is inferred from the key prefix the user pastes.
+  const typedMode: 'test' | 'live' | null =
+    publicKey.includes('_test_') || secretKey.includes('_test_') ? 'test'
+    : (publicKey.startsWith('pkey_') || secretKey.startsWith('skey_')) ? 'live'
+    : mode
+
+  async function save() {
+    setSaving(true); setError(''); setSaved(false)
+    try {
+      const body: Record<string, string> = { publicKey: publicKey.trim() }
+      if (secretKey.trim()) body.secretKey = secretKey.trim()   // don't overwrite unless a new one is entered
+      const r = await fetch('/api/payment/config', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
+      })
+      if (!r.ok) throw new Error((await r.json()).error ?? 'Save failed')
+      setSecretKey('')
+      await load()
+      setSaved(true)
+      setTimeout(() => setSaved(false), 2500)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Save failed')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  if (loading) return <p className="text-sm text-gray-400">Loading…</p>
+
+  return (
+    <div className="flex flex-col gap-4">
+      <div className="flex items-center gap-2">
+        <p className="text-sm text-gray-500">Accept Card &amp; PromptPay online via Omise.</p>
+        {typedMode && (
+          <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+            typedMode === 'live' ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'
+          }`}>
+            {typedMode === 'live' ? 'LIVE MODE' : 'TEST MODE'}
+          </span>
+        )}
+      </div>
+
+      {fromEnv && (
+        <p className="text-xs text-blue-600 bg-blue-50 border border-blue-100 rounded-xl px-3 py-2">
+          Keys are currently set from Vercel environment variables. Saving here will override them.
+        </p>
+      )}
+
+      <div>
+        <label className="text-xs text-gray-500 mb-1 block">Publishable key (pkey_…)</label>
+        <input
+          value={publicKey}
+          onChange={e => setPublicKey(e.target.value)}
+          placeholder="pkey_test_xxxxxxxxxxxxxxxx"
+          className="w-full bg-white border border-gray-200 rounded-xl px-3 py-2.5 text-sm font-mono text-gray-900 placeholder:text-gray-300 focus:outline-none focus:border-amber-400 transition"
+        />
+      </div>
+
+      <div>
+        <label className="text-xs text-gray-500 mb-1 block">
+          Secret key (skey_…)
+          {secretSet && <span className="text-emerald-600 font-semibold ml-2">✓ set ••••{secretLast4}</span>}
+        </label>
+        <input
+          type="password"
+          value={secretKey}
+          onChange={e => setSecretKey(e.target.value)}
+          placeholder={secretSet ? 'Enter a new key to replace' : 'skey_test_xxxxxxxxxxxxxxxx'}
+          autoComplete="off"
+          className="w-full bg-white border border-gray-200 rounded-xl px-3 py-2.5 text-sm font-mono text-gray-900 placeholder:text-gray-300 focus:outline-none focus:border-amber-400 transition"
+        />
+        <p className="text-[11px] text-gray-400 mt-1">The secret key is stored server-side and never shown again.</p>
+      </div>
+
+      {error && <p className="text-xs text-red-500">{error}</p>}
+
+      <div className="flex items-center gap-3">
+        <button
+          onClick={save}
+          disabled={saving}
+          className="px-5 py-2.5 rounded-xl bg-gray-900 text-white font-bold text-sm transition active:scale-95 disabled:opacity-50"
+        >
+          {saving ? 'Saving…' : saved ? '✓ Saved' : 'Save Keys'}
+        </button>
+        <a href="https://dashboard.omise.co" target="_blank" rel="noopener noreferrer" className="text-xs text-amber-600 hover:underline">
+          Get keys from Omise dashboard →
+        </a>
+      </div>
+
+      <p className="text-[11px] text-gray-400 leading-relaxed border-t border-gray-100 pt-3">
+        Test keys let you try the full flow now. To accept real money you need <strong>live keys</strong>, which
+        Omise issues only after your company bank account and KYC are approved.
+      </p>
+    </div>
+  )
+}
+
 // ─── Main Page ─────────────────────────────────────────────────────────────────
 
 // ─── API & Webhooks sub-component ─────────────────────────────────────────────
@@ -301,13 +427,14 @@ function ApiWebhooksSection() {
 
 // ─── Main Page ─────────────────────────────────────────────────────────────────
 
-type TabKey = 'general' | 'printer' | 'qr' | 'notify' | 'integrations'
+type TabKey = 'general' | 'printer' | 'qr' | 'notify' | 'payment' | 'integrations'
 
 const TABS: { key: TabKey; label: string }[] = [
   { key: 'general',      label: '⚙️ General' },
   { key: 'printer',      label: '🖨️ Receipt & Printer' },
   { key: 'qr',           label: '📱 QR Ordering' },
   { key: 'notify',       label: '🔔 Notifications' },
+  { key: 'payment',      label: '💳 Payment' },
   { key: 'integrations', label: '🔌 Integrations' },
 ]
 
@@ -1244,6 +1371,14 @@ export default function SettingsPage() {
                 }
               </p>
             </div>
+          </div>
+        </section>}
+
+        {/* ── Payment (Omise) ── */}
+        {activeTab === 'payment' && <section>
+          <SectionTitle>Online Payment · Omise</SectionTitle>
+          <div className="bg-white border border-gray-100 rounded-2xl p-5 shadow-sm">
+            <PaymentSettings />
           </div>
         </section>}
 
