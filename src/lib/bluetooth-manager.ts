@@ -112,8 +112,9 @@ class BluetoothManager {
     // ทางที่ 2 (fallback): ใช้ requestPermissions ของ capacitor-thermal-printer เอง
     try {
       const { CapacitorThermalPrinter } = await import('capacitor-thermal-printer')
-      if (typeof (CapacitorThermalPrinter as any).requestPermissions === 'function') {
-        const result = await (CapacitorThermalPrinter as any).requestPermissions()
+      const plugin = CapacitorThermalPrinter as { requestPermissions?: () => Promise<Record<string, string>> }
+      if (typeof plugin.requestPermissions === 'function') {
+        const result = await plugin.requestPermissions()
         const granted = Object.values(result ?? {}).every(v => v === 'granted')
         if (!granted) {
           this.emit({ type: 'error', message: 'ไม่ได้รับสิทธิ์ Bluetooth — ไปที่ Settings → Apps → Baze POS → Permissions' })

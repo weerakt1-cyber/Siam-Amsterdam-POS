@@ -131,17 +131,6 @@ async function compressImage(file: File): Promise<string> {
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
 
-function MarginPill({ price, cost }: { price: string; cost: string }) {
-  const m = margin(price, cost)
-  if (m === null) return null
-  const color = m >= 65 ? 'text-emerald-400' : m >= 40 ? 'text-amber-400' : 'text-red-400'
-  return (
-    <span className={`text-xs font-bold ${color}`}>
-      {m}% margin
-    </span>
-  )
-}
-
 function VariantEditor({
   variants,
   onChange,

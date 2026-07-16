@@ -12,7 +12,7 @@ export async function GET() {
 
   // Fetch auth user emails for display
   const ids = (data ?? []).map((p: { id: string }) => p.id)
-  let emails: Record<string, string> = {}
+  const emails: Record<string, string> = {}
   if (ids.length > 0) {
     const { data: { users } } = await supabase.auth.admin.listUsers()
     for (const u of users ?? []) {
