@@ -5,6 +5,7 @@ import type { MenuItem, Variant, VariantOption, InventoryItem, MenuIngredient } 
 import NumPad from '@/components/pos/NumPad'
 import { useAuth } from '@/lib/pos-auth'
 import { type CatEntry, loadAllCategories, fetchCategories, persistCategories } from '@/lib/categories'
+import { AI_NAME } from '@/lib/ai-brand'
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -1166,7 +1167,7 @@ export default function ItemsPage() {
                 <span className="text-xl text-violet-400">✦</span>
                 <div>
                   <h2 className="font-black text-white text-base">AI Price Optimizer</h2>
-                  <p className="text-xs text-gray-400">Based on 30-day sales data · claude-sonnet-4-6</p>
+                  <p className="text-xs text-gray-400">Based on 30-day sales data · {AI_NAME}</p>
                 </div>
               </div>
               <button

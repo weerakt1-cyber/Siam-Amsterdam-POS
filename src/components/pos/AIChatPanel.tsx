@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useRef, useEffect, useCallback } from 'react'
+import { AI_NAME } from '@/lib/ai-brand'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -224,7 +225,7 @@ export default function AIChatPanel() {
         className={`fixed bottom-20 right-4 sm:bottom-6 sm:right-5 z-[60] w-14 h-14 rounded-full shadow-xl flex items-center justify-center text-2xl transition-all active:scale-95 select-none ${
           open ? 'bg-stone-800 text-white' : 'bg-amber-500 hover:bg-amber-400 text-white'
         }`}
-        title="AI Assistant"
+        title={AI_NAME}
       >
         {open ? '✕' : '🤖'}
       </button>
@@ -245,13 +246,13 @@ export default function AIChatPanel() {
             <span className="text-xl">🤖</span>
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2">
-                <p className="text-sm font-bold leading-none">AI Assistant</p>
+                <p className="text-sm font-bold leading-none">{AI_NAME}</p>
                 <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full leading-none ${PLAN_COLOR[PLAN]}`}>
                   {PLAN_LABEL[PLAN]}
                 </span>
               </div>
               <p className="text-[10px] text-stone-400 mt-0.5 leading-none">
-                Claude Sonnet · {maxMonths >= 9999 ? 'ไม่จำกัดเดือน' : `ข้อมูลย้อนหลัง ${maxMonths} เดือน`}
+                Powered by Claude · {maxMonths >= 9999 ? 'ไม่จำกัดเดือน' : `ข้อมูลย้อนหลัง ${maxMonths} เดือน`}
               </p>
             </div>
             {msgs.length > 0 && (

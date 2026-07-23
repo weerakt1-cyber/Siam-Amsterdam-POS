@@ -11,6 +11,7 @@ import {
 } from '@/lib/printer'
 import { useBluetooth, bluetoothManager } from '@/lib/bluetooth-manager'
 import { OwnerProfileBadge } from '@/components/pos/GoogleAuthGuard'
+import { AI_NAME, APP_VERSION } from '@/lib/ai-brand'
 
 // ─── Section title ─────────────────────────────────────────────────────────────
 
@@ -874,8 +875,8 @@ export default function SettingsPage() {
     {
       icon: '🤖',
       title: 'AI Model',
-      description: 'Claude model used for analytics and smart suggestions.',
-      badge: 'claude-sonnet-4-6',
+      description: 'BAZE AI engine used for analytics and smart suggestions (powered by Claude).',
+      badge: AI_NAME,
     },
     {
       icon: '📱',
@@ -1904,8 +1905,8 @@ export default function SettingsPage() {
       )}
 
       <div className="px-6 py-3 border-t border-gray-100 text-xs text-gray-400 shrink-0 flex items-center justify-between bg-white">
-        <span>BAZE POS v1.0</span>
-        <span>claude-sonnet-4-6</span>
+        <span>BAZE POS v{APP_VERSION}</span>
+        <span>{AI_NAME}</span>
       </div>
     </div>
   )

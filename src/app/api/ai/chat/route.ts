@@ -3,6 +3,7 @@ export const dynamic = 'force-dynamic'
 import { NextRequest, NextResponse } from 'next/server'
 import Anthropic from '@anthropic-ai/sdk'
 import { supabase } from '@/lib/supabase'
+import { AI_NAME, AI_MODEL } from '@/lib/ai-brand'
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY! })
 
@@ -146,7 +147,8 @@ export async function POST(req: NextRequest) {
       Promise.resolve(file ? buildFileContext(file, plan) : ''),
     ])
 
-    const systemPrompt = `คุณคือผู้ช่วย AI ของบาร์นี้ ที่รู้ทุกอย่างเกี่ยวกับธุรกิจนี้
+    const systemPrompt = `คุณคือ ${AI_NAME} ผู้ช่วย AI อัจฉริยะของระบบ BAZE POS ที่รู้ทุกอย่างเกี่ยวกับธุรกิจนี้
+ถ้าถูกถามว่าคุณคือใครหรือใช้โมเดลอะไร ให้ตอบว่าคุณคือ "${AI_NAME}" ผู้ช่วย AI ของ BAZE POS
 
 ${businessContext}
 ${fileContext}
@@ -161,7 +163,10 @@ ${fileContext}
 - สำหรับการนำเข้าข้อมูล: วิเคราะห์ก่อนเสมอ รอการยืนยันจาก User ก่อนนำเข้าจริง`
 
     const stream = anthropic.messages.stream({
-      model:      'claude-sonnet-4-6',
+      model:      AI_MODEL,
+      // Sonnet 5 runs adaptive thinking by default — disable it so the small
+      // max_tokens budget goes entirely to the visible answer (fast tablet chat)
+      thinking:   { type: 'disabled' },
       max_tokens: file ? 2048 : 1024,
       system:     systemPrompt,
       messages:   messages.map(m => ({

@@ -3,6 +3,7 @@ export const dynamic = 'force-dynamic'
 import { NextResponse } from 'next/server'
 import Anthropic from '@anthropic-ai/sdk'
 import { supabase } from '@/lib/supabase'
+import { AI_MODEL } from '@/lib/ai-brand'
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY! })
 
@@ -107,7 +108,10 @@ Return ONLY a valid JSON object, no markdown, no explanation. The object must ma
 Provide 5-10 high-confidence suggestions. Only suggest changes where the data clearly supports it.`
 
   const response = await anthropic.messages.create({
-    model:      'claude-sonnet-4-6',
+    model:      AI_MODEL,
+    // Sonnet 5 runs adaptive thinking by default — disable so the 1024-token
+    // budget goes entirely to the JSON output
+    thinking:   { type: 'disabled' },
     max_tokens: 1024,
     system:     'You are a pricing strategist for a Bangkok bar. Identify pricing opportunities. Return only valid JSON.',
     messages:   [{ role: 'user', content: prompt }],
