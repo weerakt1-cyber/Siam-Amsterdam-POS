@@ -10,6 +10,7 @@ import NotificationBell from '@/components/pos/NotificationBell'
 import { loadBarSettings, DEFAULT_BAR_SETTINGS, printReceipt, type BarSettings } from '@/lib/printer'
 import { type CatEntry, CATEGORIES_CHANGED_EVENT, loadAllCategories, fetchCategories } from '@/lib/categories'
 import { FLOOR_LAYOUT_CHANGED_EVENT, loadFloorTables } from '@/lib/floor'
+import { getThaiGreeting, getDailyQuote } from '@/lib/greeting'
 
 const ALL_CHIP: CatEntry = { value: 'all', label: 'All', color: 'bg-gray-200 text-gray-700', icon: '🍽️' }
 
@@ -113,6 +114,7 @@ export default function POSPage() {
   // so the tables you can ring up always match the room drawn on the floor plan.
   const [tables, setTables] = useState<string[]>(() => loadFloorTables())
   const [table, setTable] = useState(() => loadFloorTables()[0] ?? 'T1')
+  const [tablePickerOpen, setTablePickerOpen] = useState(false)
   const [category, setCategory] = useState('all')
   const [categories, setCategories] = useState<CatEntry[]>(() => loadAllCategories())
   const [menu, setMenu] = useState<MenuItem[]>([])
@@ -1041,35 +1043,71 @@ export default function POSPage() {
 
       {/* ── Header ── */}
       <div className="flex items-center gap-2 px-3 py-2 bg-white border-b border-stone-200 shrink-0 shadow-sm">
-        <span className="font-black text-sm text-stone-900 mr-2 shrink-0 whitespace-nowrap leading-none tracking-tight">
-          {bizName}
-        </span>
+        {/* Greeting + daily power quote (replaces the old table-tab strip) */}
+        {(() => {
+          const greet = getThaiGreeting()
+          const quote = getDailyQuote()
+          return (
+            <div className="flex-1 min-w-0 flex items-center gap-2.5 rounded-xl bg-gradient-to-r from-amber-50 via-orange-50/60 to-transparent px-3 py-1">
+              <span className="text-xl shrink-0 leading-none">{greet.emoji}</span>
+              <div className="min-w-0 flex flex-col justify-center">
+                <p className="text-xs font-black text-stone-800 leading-tight truncate">
+                  {greet.text}{' '}
+                  <span className="bg-gradient-to-r from-amber-600 to-orange-500 bg-clip-text text-transparent">{bizName}</span>
+                  {' '}!
+                </p>
+                <p className="text-[10px] text-stone-400 italic leading-tight truncate">
+                  ✨ “{quote}”
+                </p>
+              </div>
+            </div>
+          )
+        })()}
 
-        {/* Table tabs — amber dot on tables with items in cart */}
-        <div className="flex gap-1 overflow-x-auto flex-1 py-0.5">
-          {tables.map((t) => {
-            const hasItems = (carts[t] ?? []).length > 0
-            return (
-              <button
-                key={t}
-                onClick={() => setTable(t)}
-                className={`relative px-3 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition shrink-0 active:scale-95 ${
-                  table === t
-                    ? 'bg-stone-900 text-white shadow-sm'
-                    : 'bg-stone-100 text-stone-600 hover:bg-stone-200'
-                }`}
-              >
-                {t}
-                {hasItems && t !== table && (
-                  <span className="absolute top-1 right-1 w-1.5 h-1.5 bg-amber-500 rounded-full" />
-                )}
-              </button>
-            )
-          })}
-        </div>
-
-        {/* Hold Bill + Drawer + Alerts */}
+        {/* Table picker + Hold Bill + Drawer + Alerts */}
         <div className="flex items-center gap-2 ml-1 shrink-0">
+          {/* Single table button — opens a grid picker */}
+          <div className="relative">
+            <button
+              onClick={() => setTablePickerOpen(v => !v)}
+              className="relative bg-stone-900 hover:bg-stone-800 active:scale-95 text-white transition text-sm font-bold px-3 py-2 rounded-xl flex items-center gap-1.5 shadow-sm"
+            >
+              🪑 {table}
+              <span className={`text-[9px] transition-transform ${tablePickerOpen ? 'rotate-180' : ''}`}>▼</span>
+              {tables.some(t => t !== table && (carts[t] ?? []).length > 0) && (
+                <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-amber-500 rounded-full border-2 border-white" />
+              )}
+            </button>
+            {tablePickerOpen && (
+              <>
+                <div className="fixed inset-0 z-40" onClick={() => setTablePickerOpen(false)} />
+                <div className="absolute right-0 top-full mt-2 z-50 bg-white rounded-2xl shadow-2xl border border-stone-200 p-3 w-72">
+                  <p className="text-[10px] font-bold text-stone-400 uppercase tracking-widest mb-2">เลือกโต๊ะ · Select Table</p>
+                  <div className="grid grid-cols-4 gap-1.5 max-h-72 overflow-y-auto">
+                    {tables.map((t) => {
+                      const hasItems = (carts[t] ?? []).length > 0
+                      return (
+                        <button
+                          key={t}
+                          onClick={() => { setTable(t); setTablePickerOpen(false) }}
+                          className={`relative px-2 py-2.5 rounded-xl text-xs font-bold whitespace-nowrap transition active:scale-95 ${
+                            table === t
+                              ? 'bg-stone-900 text-white shadow-sm'
+                              : 'bg-stone-100 text-stone-600 hover:bg-stone-200'
+                          }`}
+                        >
+                          {t}
+                          {hasItems && t !== table && (
+                            <span className="absolute top-1 right-1 w-1.5 h-1.5 bg-amber-500 rounded-full" />
+                          )}
+                        </button>
+                      )
+                    })}
+                  </div>
+                </div>
+              </>
+            )}
+          </div>
           <button
             onClick={handleHoldBill}
             disabled={!cart.some(c => !c.fromOrderId)}
