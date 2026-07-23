@@ -3,6 +3,7 @@ export const dynamic = "force-dynamic"
 import { NextRequest, NextResponse } from 'next/server'
 import { getOrder, updateOrderStatus, getMenuIngredients, adjustStock } from '@/lib/store'
 import { fireWebhook } from '@/lib/webhooks'
+import { getAdapter } from '@/lib/delivery-platforms'
 import type { OrderStatus } from '@/lib/types'
 
 const VALID_STATUSES: OrderStatus[] = ['pending', 'accepted', 'ready', 'delivered', 'cancelled', 'paid']
@@ -25,6 +26,25 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
 
   const updated = await updateOrderStatus(id, status as OrderStatus, paymentMethod ? String(paymentMethod) : undefined)
   if (!updated) return NextResponse.json({ error: 'Order not found' }, { status: 404 })
+
+  // Delivery webhook orders: relay status changes back to the platform (non-blocking).
+  // Manually keyed delivery orders have no platformOrderId — nothing to relay.
+  if (updated.channel && updated.platformOrderId) {
+    const adapter = getAdapter(updated.channel)
+    if (adapter) {
+      const pid = updated.platformOrderId
+      if (status === 'accepted') {
+        adapter.acceptOrder(pid, true).catch(err =>
+          console.error(`[Orders PATCH] ${updated.channel} accept relay failed:`, err))
+      } else if (status === 'ready') {
+        adapter.markOrderReady(pid).catch(err =>
+          console.error(`[Orders PATCH] ${updated.channel} mark-ready relay failed:`, err))
+      } else if (status === 'cancelled') {
+        adapter.acceptOrder(pid, false).catch(err =>
+          console.error(`[Orders PATCH] ${updated.channel} reject relay failed:`, err))
+      }
+    }
+  }
 
   if (status === 'paid') {
     deductStockForOrder(updated.id).catch(err =>

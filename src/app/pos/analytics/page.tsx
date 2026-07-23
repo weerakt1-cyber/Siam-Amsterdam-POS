@@ -26,6 +26,8 @@ type AnalyticsData = {
   topItems:      { name: string; nameTh: string; menuId: string; qty: number; revenue: number }[]
   byPayment:     { method: string; count: number; revenue: number }[]
   bySource:      { source: string; count: number; revenue: number }[]
+  byChannel?:    { channel: string; count: number; gross: number; commission: number; net: number }[]
+  deliveryStats?: { orders: number; gross: number; commission: number; net: number; inStoreRevenue: number }
   byHour:        number[]
   byCategory:    { category: string; revenue: number; qty: number }[]
   memberStats:   { withMember: number; withoutMember: number; memberRevenue: number; nonMemberRevenue: number }
@@ -68,6 +70,16 @@ const SRC_LABELS: Record<string, string> = {
   pos:    'POS (Staff)',
   qr:     'QR Self-Order',
   manual: 'Manual',
+}
+const CH_COLORS: Record<string, string> = {
+  grab:       'bg-green-500',
+  lineman:    'bg-emerald-500',
+  shopeefood: 'bg-orange-500',
+}
+const CH_LABELS: Record<string, string> = {
+  grab:       'GrabFood',
+  lineman:    'LINE MAN',
+  shopeefood: 'Shopee Food',
 }
 const CAT_COLORS: Record<string, string> = {
   Cocktail: 'bg-amber-500',
@@ -645,6 +657,38 @@ export default function AnalyticsPage() {
                 </div>
               )}
             </div>
+
+            {/* Delivery Channels — gross vs net after platform commission */}
+            {data?.byChannel && data.byChannel.length > 0 && data.deliveryStats && (
+              <>
+                <div className="border-t border-stone-200" />
+                <div>
+                  <SectionTitle>🛵 Delivery Channels</SectionTitle>
+                  <div className="space-y-3">
+                    {data.byChannel.map(c => (
+                      <HBar
+                        key={c.channel}
+                        label={CH_LABELS[c.channel] ?? c.channel}
+                        value={c.gross}
+                        maxValue={data.deliveryStats!.gross}
+                        color={CH_COLORS[c.channel] ?? 'bg-slate-500'}
+                        sub={`${c.count} orders · net ${baht(c.net)}`}
+                      />
+                    ))}
+                    <div className="flex items-center justify-between text-xs text-stone-500 bg-stone-50 rounded-lg px-3 py-2 mt-1">
+                      <span>
+                        Delivery {baht(data.deliveryStats.gross)} gross
+                        <span className="text-red-400"> − {baht(data.deliveryStats.commission)} commission</span>
+                      </span>
+                      <span className="font-bold text-emerald-600">= {baht(data.deliveryStats.net)} net</span>
+                    </div>
+                    <p className="text-[11px] text-stone-400">
+                      Delivery is {pct(data.deliveryStats.gross, data.stats.revenue)}% of revenue · in-store {baht(data.deliveryStats.inStoreRevenue)}
+                    </p>
+                  </div>
+                </div>
+              </>
+            )}
           </Card>
         </div>
 

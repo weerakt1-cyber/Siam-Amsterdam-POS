@@ -13,6 +13,7 @@ const NAV = [
   { href: '/pos',            icon: '🛍️',  label: 'POS'       },
   { href: '/pos/floor',      icon: '🗺️',  label: 'Floor'     },
   { href: '/pos/kitchen',    icon: '🍳',  label: 'Kitchen'   },
+  { href: '/pos/delivery',   icon: '🛵',  label: 'Delivery'  },
   { href: '/pos/inventory',  icon: '📦',  label: 'Inventory' },
   { href: '/pos/items',      icon: '🍽️',  label: 'Items'     },
   { href: '/pos/members',    icon: '👥',  label: 'Members'   },

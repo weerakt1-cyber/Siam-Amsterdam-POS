@@ -1,7 +1,7 @@
 import { supabase } from './supabase'
 import bcrypt from 'bcryptjs'
 import type {
-  Order, OrderItem, OrderStatus, OrderDiscount, OrderSource,
+  Order, OrderItem, OrderStatus, OrderDiscount, OrderSource, OrderType, DeliveryChannel,
   MenuItem, MenuCategory, Variant,
   Member,
   InventoryItem, InventoryCategory, StockAdjustment, AdjustReason,
@@ -61,6 +61,11 @@ function mapOrder(row: Record<string, unknown>): Order {
     paymentMethod: row.payment_method as string | undefined,
     memberName:    row.member_name as string | undefined,
     customerName:  row.customer_name as string | undefined,
+    orderType:     (row.order_type as OrderType | null) ?? 'dine-in',
+    channel:       (row.channel as DeliveryChannel | null) ?? undefined,
+    platformCode:  (row.platform_code as string | null) ?? undefined,
+    platformOrderId: (row.platform_order_id as string | null) ?? undefined,
+    commissionRate: row.commission_rate != null ? Number(row.commission_rate) : undefined,
     createdAt:     row.created_at as string,
     updatedAt:     row.updated_at as string,
   }
@@ -315,6 +320,17 @@ export async function getOrder(id: string): Promise<Order | undefined> {
   return mapOrder(data)
 }
 
+// Webhook idempotency lookup — has this platform order already been ingested?
+export async function getOrderByPlatformOrderId(platformOrderId: string): Promise<Order | undefined> {
+  const { data, error } = await supabase
+    .from('orders')
+    .select('*, order_items(*)')
+    .eq('platform_order_id', platformOrderId)
+    .maybeSingle()
+  if (error || !data) return undefined
+  return mapOrder(data)
+}
+
 export async function createOrder(data: {
   tableNo: string
   items: OrderItem[]
@@ -325,12 +341,20 @@ export async function createOrder(data: {
   memberName?: string
   customerName?: string
   hold?: boolean  // true = ส่งครัว/บาร์ทันทีแต่ "พักบิล" ไว้ ยังไม่เก็บเงิน (status เริ่มที่ pending เหมือน QR order)
+  orderType?: OrderType
+  channel?: DeliveryChannel
+  platformCode?: string
+  platformOrderId?: string
+  commissionRate?: number
 }): Promise<Order> {
   const subtotal = data.items.reduce((s, i) => s + i.price * i.qty, 0)
   const total    = Math.max(0, subtotal - (data.discount?.amount ?? 0))
   const id       = makeId('ord')
   const ts       = now()
-  const status   = data.hold ? 'pending' : (data.source === 'pos' ? 'paid' : 'pending')
+  // Delivery orders always start pending (kitchen queue) — they're marked paid on rider pickup
+  const status   = data.hold || data.orderType === 'delivery'
+    ? 'pending'
+    : (data.source === 'pos' ? 'paid' : 'pending')
 
   const { error: orderErr } = await supabase.from('orders').insert({
     id,
@@ -344,6 +368,11 @@ export async function createOrder(data: {
     payment_method: data.paymentMethod ?? null,
     member_name:    data.memberName ?? null,
     customer_name:  data.customerName ?? null,
+    order_type:     data.orderType ?? 'dine-in',
+    channel:        data.channel ?? null,
+    platform_code:  data.platformCode ?? null,
+    platform_order_id: data.platformOrderId ?? null,
+    commission_rate: data.commissionRate ?? null,
     created_at:     ts,
     updated_at:     ts,
   })
@@ -370,6 +399,9 @@ export async function createOrder(data: {
     note: data.note ?? '', status,
     source: data.source ?? 'manual', subtotal, discount: data.discount, total,
     paymentMethod: data.paymentMethod, memberName: data.memberName, customerName: data.customerName,
+    orderType: data.orderType ?? 'dine-in', channel: data.channel,
+    platformCode: data.platformCode, platformOrderId: data.platformOrderId,
+    commissionRate: data.commissionRate,
     createdAt: ts, updatedAt: ts,
   }
 }
@@ -1035,6 +1067,27 @@ export async function getAnalyticsData(period: '7d' | '30d' | 'all' = '7d') {
   }
   const byCategory = Object.entries(catMap).map(([category, d]) => ({ category, ...d })).sort((a, b) => b.revenue - a.revenue)
 
+  // Delivery channels (Grab / LINE MAN / Shopee Food) — gross vs net after commission
+  const chMap: Record<string, { count: number; gross: number; commission: number }> = {}
+  for (const o of periodOrders) {
+    if (!o.channel) continue
+    if (!chMap[o.channel]) chMap[o.channel] = { count: 0, gross: 0, commission: 0 }
+    chMap[o.channel].count++
+    chMap[o.channel].gross      += o.total
+    chMap[o.channel].commission += o.total * (o.commissionRate ?? 0)
+  }
+  const byChannel = Object.entries(chMap)
+    .map(([channel, d]) => ({ channel, count: d.count, gross: d.gross, commission: Math.round(d.commission), net: Math.round(d.gross - d.commission) }))
+    .sort((a, b) => b.gross - a.gross)
+  const deliveryGross = byChannel.reduce((s, c) => s + c.gross, 0)
+  const deliveryStats = {
+    orders:     byChannel.reduce((s, c) => s + c.count, 0),
+    gross:      deliveryGross,
+    commission: byChannel.reduce((s, c) => s + c.commission, 0),
+    net:        byChannel.reduce((s, c) => s + c.net, 0),
+    inStoreRevenue: revenue - deliveryGross,
+  }
+
   const memberOrders     = periodOrders.filter(o => o.memberName)
   const memberRevenue    = memberOrders.reduce((s, o) => s + o.total, 0)
   const discountedOrders = periodOrders.filter(o => o.discount?.amount)
@@ -1047,6 +1100,8 @@ export async function getAnalyticsData(period: '7d' | '30d' | 'all' = '7d') {
     topItems,
     byPayment,
     bySource,
+    byChannel,
+    deliveryStats,
     byHour,
     byCategory,
     memberStats: { withMember: memberOrders.length, withoutMember: orderCount - memberOrders.length, memberRevenue, nonMemberRevenue: revenue - memberRevenue },

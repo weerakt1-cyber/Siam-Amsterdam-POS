@@ -57,7 +57,13 @@ function OrderCard({ order, onUpdate }: { order: Order; onUpdate: (id: string, s
       {/* Header */}
       <div className="flex items-center justify-between gap-2">
         <div className="flex items-center gap-2">
-          <span className="text-2xl font-black text-white">T{order.tableNo}</span>
+          {order.channel ? (
+            <span className="text-sm font-black text-white bg-white/10 px-2.5 py-1 rounded-lg">
+              🛵 {order.tableNo}{order.platformCode ? ` · ${order.platformCode}` : ''}
+            </span>
+          ) : (
+            <span className="text-2xl font-black text-white">T{order.tableNo}</span>
+          )}
           {order.memberName && (
             <span className="text-[10px] bg-purple-700/50 text-purple-200 px-2 py-0.5 rounded-full font-semibold">
               👤 {order.memberName}

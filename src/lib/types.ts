@@ -1,5 +1,7 @@
 export type OrderStatus = 'pending' | 'accepted' | 'ready' | 'delivered' | 'cancelled' | 'paid'
 export type OrderSource = 'qr' | 'pos' | 'manual'
+export type OrderType = 'dine-in' | 'takeaway' | 'delivery'
+export type DeliveryChannel = 'grab' | 'lineman' | 'shopeefood'
 export type MenuCategory = 'cocktail' | 'beer' | 'drink' | 'snack' | 'food' | 'shot' | 'other'
 
 export type OrderItem = {
@@ -30,6 +32,12 @@ export type Order = {
   paymentMethod?: string
   memberName?: string
   customerName?: string
+  // Delivery platform fields (null/undefined for dine-in orders)
+  orderType?: OrderType          // default 'dine-in'
+  channel?: DeliveryChannel      // set when orderType === 'delivery'
+  platformCode?: string          // platform order code the rider quotes, e.g. "GF-1234"
+  platformOrderId?: string       // real platform order ID from webhook (Phase 2) — unique
+  commissionRate?: number        // fraction snapshotted at order time, e.g. 0.30
   createdAt: string
   updatedAt: string
 }

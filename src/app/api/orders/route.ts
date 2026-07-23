@@ -7,6 +7,7 @@ import { sendOrderAlert } from '@/lib/telegram'
 import { sendLineOrderAlert } from '@/lib/line'
 import { romanizeName } from '@/lib/romanize'
 import { fireWebhook } from '@/lib/webhooks'
+import { isDeliveryChannel, DELIVERY_CHANNELS } from '@/lib/delivery'
 import type { OrderItem } from '@/lib/types'
 
 export async function GET() {
@@ -17,9 +18,16 @@ export async function GET() {
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json()
-    const { tableNo, items, note, source, paymentMethod, discount, memberName, customerName, couponId, couponOrderTotal, couponMemberName, hold } = body
+    const { tableNo, items, note, source, paymentMethod, discount, memberName, customerName, couponId, couponOrderTotal, couponMemberName, hold, orderType, channel, platformCode, commissionRate } = body
 
-    if (!tableNo || !Array.isArray(items) || items.length === 0) {
+    // Delivery orders: channel is required, tableNo defaults to the channel short code
+    const isDelivery = orderType === 'delivery'
+    if (isDelivery && !isDeliveryChannel(channel)) {
+      return NextResponse.json({ error: 'Valid channel (grab | lineman | shopeefood) is required for delivery orders' }, { status: 400 })
+    }
+    const resolvedTableNo = tableNo || (isDelivery ? DELIVERY_CHANNELS[channel as keyof typeof DELIVERY_CHANNELS].shortCode : undefined)
+
+    if (!resolvedTableNo || !Array.isArray(items) || items.length === 0) {
       return NextResponse.json({ error: 'tableNo and items are required' }, { status: 400 })
     }
 
@@ -49,7 +57,7 @@ export async function POST(req: NextRequest) {
     })
 
     const order = await createOrder({
-      tableNo:       String(tableNo),
+      tableNo:       String(resolvedTableNo),
       items:         enrichedItems,
       note:          note ? String(note) : '',
       source:        source === 'pos' ? 'pos' : source === 'qr' ? 'qr' : 'manual',
@@ -58,6 +66,10 @@ export async function POST(req: NextRequest) {
       memberName:    memberName ? String(memberName) : undefined,
       customerName:  customerName ? String(customerName) : undefined,
       hold:          Boolean(hold),
+      orderType:     isDelivery ? 'delivery' : orderType === 'takeaway' ? 'takeaway' : 'dine-in',
+      channel:       isDelivery ? channel : undefined,
+      platformCode:  isDelivery && platformCode ? String(platformCode) : undefined,
+      commissionRate: isDelivery && Number.isFinite(Number(commissionRate)) ? Number(commissionRate) : undefined,
     })
 
     // B-04: Atomic coupon recording â€” record in the same request as order creation
