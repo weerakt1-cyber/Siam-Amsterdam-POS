@@ -12,6 +12,7 @@ import {
 import { useBluetooth, bluetoothManager } from '@/lib/bluetooth-manager'
 import { OwnerProfileBadge } from '@/components/pos/GoogleAuthGuard'
 import { AI_NAME, APP_VERSION } from '@/lib/ai-brand'
+import { usePosLang, POS_LANGS } from '@/lib/pos-i18n'
 
 // ─── Section title ─────────────────────────────────────────────────────────────
 
@@ -442,6 +443,7 @@ const TABS: { key: TabKey; label: string }[] = [
 export default function SettingsPage() {
   const { user } = useAuth()
   const isManager = ['admin', 'manager'].includes(user?.role ?? '')
+  const { t: tr, lang, setLang } = usePosLang()
 
   const [activeTab, setActiveTab] = useState<TabKey>('general')
 
@@ -893,7 +895,7 @@ export default function SettingsPage() {
     >
       {/* Header */}
       <div className="px-6 py-4 border-b border-gray-200 bg-white shrink-0 shadow-sm">
-        <h1 className="text-xl font-bold text-gray-900">Settings</h1>
+        <h1 className="text-xl font-bold text-gray-900">{tr('navSettings')}</h1>
         <p className="text-sm text-gray-400 mt-0.5">Business info, receipt, printer, and system configuration</p>
       </div>
 
@@ -915,6 +917,30 @@ export default function SettingsPage() {
       </div>
 
       <div className="flex-1 overflow-y-auto p-6 flex flex-col gap-8 max-w-3xl">
+
+        {/* ── Language ── */}
+        {activeTab === 'general' && <section>
+          <SectionTitle>🌐 {tr('language')}</SectionTitle>
+          <div className="bg-white border border-gray-100 rounded-2xl p-5 shadow-sm flex items-center gap-4">
+            <p className="text-sm text-gray-500 flex-1">{tr('languageDesc')}</p>
+            <div className="flex gap-2 shrink-0">
+              {POS_LANGS.map(l => (
+                <button
+                  key={l.code}
+                  onClick={() => setLang(l.code)}
+                  className={`px-4 py-2.5 rounded-xl text-sm font-bold transition active:scale-95 flex items-center gap-2 border-2 ${
+                    lang === l.code
+                      ? 'bg-amber-500 border-amber-500 text-white shadow-sm'
+                      : 'bg-white border-gray-200 text-gray-600 hover:border-gray-300'
+                  }`}
+                >
+                  <span className="text-base">{l.flag}</span> {l.label}
+                  {lang === l.code && <span className="text-xs">✓</span>}
+                </button>
+              ))}
+            </div>
+          </div>
+        </section>}
 
         {/* ── Business Information ── */}
         {activeTab === 'general' && <section>

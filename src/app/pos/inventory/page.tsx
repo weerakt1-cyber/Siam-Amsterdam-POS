@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import type { InventoryItem, StockAdjustment, InventoryCategory, AdjustReason } from '@/lib/types'
 import NumPad from '@/components/pos/NumPad'
+import { usePosLang } from '@/lib/pos-i18n'
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -88,6 +89,7 @@ const REASON_LABELS: Record<AdjustReason, { label: string; color: string }> = {
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
 export default function InventoryPage() {
+  const { t: tr } = usePosLang()
   const [items, setItems] = useState<InventoryItem[]>([])
   const [adjustments, setAdjustments] = useState<StockAdjustment[]>([])
   const [search, setSearch] = useState('')
@@ -226,7 +228,7 @@ export default function InventoryPage() {
       {/* Header */}
       <div className="px-5 pt-4 pb-3 bg-white border-b border-gray-200 shrink-0 flex items-center justify-between gap-3">
         <div>
-          <h1 className="text-xl font-bold">Inventory</h1>
+          <h1 className="text-xl font-bold">{tr('navInventory')}</h1>
           <p className="text-xs text-gray-500 mt-0.5">{items.length} items · stock value {baht(totalValue)}</p>
         </div>
         <div className="flex gap-2">

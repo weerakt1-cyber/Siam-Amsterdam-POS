@@ -5,6 +5,7 @@ import LockScreen from '@/components/pos/LockScreen'
 import StaffGate from '@/components/pos/StaffGate'
 import PrinterAutoConnect from '@/components/pos/PrinterAutoConnect'
 import { PosAuthProvider } from '@/lib/pos-auth'
+import { PosLangProvider } from '@/lib/pos-i18n'
 
 export const metadata = {
   title: 'BAR POS — Staff Dashboard',
@@ -14,6 +15,7 @@ export const metadata = {
 export default function POSLayout({ children }: { children: React.ReactNode }) {
   return (
     <PosAuthProvider>
+      <PosLangProvider>
       <AppAuthGuard>
         <div className="h-screen flex bg-[#FAF8F4] overflow-hidden">
           <Sidebar />
@@ -26,6 +28,7 @@ export default function POSLayout({ children }: { children: React.ReactNode }) {
         <StaffGate />
         <PrinterAutoConnect />
       </AppAuthGuard>
+      </PosLangProvider>
     </PosAuthProvider>
   )
 }

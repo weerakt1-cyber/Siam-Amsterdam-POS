@@ -6,6 +6,7 @@ import NumPad from '@/components/pos/NumPad'
 import { useAuth } from '@/lib/pos-auth'
 import { type CatEntry, loadAllCategories, fetchCategories, persistCategories } from '@/lib/categories'
 import { AI_NAME } from '@/lib/ai-brand'
+import { usePosLang } from '@/lib/pos-i18n'
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -264,6 +265,7 @@ function VariantEditor({
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
 export default function ItemsPage() {
+  const { t: tr } = usePosLang()
   const { user } = useAuth()
   const isManager = ['admin', 'manager'].includes(user?.role ?? '')
 
@@ -574,7 +576,7 @@ export default function ItemsPage() {
       <div className="px-5 pt-4 pb-0 bg-white border-b border-gray-200 shrink-0">
         <div className="flex items-center justify-between mb-3">
           <div>
-            <h1 className="text-xl font-bold">Items</h1>
+            <h1 className="text-xl font-bold">{tr('navItems')}</h1>
             <p className="text-xs text-gray-500 mt-0.5">{items.length} menu items</p>
           </div>
           {tab === 'items' && (

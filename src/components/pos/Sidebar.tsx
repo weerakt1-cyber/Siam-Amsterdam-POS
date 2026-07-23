@@ -6,36 +6,38 @@ import { useState, useEffect } from 'react'
 import { useAuth, type ActiveUser } from '@/lib/pos-auth'
 import { getSupabaseBrowser } from '@/lib/supabase-browser'
 import UserSwitcher from './UserSwitcher'
+import { usePosLang, type PosStringKey } from '@/lib/pos-i18n'
 
 const MANAGER_ROLES = new Set(['admin', 'manager'])
 
-const NAV = [
-  { href: '/pos',            icon: '🛍️',  label: 'POS'       },
-  { href: '/pos/floor',      icon: '🗺️',  label: 'Floor'     },
-  { href: '/pos/kitchen',    icon: '🍳',  label: 'Kitchen'   },
-  { href: '/pos/delivery',   icon: '🛵',  label: 'Delivery'  },
-  { href: '/pos/inventory',  icon: '📦',  label: 'Inventory' },
-  { href: '/pos/items',      icon: '🍽️',  label: 'Items'     },
-  { href: '/pos/members',    icon: '👥',  label: 'Members'   },
-  { href: '/pos/cash',       icon: '💰',  label: 'Cash'      },
-  { href: '/pos/coupons',    icon: '🎟️',  label: 'Coupons'   },
-  { href: '/pos/analytics',  icon: '📊',  label: 'Analytics', managerOnly: true },
-  { href: '/pos/users',      icon: '👤',  label: 'Users',     managerOnly: true },
-  { href: '/pos/settings',   icon: '⚙️',  label: 'Settings',  managerOnly: true },
+const NAV: { href: string; icon: string; labelKey: PosStringKey; managerOnly?: boolean }[] = [
+  { href: '/pos',            icon: '🛍️',  labelKey: 'navPos'       },
+  { href: '/pos/floor',      icon: '🗺️',  labelKey: 'navFloor'     },
+  { href: '/pos/kitchen',    icon: '🍳',  labelKey: 'navKitchen'   },
+  { href: '/pos/delivery',   icon: '🛵',  labelKey: 'navDelivery'  },
+  { href: '/pos/inventory',  icon: '📦',  labelKey: 'navInventory' },
+  { href: '/pos/items',      icon: '🍽️',  labelKey: 'navItems'     },
+  { href: '/pos/members',    icon: '👥',  labelKey: 'navMembers'   },
+  { href: '/pos/cash',       icon: '💰',  labelKey: 'navCash'      },
+  { href: '/pos/coupons',    icon: '🎟️',  labelKey: 'navCoupons'   },
+  { href: '/pos/analytics',  icon: '📊',  labelKey: 'navAnalytics', managerOnly: true },
+  { href: '/pos/users',      icon: '👤',  labelKey: 'navUsers',     managerOnly: true },
+  { href: '/pos/settings',   icon: '⚙️',  labelKey: 'navSettings',  managerOnly: true },
 ]
 
-const BOTTOM_NAV = [
-  { href: '/pos',           icon: '🛍️', label: 'POS'      },
-  { href: '/pos/members',   icon: '👥', label: 'Members'  },
-  { href: '/pos/cash',      icon: '💰', label: 'Cash'     },
-  { href: '/pos/analytics', icon: '📊', label: 'Stats',    managerOnly: true },
-  { href: '/pos/settings',  icon: '⚙️', label: 'Settings', managerOnly: true },
+const BOTTOM_NAV: { href: string; icon: string; labelKey: PosStringKey; managerOnly?: boolean }[] = [
+  { href: '/pos',           icon: '🛍️', labelKey: 'navPos'      },
+  { href: '/pos/members',   icon: '👥', labelKey: 'navMembers'  },
+  { href: '/pos/cash',      icon: '💰', labelKey: 'navCash'     },
+  { href: '/pos/analytics', icon: '📊', labelKey: 'navStats',    managerOnly: true },
+  { href: '/pos/settings',  icon: '⚙️', labelKey: 'navSettings', managerOnly: true },
 ]
 
 export default function Sidebar() {
   const path = usePathname()
   const router = useRouter()
   const { user: activeUser, login, logout } = useAuth()
+  const { t } = usePosLang()
   const [showSwitcher, setShowSwitcher] = useState(false)
   const [logoSrc, setLogoSrc] = useState('/logo.png')
   const [expanded, setExpanded] = useState(false)
@@ -131,7 +133,7 @@ export default function Sidebar() {
             <div className="w-10 h-10 rounded-2xl overflow-hidden border border-stone-700 shrink-0">
               <img src={logoSrc} alt="Bar logo" className="w-full h-full object-cover" />
             </div>
-            <span className="text-stone-200 font-bold text-sm flex-1">Menu</span>
+            <span className="text-stone-200 font-bold text-sm flex-1">{t('menu')}</span>
             <button
               onClick={() => setExpanded(false)}
               className="w-9 h-9 rounded-lg flex items-center justify-center text-stone-400 hover:text-stone-100 hover:bg-stone-800 transition-all active:scale-95 text-lg"
@@ -155,7 +157,7 @@ export default function Sidebar() {
                 }`}
               >
                 <span className="text-xl leading-none">{item.icon}</span>
-                <span className="font-bold text-sm leading-none">{item.label}</span>
+                <span className="font-bold text-sm leading-none">{t(item.labelKey)}</span>
               </Link>
             )
           })}
@@ -172,12 +174,12 @@ export default function Sidebar() {
                 <div className="w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold text-white shadow-sm shrink-0" style={{ background: activeUser.color }}>
                   {activeUser.name.charAt(0).toUpperCase()}
                 </div>
-                <span className="text-stone-300 font-bold text-sm truncate">{activeUser.name} — switch user</span>
+                <span className="text-stone-300 font-bold text-sm truncate">{activeUser.name} — {t('switchUser')}</span>
               </>
             ) : (
               <>
                 <span className="text-xl leading-none text-stone-600">🔓</span>
-                <span className="text-stone-400 font-bold text-sm">Login</span>
+                <span className="text-stone-400 font-bold text-sm">{t('login')}</span>
               </>
             )}
           </button>
@@ -203,7 +205,7 @@ export default function Sidebar() {
               {active && <div className="absolute top-0 left-1/2 -translate-x-1/2 w-8 h-0.5 bg-stone-900 rounded-full" />}
               <span className="text-[20px] leading-none">{item.icon}</span>
               <span className={`text-[9px] font-semibold leading-none mt-0.5 ${active ? 'text-stone-900' : 'text-stone-400'}`}>
-                {item.label}
+                {t(item.labelKey)}
               </span>
             </Link>
           )
@@ -224,7 +226,7 @@ export default function Sidebar() {
           ) : (
             <>
               <span className="text-[20px] leading-none text-stone-400">🔓</span>
-              <span className="text-[9px] text-stone-400 font-semibold leading-none mt-0.5">Login</span>
+              <span className="text-[9px] text-stone-400 font-semibold leading-none mt-0.5">{t('login')}</span>
             </>
           )}
         </button>

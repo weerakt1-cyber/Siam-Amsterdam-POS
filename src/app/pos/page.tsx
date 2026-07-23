@@ -11,6 +11,7 @@ import { loadBarSettings, DEFAULT_BAR_SETTINGS, printReceipt, type BarSettings }
 import { type CatEntry, CATEGORIES_CHANGED_EVENT, loadAllCategories, fetchCategories } from '@/lib/categories'
 import { FLOOR_LAYOUT_CHANGED_EVENT, loadFloorTables } from '@/lib/floor'
 import { getThaiGreeting, getDailyQuote } from '@/lib/greeting'
+import { usePosLang } from '@/lib/pos-i18n'
 
 const ALL_CHIP: CatEntry = { value: 'all', label: 'All', color: 'bg-gray-200 text-gray-700', icon: '🍽️' }
 
@@ -112,6 +113,7 @@ ${discountRow}
 export default function POSPage() {
   // Table tabs mirror the Floor Plan layout (single source of truth in @/lib/floor),
   // so the tables you can ring up always match the room drawn on the floor plan.
+  const { t } = usePosLang()
   const [tables, setTables] = useState<string[]>(() => loadFloorTables())
   const [table, setTable] = useState(() => loadFloorTables()[0] ?? 'T1')
   const [tablePickerOpen, setTablePickerOpen] = useState(false)
@@ -1082,7 +1084,7 @@ export default function POSPage() {
               <>
                 <div className="fixed inset-0 z-40" onClick={() => setTablePickerOpen(false)} />
                 <div className="absolute right-0 top-full mt-2 z-50 bg-white rounded-2xl shadow-2xl border border-stone-200 p-3 w-72">
-                  <p className="text-[10px] font-bold text-stone-400 uppercase tracking-widest mb-2">เลือกโต๊ะ · Select Table</p>
+                  <p className="text-[10px] font-bold text-stone-400 uppercase tracking-widest mb-2">🪑 {t('selectTable')}</p>
                   <div className="grid grid-cols-4 gap-1.5 max-h-72 overflow-y-auto">
                     {tables.map((t) => {
                       const hasItems = (carts[t] ?? []).length > 0
@@ -1113,13 +1115,13 @@ export default function POSPage() {
             disabled={!cart.some(c => !c.fromOrderId)}
             className="border-2 border-amber-400 bg-amber-50 hover:bg-amber-100 disabled:opacity-40 disabled:cursor-not-allowed active:scale-95 text-amber-600 transition text-sm font-bold px-3 py-2 rounded-xl flex items-center gap-1.5"
           >
-            🧊 <span className="hidden sm:inline">Hold Bill</span>
+            🧊 <span className="hidden sm:inline">{t('holdBill')}</span>
           </button>
           <button
             onClick={openDrawer}
             className="bg-stone-100 hover:bg-stone-200 active:scale-95 text-stone-700 transition text-sm font-semibold px-3 py-2 rounded-xl flex items-center gap-1.5"
           >
-            💰 <span className="hidden sm:inline">Open Drawer</span>
+            💰 <span className="hidden sm:inline">{t('openDrawer')}</span>
           </button>
           <NotificationBell />
         </div>
@@ -1154,7 +1156,7 @@ export default function POSPage() {
                 type="text"
                 value={search}
                 onChange={e => setSearch(e.target.value)}
-                placeholder="Search menu..."
+                placeholder={t('searchMenu')}
                 className="w-full bg-stone-50 border border-stone-200 rounded-xl pl-8 pr-8 py-2 text-sm text-stone-900 placeholder-stone-300 outline-none focus:border-amber-400 focus:bg-white transition"
               />
               {search && (
@@ -1184,7 +1186,7 @@ export default function POSPage() {
             ) : filteredMenu.length === 0 ? (
               <div className="flex flex-col items-center justify-center h-32 text-stone-300 text-sm gap-2">
                 <span className="text-3xl">{search ? '🔍' : '🍽️'}</span>
-                <p>{search ? `No results for "${search}"` : 'No items in this category'}</p>
+                <p>{search ? `${t('noResultsFor')} "${search}"` : t('noItemsCategory')}</p>
               </div>
             ) : (
               <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
@@ -1357,7 +1359,7 @@ export default function POSPage() {
                         onClick={() => unmergeQrOrder(item.fromOrderId!)}
                         className="text-[10px] bg-stone-100 text-stone-400 hover:bg-stone-200 rounded-full px-1.5 py-0.5 font-bold shrink-0 active:scale-95"
                       >
-                        Remove
+                        {t('remove')}
                       </button>
                     ) : hasDiscount ? (
                       <button
@@ -1412,7 +1414,7 @@ export default function POSPage() {
                   }}
                   className="w-full bg-white border border-stone-200 rounded-xl px-3 py-2 text-xs text-stone-700 outline-none focus:border-stone-400 transition appearance-none"
                 >
-                  <option value="">🎟 {coupons.length > 0 ? 'Select coupon...' : 'No active coupons'}</option>
+                  <option value="">🎟 {coupons.length > 0 ? t('selectCoupon') : t('noActiveCoupons')}</option>
                   {coupons.map(c => (
                     <option key={c.id} value={c.code}>
                       {c.code} — {c.name} ({c.type === 'percent' ? `${c.value}%` : `฿${c.value}`} off)
@@ -1436,7 +1438,7 @@ export default function POSPage() {
 
             {/* Total */}
             <div className="flex items-baseline justify-between border-t border-stone-200 pt-2">
-              <span className="text-stone-700 text-sm font-semibold">Total</span>
+              <span className="text-stone-700 text-sm font-semibold">{t('total')}</span>
               <span className="text-2xl font-black text-stone-900">{baht(finalTotal)}</span>
             </div>
 
@@ -1446,7 +1448,7 @@ export default function POSPage() {
               onChange={e => { setMemberName(e.target.value); setPointsToRedeem(0) }}
               className="w-full bg-white border border-stone-200 rounded-xl px-3 py-2 text-sm text-stone-700 outline-none focus:border-stone-400 transition appearance-none"
             >
-              <option value="">👤 No member</option>
+              <option value="">👤 {t('noMember')}</option>
               {members.map(m => (
                 <option key={m.id} value={m.name}>{m.name} {m.points > 0 ? `(${m.points} pts)` : ''}</option>
               ))}
@@ -1504,20 +1506,20 @@ export default function POSPage() {
                         disabled={cart.length === 0}
                         className="w-full flex items-center gap-2.5 px-4 py-3 text-sm font-semibold text-stone-700 hover:bg-stone-50 transition disabled:opacity-40 disabled:cursor-not-allowed"
                       >
-                        🧾 Print check bill
+                        🧾 {t('printCheckBill')}
                       </button>
                       <button
                         onClick={() => { setShowMoreActions(false); setShowSplitBill(true) }}
                         disabled={cart.length === 0}
                         className="w-full flex items-center gap-2.5 px-4 py-3 text-sm font-semibold text-stone-700 hover:bg-stone-50 transition border-t border-stone-100 disabled:opacity-40 disabled:cursor-not-allowed"
                       >
-                        ✂️ Split Bill
+                        ✂️ {t('splitBill')}
                       </button>
                       <button
                         onClick={() => { setShowMoreActions(false); setShowOpenTickets(true) }}
                         className="w-full flex items-center justify-between gap-2.5 px-4 py-3 text-sm font-semibold text-stone-700 hover:bg-stone-50 transition border-t border-stone-100"
                       >
-                        <span>🎫 Open Tickets</span>
+                        <span>🎫 {t('openTickets')}</span>
                         {pendingTableOrders.length > 0 && (
                           <span className="bg-red-500 text-white text-[10px] font-black min-w-[18px] h-[18px] rounded-full flex items-center justify-center px-1">
                             {pendingTableOrders.length}
@@ -1538,7 +1540,7 @@ export default function POSPage() {
                     : 'bg-stone-100 text-stone-300 cursor-not-allowed'
                 }`}
               >
-                {cart.length > 0 ? `${baht(finalTotal)} →` : 'SELECT ITEMS'}
+                {cart.length > 0 ? `${baht(finalTotal)} →` : t('selectItems')}
               </button>
             </div>
 

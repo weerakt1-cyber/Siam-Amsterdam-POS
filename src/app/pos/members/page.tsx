@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from 'react'
 import type { Member, Order } from '@/lib/types'
 import NumPad from '@/components/pos/NumPad'
 import { getTier, getPointsToNextTier, TIERS } from '@/lib/loyalty'
+import { usePosLang } from '@/lib/pos-i18n'
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -98,6 +99,7 @@ function StampCard({ stamps }: { stamps: number }) {
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
 export default function MembersPage() {
+  const { t: tr } = usePosLang()
   const [members, setMembers] = useState<Member[]>([])
   const [orders, setOrders] = useState<Order[]>([])
   const [search, setSearch] = useState('')
@@ -275,7 +277,7 @@ export default function MembersPage() {
       {/* Header */}
       <div className="px-5 pt-4 pb-3 bg-white border-b border-gray-200 shrink-0 flex items-center justify-between">
         <div>
-          <h1 className="text-xl font-bold">Members</h1>
+          <h1 className="text-xl font-bold">{tr('navMembers')}</h1>
           <p className="text-xs text-gray-400 mt-0.5">{members.length} registered members</p>
         </div>
         <button
