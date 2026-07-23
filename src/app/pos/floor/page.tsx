@@ -4,6 +4,7 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { useAuth } from '@/lib/pos-auth'
 import { type TableTile, DEFAULT_TILES, loadFloorTiles, saveFloorTiles } from '@/lib/floor'
+import { usePosLang } from '@/lib/pos-i18n'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -122,6 +123,7 @@ function TileCard({
 export default function FloorPage() {
   const router    = useRouter()
   const { user }  = useAuth()
+  const { t }     = usePosLang()
   const isManager = ['admin', 'manager'].includes(user?.role ?? '')
 
   const [tiles, setTiles] = useState<TableTile[]>(() => loadFloorTiles())
@@ -258,14 +260,14 @@ export default function FloorPage() {
 
       {/* ── Toolbar ─────────────────────────────────────────────────────────── */}
       <div className="px-4 py-3 bg-white border-b border-stone-200 flex items-center gap-3 shrink-0">
-        <h1 className="font-bold text-stone-900">Floor Plan</h1>
+        <h1 className="font-bold text-stone-900">{t('floorTitle')}</h1>
 
         {!editMode && (
           <div className="flex items-center gap-3 ml-2">
             {[
-              { color: 'bg-white border-stone-300',        label: 'Empty'   },
-              { color: 'bg-amber-50 border-amber-400',     label: 'Ordered' },
-              { color: 'bg-emerald-50 border-emerald-400', label: 'Ready'   },
+              { color: 'bg-white border-stone-300',        label: t('floorEmpty')   },
+              { color: 'bg-amber-50 border-amber-400',     label: t('floorOrdered') },
+              { color: 'bg-emerald-50 border-emerald-400', label: t('floorReadyTag') },
             ].map(({ color, label }) => (
               <span key={label} className="flex items-center gap-1.5 text-xs text-stone-400">
                 <span className={`w-3 h-3 rounded border ${color} inline-block`} />
@@ -277,7 +279,7 @@ export default function FloorPage() {
 
         {editMode && (
           <span className="text-xs text-amber-600 font-semibold ml-2">
-            {tiles.length} tables · drag to move
+            {tiles.length} {t('floorTablesDrag')}
           </span>
         )}
 
@@ -291,7 +293,7 @@ export default function FloorPage() {
                   onClick={resetLayout}
                   className="text-xs text-red-500 hover:text-red-700 border border-red-200 hover:border-red-300 px-3 py-1.5 rounded-xl transition"
                 >
-                  🔄 Reset Default
+                  🔄 {t('floorResetDefault')}
                 </button>
                 <button
                   onClick={saveLayout}
@@ -299,7 +301,7 @@ export default function FloorPage() {
                     saved ? 'bg-emerald-400 text-white' : 'bg-emerald-500 hover:bg-emerald-400 text-white'
                   }`}
                 >
-                  {saved ? '✓ Saved' : 'Save Layout'}
+                  {saved ? `✓ ${t('saved')}` : t('floorSaveLayout')}
                 </button>
               </>
             )}
@@ -311,7 +313,7 @@ export default function FloorPage() {
                   : 'bg-white border-stone-200 text-stone-600 hover:border-stone-400'
               }`}
             >
-              {editMode ? '✏️ Editing' : '✏️ Edit'}
+              {editMode ? `✏️ ${t('floorEditing')}` : `✏️ ${t('edit')}`}
             </button>
           </div>
         )}

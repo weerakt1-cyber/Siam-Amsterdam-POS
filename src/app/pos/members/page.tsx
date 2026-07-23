@@ -278,13 +278,13 @@ export default function MembersPage() {
       <div className="px-5 pt-4 pb-3 bg-white border-b border-gray-200 shrink-0 flex items-center justify-between">
         <div>
           <h1 className="text-xl font-bold">{tr('navMembers')}</h1>
-          <p className="text-xs text-gray-400 mt-0.5">{members.length} registered members</p>
+          <p className="text-xs text-gray-400 mt-0.5">{members.length} {tr('registeredMembers')}</p>
         </div>
         <button
           onClick={startCreate}
           className="bg-amber-500 hover:bg-amber-400 active:scale-95 text-black font-bold text-sm px-4 py-2 rounded-xl transition flex items-center gap-1.5"
         >
-          + New Member
+          + {tr('newMember')}
         </button>
       </div>
 
@@ -380,7 +380,7 @@ export default function MembersPage() {
             <div className="flex items-start justify-between gap-4">
               <div className="flex-1">
                 <h2 className="text-xl font-bold">
-                  {isCreating ? 'New Member' : selected?.name}
+                  {isCreating ? tr('newMember') : selected?.name}
                 </h2>
                 {!isCreating && selected?.birthday && (
                   <p className="text-sm text-gray-400 mt-0.5">

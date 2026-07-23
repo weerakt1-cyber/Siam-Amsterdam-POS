@@ -12,7 +12,7 @@ import {
 import { useBluetooth, bluetoothManager } from '@/lib/bluetooth-manager'
 import { OwnerProfileBadge } from '@/components/pos/GoogleAuthGuard'
 import { AI_NAME, APP_VERSION } from '@/lib/ai-brand'
-import { usePosLang, POS_LANGS } from '@/lib/pos-i18n'
+import { usePosLang, POS_LANGS, type PosStringKey } from '@/lib/pos-i18n'
 
 // ─── Section title ─────────────────────────────────────────────────────────────
 
@@ -431,13 +431,13 @@ function ApiWebhooksSection() {
 
 type TabKey = 'general' | 'printer' | 'qr' | 'notify' | 'payment' | 'integrations'
 
-const TABS: { key: TabKey; label: string }[] = [
-  { key: 'general',      label: '⚙️ General' },
-  { key: 'printer',      label: '🖨️ Receipt & Printer' },
-  { key: 'qr',           label: '📱 QR Ordering' },
-  { key: 'notify',       label: '🔔 Notifications' },
-  { key: 'payment',      label: '💳 Payment' },
-  { key: 'integrations', label: '🔌 Integrations' },
+const TABS: { key: TabKey; icon: string; labelKey: PosStringKey }[] = [
+  { key: 'general',      icon: '⚙️', labelKey: 'setTabGeneral' },
+  { key: 'printer',      icon: '🖨️', labelKey: 'setTabPrinter' },
+  { key: 'qr',           icon: '📱', labelKey: 'setTabQr' },
+  { key: 'notify',       icon: '🔔', labelKey: 'setTabNotify' },
+  { key: 'payment',      icon: '💳', labelKey: 'setTabPayment' },
+  { key: 'integrations', icon: '🔌', labelKey: 'setTabIntegrations' },
 ]
 
 export default function SettingsPage() {
@@ -901,17 +901,17 @@ export default function SettingsPage() {
 
       {/* Tab nav */}
       <div className="px-6 border-b border-gray-200 bg-white shrink-0 flex gap-1 overflow-x-auto">
-        {TABS.map(t => (
+        {TABS.map(tab => (
           <button
-            key={t.key}
-            onClick={() => setActiveTab(t.key)}
+            key={tab.key}
+            onClick={() => setActiveTab(tab.key)}
             className={`px-4 py-3 text-sm font-semibold whitespace-nowrap border-b-2 transition ${
-              activeTab === t.key
+              activeTab === tab.key
                 ? 'border-amber-500 text-gray-900'
                 : 'border-transparent text-gray-400 hover:text-gray-600'
             }`}
           >
-            {t.label}
+            {tab.icon} {tr(tab.labelKey)}
           </button>
         ))}
       </div>

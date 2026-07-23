@@ -8,6 +8,7 @@ import {
 } from '@/lib/printer'
 import { getTierByName, computePointsEarned, TIERS } from '@/lib/loyalty'
 import OmisePaymentModal, { type OmisePayType } from './OmisePaymentModal'
+import { usePosLang } from '@/lib/pos-i18n'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -160,6 +161,7 @@ const PAY_LABEL_MAP: Record<string, string> = {
 export default function CheckoutModal({
   cart, table, note, discount, memberName, memberTier, onConfirm, onClose, onComplete,
 }: Props) {
+  const { t: tr } = usePosLang()
   const [step, setStep]                 = useState<1 | 2 | 3>(1)
   const [payment, setPayment]           = useState<PaymentMethod>('cash')
   const [received, setReceived]         = useState('')
@@ -326,9 +328,9 @@ export default function CheckoutModal({
           <div className="flex flex-col overflow-hidden">
             <div className="px-5 pt-5 overflow-y-auto flex-1">
               <div className="flex items-center justify-between mb-4">
-                <h2 className="font-bold text-lg text-stone-900">Order Review</h2>
+                <h2 className="font-bold text-lg text-stone-900">{tr('coOrderReview')}</h2>
                 <span className="text-amber-600 font-bold text-sm bg-amber-100 px-3 py-1 rounded-full border border-amber-200">
-                  Table {table}
+                  {tr('coTable')} {table}
                 </span>
               </div>
 
@@ -348,13 +350,13 @@ export default function CheckoutModal({
 
               <div className="bg-white rounded-xl border border-stone-100 px-4 py-3 flex flex-col gap-2">
                 <div className="flex justify-between text-sm">
-                  <span className="text-stone-400">Subtotal</span>
+                  <span className="text-stone-400">{tr('coSubtotal')}</span>
                   <span className="text-stone-600 font-medium">{baht(subtotal)}</span>
                 </div>
                 {discount.amount > 0 && (
                   <div className="flex justify-between text-sm font-medium text-emerald-600">
                     <span>
-                      Discount
+                      {tr('coDiscount')}
                       {discount.couponCode
                         ? ` [${discount.couponCode}]`
                         : discount.type === 'percent' ? ` (${discount.value}%)` : ' (fixed)'}
@@ -363,11 +365,11 @@ export default function CheckoutModal({
                   </div>
                 )}
                 <div className="flex justify-between items-baseline border-t border-stone-100 pt-2.5 mt-0.5">
-                  <span className="font-bold text-stone-700">Total</span>
+                  <span className="font-bold text-stone-700">{tr('coTotal')}</span>
                   <span className="font-black text-2xl text-stone-900">{baht(total)}</span>
                 </div>
                 <div className="flex justify-between text-xs text-stone-300">
-                  <span>VAT 7% (included)</span><span>{baht(vatIncluded)}</span>
+                  <span>{tr('coVatIncluded')}</span><span>{baht(vatIncluded)}</span>
                 </div>
               </div>
 
@@ -376,7 +378,7 @@ export default function CheckoutModal({
                   {memberName && (
                     <div className="flex flex-col gap-0.5">
                       <div className="flex items-center gap-2 flex-wrap">
-                        <span>👤 Member: <span className="text-stone-600 font-medium">{memberName}</span></span>
+                        <span>👤 {tr('coMember')}: <span className="text-stone-600 font-medium">{memberName}</span></span>
                         {memberTier && (() => {
                           const t = getTierByName(memberTier)
                           return (
@@ -393,13 +395,13 @@ export default function CheckoutModal({
                         const multLabel = mult === 2 ? '2×' : mult === 1 ? '1.5×' : '1×'
                         return (
                           <span className="text-emerald-500 font-semibold">
-                            +{pts} pts earned ({t.label} {multLabel})
+                            +{pts} {tr('coPtsEarned')} ({t.label} {multLabel})
                           </span>
                         )
                       })()}
                     </div>
                   )}
-                  {staffName && <span>🧑 Staff: <span className="text-stone-600 font-medium">{staffName}</span></span>}
+                  {staffName && <span>🧑 {tr('coStaff')}: <span className="text-stone-600 font-medium">{staffName}</span></span>}
                   {note      && <span>📝 <span className="text-stone-500">{note}</span></span>}
                 </div>
               )}
@@ -410,14 +412,14 @@ export default function CheckoutModal({
                 onClick={() => setStep(2)}
                 className="w-full py-3 rounded-xl bg-stone-900 hover:bg-stone-800 active:scale-95 text-white font-bold text-sm transition"
               >
-                Payment →
+                {tr('coPayment')} →
               </button>
             </div>
             <button
               onClick={onClose}
               className="w-full py-3 text-xs text-stone-300 hover:text-stone-500 transition bg-white"
             >
-              ← Back to order
+              ← {tr('coBackToOrder')}
             </button>
           </div>
         )}
@@ -429,17 +431,17 @@ export default function CheckoutModal({
 
               {/* Amount due */}
               <div className="text-center mb-5 bg-white rounded-2xl border border-stone-100 py-4 shadow-sm">
-                <p className="text-stone-400 text-xs font-semibold uppercase tracking-wide">Amount Due</p>
+                <p className="text-stone-400 text-xs font-semibold uppercase tracking-wide">{tr('coAmountDue')}</p>
                 <p className="text-5xl font-black text-stone-900 mt-1">{baht(total)}</p>
-                <p className="text-xs text-stone-300 mt-1">Table {table}</p>
+                <p className="text-xs text-stone-300 mt-1">{tr('coTable')} {table}</p>
               </div>
 
               {/* Payment method selector — row 1: local */}
               <div className="grid grid-cols-3 gap-2 mb-2">
                 {([
-                  { id: 'cash',      icon: '💵', label: 'Cash'    },
-                  { id: 'card',      icon: '💳', label: 'EDC Card' },
-                  { id: 'promptpay', icon: '📱', label: 'QR Pay'  },
+                  { id: 'cash',      icon: '💵', label: tr('coCash')    },
+                  { id: 'card',      icon: '💳', label: tr('coEdcCard') },
+                  { id: 'promptpay', icon: '📱', label: tr('coQrPay')  },
                 ] as const).map((pm) => (
                   <button
                     key={pm.id}
@@ -459,11 +461,11 @@ export default function CheckoutModal({
               </div>
 
               {/* Row 2: online (Omise) — Card + PromptPay */}
-              <p className="text-[9px] font-bold text-stone-300 uppercase tracking-widest text-center mb-1.5">Online Payment · Powered by Omise</p>
+              <p className="text-[9px] font-bold text-stone-300 uppercase tracking-widest text-center mb-1.5">{tr('coOnlinePayment')}</p>
               <div className="grid grid-cols-2 gap-2 mb-4">
                 {([
-                  { id: 'credit_card'  as OmisePayType, icon: '💳', label: 'Credit / Debit Card', accent: 'border-blue-400 bg-blue-50 text-blue-700'     },
-                  { id: 'promptpay_qr' as OmisePayType, icon: '📱', label: 'PromptPay QR',         accent: 'border-violet-400 bg-violet-50 text-violet-700' },
+                  { id: 'credit_card'  as OmisePayType, icon: '💳', label: tr('coCreditCard'), accent: 'border-blue-400 bg-blue-50 text-blue-700'     },
+                  { id: 'promptpay_qr' as OmisePayType, icon: '📱', label: tr('coPromptPayQr'),         accent: 'border-violet-400 bg-violet-50 text-violet-700' },
                 ]).map((pm) => (
                   <button
                     key={pm.id}
@@ -481,7 +483,7 @@ export default function CheckoutModal({
               {/* Cash panel — 3 preset banknote buttons */}
               {payment === 'cash' && (
                 <div className="flex flex-col gap-3">
-                  <p className="text-xs text-stone-400 font-semibold uppercase tracking-wide text-center">Cash Received</p>
+                  <p className="text-xs text-stone-400 font-semibold uppercase tracking-wide text-center">{tr('coCashReceived')}</p>
                   <div className="grid grid-cols-3 gap-2.5">
                     {cashOptions(total).map((amount, i) => {
                       const changeAmt = amount - total
@@ -502,14 +504,14 @@ export default function CheckoutModal({
                           <span className={`text-[11px] font-semibold leading-none ${
                             i === 0 ? 'text-stone-300' : 'text-stone-400'
                           }`}>
-                            {changeAmt === 0 ? 'Exact' : `Change ${baht(changeAmt)}`}
+                            {changeAmt === 0 ? tr('coExact') : `${tr('coChange')} ${baht(changeAmt)}`}
                           </span>
                         </button>
                       )
                     })}
                   </div>
                   {isConfirming && (
-                    <p className="text-xs text-stone-400 text-center animate-pulse">Processing...</p>
+                    <p className="text-xs text-stone-400 text-center animate-pulse">{tr('coProcessing')}</p>
                   )}
                 </div>
               )}
@@ -518,7 +520,7 @@ export default function CheckoutModal({
               {payment === 'card' && (
                 <div className="bg-white border border-stone-100 rounded-xl p-5 text-center flex flex-col gap-2">
                   <span className="text-5xl">💳</span>
-                  <p className="text-sm font-semibold text-stone-500">Process on card terminal</p>
+                  <p className="text-sm font-semibold text-stone-500">{tr('coCardTerminal')}</p>
                   <p className="text-2xl font-black text-stone-900">{baht(total)}</p>
                 </div>
               )}
@@ -529,7 +531,7 @@ export default function CheckoutModal({
                   {ppLoading ? (
                     <div className="py-8 flex flex-col items-center gap-2">
                       <div className="w-7 h-7 border-2 border-stone-200 border-t-purple-500 rounded-full animate-spin" />
-                      <p className="text-xs text-stone-400">Generating QR...</p>
+                      <p className="text-xs text-stone-400">{tr('coGeneratingQr')}</p>
                     </div>
                   ) : ppQr ? (
                     <>
@@ -557,7 +559,7 @@ export default function CheckoutModal({
                 onClick={() => setStep(1)}
                 className="px-5 py-3 rounded-xl border border-stone-200 bg-stone-50 text-stone-500 hover:bg-stone-100 hover:text-stone-700 text-sm font-semibold transition active:scale-95"
               >
-                ← Back
+                ← {tr('coBack')}
               </button>
               {(payment === 'card' || payment === 'promptpay') && (
                 <button
@@ -569,7 +571,7 @@ export default function CheckoutModal({
                       : 'bg-stone-100 text-stone-300 cursor-not-allowed'
                   }`}
                 >
-                  {isConfirming ? 'Processing...' : '✓ Confirm Payment'}
+                  {isConfirming ? tr('coProcessing') : tr('coConfirmPayment')}
                 </button>
               )}
             </div>

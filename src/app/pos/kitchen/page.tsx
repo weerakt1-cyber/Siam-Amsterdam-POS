@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react'
 import type { Order, OrderStatus } from '@/lib/types'
+import { usePosLang, type PosStringKey } from '@/lib/pos-i18n'
 
 // ─── Config ───────────────────────────────────────────────────────────────────
 
@@ -35,15 +36,16 @@ function urgencyClass(iso: string, status: OrderStatus): string {
 
 // ─── NEXT STATUS BUTTON ────────────────────────────────────────────────────────
 
-const NEXT: Partial<Record<OrderStatus, { label: string; next: OrderStatus; cls: string }>> = {
-  pending:  { label: '▶ Accept',   next: 'accepted', cls: 'bg-amber-500 hover:bg-amber-400 text-black' },
-  accepted: { label: '✓ Ready',    next: 'ready',    cls: 'bg-blue-600 hover:bg-blue-500 text-white'  },
-  ready:    { label: '✓ Served',   next: 'delivered', cls: 'bg-emerald-600 hover:bg-emerald-500 text-white' },
+const NEXT: Partial<Record<OrderStatus, { labelKey: PosStringKey; next: OrderStatus; cls: string }>> = {
+  pending:  { labelKey: 'kdAccept', next: 'accepted', cls: 'bg-amber-500 hover:bg-amber-400 text-black' },
+  accepted: { labelKey: 'kdReady',  next: 'ready',    cls: 'bg-blue-600 hover:bg-blue-500 text-white'  },
+  ready:    { labelKey: 'kdServed', next: 'delivered', cls: 'bg-emerald-600 hover:bg-emerald-500 text-white' },
 }
 
 // ─── ORDER CARD ───────────────────────────────────────────────────────────────
 
 function OrderCard({ order, onUpdate }: { order: Order; onUpdate: (id: string, s: OrderStatus) => void }) {
+  const { t } = usePosLang()
   const action = NEXT[order.status]
   const secs   = elapsedSecs(order.createdAt)
 
@@ -113,7 +115,7 @@ function OrderCard({ order, onUpdate }: { order: Order; onUpdate: (id: string, s
           onClick={() => onUpdate(order.id, action.next)}
           className={`w-full py-3 rounded-xl font-bold text-sm transition active:scale-95 ${action.cls}`}
         >
-          {action.label}
+          {t(action.labelKey)}
         </button>
       )}
     </div>
@@ -122,10 +124,10 @@ function OrderCard({ order, onUpdate }: { order: Order; onUpdate: (id: string, s
 
 // ─── COLUMN ───────────────────────────────────────────────────────────────────
 
-const COLUMN_META: Record<string, { icon: string; label: string; emptyMsg: string }> = {
-  pending:  { icon: '🔴', label: 'New Orders',  emptyMsg: 'No pending orders' },
-  accepted: { icon: '🟡', label: 'In Progress', emptyMsg: 'Nothing being prepared' },
-  ready:    { icon: '🟢', label: 'Ready',        emptyMsg: 'Nothing ready yet' },
+const COLUMN_META: Record<string, { icon: string; labelKey: PosStringKey; emptyKey: PosStringKey }> = {
+  pending:  { icon: '🔴', labelKey: 'kdColNew',   emptyKey: 'kdEmptyNew' },
+  accepted: { icon: '🟡', labelKey: 'kdColPrep',  emptyKey: 'kdEmptyPrep' },
+  ready:    { icon: '🟢', labelKey: 'kdColReady', emptyKey: 'kdEmptyReady' },
 }
 
 function Column({
@@ -135,13 +137,14 @@ function Column({
   orders: Order[]
   onUpdate: (id: string, s: OrderStatus) => void
 }) {
+  const { t } = usePosLang()
   const meta = COLUMN_META[status]
   return (
     <div className="flex flex-col gap-3">
       {/* Column header */}
       <div className="flex items-center gap-2 sticky top-0 z-10 bg-gray-950 py-2">
         <span className="text-base">{meta.icon}</span>
-        <h2 className="text-sm font-bold text-white/80 uppercase tracking-widest">{meta.label}</h2>
+        <h2 className="text-sm font-bold text-white/80 uppercase tracking-widest">{t(meta.labelKey)}</h2>
         {orders.length > 0 && (
           <span className="ml-auto bg-white/10 text-white/60 text-xs font-bold px-2 py-0.5 rounded-full">
             {orders.length}
@@ -151,7 +154,7 @@ function Column({
 
       {orders.length === 0 ? (
         <div className="rounded-2xl border-2 border-dashed border-white/10 p-8 text-center text-white/20 text-sm">
-          {meta.emptyMsg}
+          {t(meta.emptyKey)}
         </div>
       ) : (
         orders.map(o => (
@@ -165,6 +168,7 @@ function Column({
 // ─── MAIN PAGE ────────────────────────────────────────────────────────────────
 
 export default function KitchenPage() {
+  const { t } = usePosLang()
   const [orders,     setOrders]     = useState<Order[]>([])
   const [loading,    setLoading]    = useState(true)
   const [countdown,  setCountdown]  = useState(POLL_INTERVAL)
@@ -253,17 +257,17 @@ export default function KitchenPage() {
       {/* Top bar */}
       <div className="flex items-center gap-3 px-4 py-3 border-b border-white/10 shrink-0">
         <span className="text-xl">🍳</span>
-        <h1 className="font-black text-base tracking-tight">Kitchen Display</h1>
+        <h1 className="font-black text-base tracking-tight">{t('kitchenDisplay')}</h1>
 
         {pending.length > 0 && (
           <span className="bg-red-600 text-white text-xs font-bold px-2.5 py-0.5 rounded-full animate-pulse">
-            {pending.length} new
+            {pending.length} {t('kdNew')}
           </span>
         )}
 
         <div className="ml-auto flex items-center gap-3">
           {lastUpdate && (
-            <span className="text-[11px] text-white/30">อัพเดตล่าสุด {lastUpdate}</span>
+            <span className="text-[11px] text-white/30">{t('kdLastUpdate')} {lastUpdate}</span>
           )}
           <button
             onClick={() => { fetchOrders(); setCountdown(POLL_INTERVAL) }}
@@ -296,7 +300,7 @@ export default function KitchenPage() {
           show subtle global indicator here */}
       {updating.size > 0 && (
         <div className="fixed bottom-4 right-4 bg-blue-600 text-white text-xs font-semibold px-3 py-1.5 rounded-full shadow-lg z-50">
-          Saving...
+          {t('kdSaving')}
         </div>
       )}
     </div>

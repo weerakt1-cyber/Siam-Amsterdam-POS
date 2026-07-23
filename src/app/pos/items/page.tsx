@@ -577,7 +577,7 @@ export default function ItemsPage() {
         <div className="flex items-center justify-between mb-3">
           <div>
             <h1 className="text-xl font-bold">{tr('navItems')}</h1>
-            <p className="text-xs text-gray-500 mt-0.5">{items.length} menu items</p>
+            <p className="text-xs text-gray-500 mt-0.5">{items.length} {tr('menuItemsCount')}</p>
           </div>
           {tab === 'items' && (
             <div className="flex items-center gap-2">
@@ -595,7 +595,7 @@ export default function ItemsPage() {
                 onClick={startCreate}
                 className="bg-amber-500 hover:bg-amber-400 active:scale-95 text-black font-bold text-sm px-4 py-2 rounded-xl transition flex items-center gap-1.5"
               >
-                + New Item
+                + {tr('newItem')}
               </button>
             </div>
           )}
@@ -603,19 +603,19 @@ export default function ItemsPage() {
         {/* Tabs */}
         <div className="flex gap-1">
           {([
-            { id: 'items',      label: 'Menu Items' },
-            { id: 'categories', label: 'Categories' },
-          ] as const).map((t) => (
+            { id: 'items',      label: tr('tabItems') },
+            { id: 'categories', label: tr('tabCategories') },
+          ] as const).map((tabDef) => (
             <button
-              key={t.id}
-              onClick={() => setTab(t.id)}
+              key={tabDef.id}
+              onClick={() => setTab(tabDef.id)}
               className={`px-4 py-2 text-sm font-semibold border-b-2 transition ${
-                tab === t.id
+                tab === tabDef.id
                   ? 'border-amber-500 text-amber-400'
                   : 'border-transparent text-gray-500 hover:text-gray-700'
               }`}
             >
-              {t.label}
+              {tabDef.label}
             </button>
           ))}
         </div>
@@ -804,12 +804,12 @@ export default function ItemsPage() {
           {!showEditor ? (
             <div className="flex-1 flex flex-col items-center justify-center gap-4 text-gray-300">
               <p className="text-5xl">🍹</p>
-              <p className="text-sm">Select an item to edit, or create a new one</p>
+              <p className="text-sm">{tr('itemsSelectHint')}</p>
               <button
                 onClick={startCreate}
                 className="text-sm text-amber-500/60 hover:text-amber-400 border border-amber-500/20 hover:border-amber-500/40 rounded-xl px-4 py-2 transition"
               >
-                + New Item
+                + {tr('newItem')}
               </button>
             </div>
           ) : (

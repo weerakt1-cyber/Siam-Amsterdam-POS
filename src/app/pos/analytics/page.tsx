@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
+import { usePosLang } from '@/lib/pos-i18n'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -298,6 +299,7 @@ function RankBadge({ menuId, currentRank, prevTopItems }: {
 type TierStats = { bronze: number; silver: number; gold: number }
 
 export default function AnalyticsPage() {
+  const { t } = usePosLang()
   const [period, setPeriod]           = useState<Period>('7d')
   const [topBy, setTopBy]             = useState<'revenue' | 'qty'>('revenue')
   const [data, setData]               = useState<AnalyticsData | null>(null)
@@ -341,10 +343,10 @@ export default function AnalyticsPage() {
   }, [load])
 
   const PERIODS: { key: Period; label: string }[] = [
-    { key: '7d',  label: '7 Days' },
-    { key: '30d', label: '30 Days' },
-    { key: 'mom', label: 'MoM' },
-    { key: 'all', label: 'All Time' },
+    { key: '7d',  label: t('an7d') },
+    { key: '30d', label: t('an30d') },
+    { key: 'mom', label: t('anMoM') },
+    { key: 'all', label: t('anAllTime') },
   ]
 
   const sortedTopItems = data
@@ -367,10 +369,10 @@ export default function AnalyticsPage() {
       <div className="flex items-center justify-between px-5 py-3 border-b border-stone-200 bg-white shrink-0 shadow-sm">
         <div className="flex items-center gap-3">
           <span className="text-lg">📊</span>
-          <h1 className="text-base font-bold text-stone-900">Analytics</h1>
+          <h1 className="text-base font-bold text-stone-900">{t('anTitle')}</h1>
           {lastUpdated && (
             <span className="text-xs text-stone-400">
-              updated {lastUpdated.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}
+              {t('anUpdated')} {lastUpdated.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}
             </span>
           )}
         </div>
@@ -393,7 +395,7 @@ export default function AnalyticsPage() {
           <button
             onPointerDown={load}
             className="w-8 h-8 rounded-xl bg-stone-100 text-stone-500 hover:bg-gray-200 flex items-center justify-center text-sm transition-all active:scale-95"
-            title="Refresh"
+            title={t('anRefresh')}
           >
             🔄
           </button>
@@ -418,10 +420,10 @@ export default function AnalyticsPage() {
           <Card className={loading ? 'opacity-50' : ''}>
             <div className="flex items-center gap-2 mb-1">
               <span className="text-base">💰</span>
-              <span className="text-xs text-stone-400">Revenue</span>
+              <span className="text-xs text-stone-400">{t('anRevenue')}</span>
             </div>
             <div className="text-lg font-bold text-stone-900 leading-tight">{baht(data?.stats.revenue ?? 0)}</div>
-            <div className="text-xs text-stone-400 mt-0.5">{data?.stats.orders ?? 0} orders</div>
+            <div className="text-xs text-stone-400 mt-0.5">{data?.stats.orders ?? 0} {t('anOrders')}</div>
             {isMoM && comparison && <div className="mt-1"><DeltaBadge change={comparison.revenueChange} /></div>}
           </Card>
 
@@ -429,10 +431,10 @@ export default function AnalyticsPage() {
           <Card className={loading ? 'opacity-50' : ''}>
             <div className="flex items-center gap-2 mb-1">
               <span className="text-base">🧾</span>
-              <span className="text-xs text-stone-400">Avg Order</span>
+              <span className="text-xs text-stone-400">{t('anAvgOrder')}</span>
             </div>
             <div className="text-lg font-bold text-stone-900 leading-tight">{baht(data?.stats.avgOrder ?? 0)}</div>
-            <div className="text-xs text-stone-400 mt-0.5">per transaction</div>
+            <div className="text-xs text-stone-400 mt-0.5">{t('anPerTxn')}</div>
             {isMoM && comparison && <div className="mt-1"><DeltaBadge change={comparison.avgOrderChange} /></div>}
           </Card>
 
@@ -440,18 +442,18 @@ export default function AnalyticsPage() {
           <Card className={loading ? 'opacity-50' : ''}>
             <div className="flex items-center gap-2 mb-1">
               <span className="text-base">📅</span>
-              <span className="text-xs text-stone-400">{isMoM ? 'Orders (MoM)' : "Today's Rev"}</span>
+              <span className="text-xs text-stone-400">{isMoM ? t('anOrdersMoM') : t('anTodayRev')}</span>
             </div>
             {isMoM ? (
               <>
                 <div className="text-lg font-bold text-stone-900 leading-tight">{data?.stats.orders ?? 0}</div>
-                <div className="text-xs text-stone-400 mt-0.5">this month</div>
+                <div className="text-xs text-stone-400 mt-0.5">{t('anThisMonth')}</div>
                 {comparison && <div className="mt-1"><DeltaBadge change={comparison.ordersChange} /></div>}
               </>
             ) : (
               <>
                 <div className="text-lg font-bold text-stone-900 leading-tight">{baht(data?.stats.today.revenue ?? 0)}</div>
-                <div className="text-xs text-stone-400 mt-0.5">{data?.stats.today.orders ?? 0} orders</div>
+                <div className="text-xs text-stone-400 mt-0.5">{data?.stats.today.orders ?? 0} {t('anOrders')}</div>
               </>
             )}
           </Card>
@@ -460,11 +462,11 @@ export default function AnalyticsPage() {
           <Card className={loading ? 'opacity-50' : ''}>
             <div className="flex items-center gap-2 mb-1">
               <span className="text-base">👥</span>
-              <span className="text-xs text-stone-400">Member Orders</span>
+              <span className="text-xs text-stone-400">{t('anMemberOrders')}</span>
             </div>
             <div className="text-lg font-bold text-stone-900 leading-tight">{data?.memberStats.withMember ?? 0}</div>
             <div className="text-xs text-stone-400 mt-0.5">
-              {data ? `${pct(data.memberStats.withMember, data.stats.orders)}% of total` : '—'}
+              {data ? `${pct(data.memberStats.withMember, data.stats.orders)}% ${t('anOfTotal')}` : '—'}
             </div>
           </Card>
 
@@ -472,10 +474,10 @@ export default function AnalyticsPage() {
           <Card className={loading ? 'opacity-50' : ''}>
             <div className="flex items-center gap-2 mb-1">
               <span className="text-base">🎟️</span>
-              <span className="text-xs text-stone-400">Total Saved</span>
+              <span className="text-xs text-stone-400">{t('anTotalSaved')}</span>
             </div>
             <div className="text-lg font-bold text-stone-900 leading-tight">{baht(data?.discountStats.totalDiscount ?? 0)}</div>
-            <div className="text-xs text-stone-400 mt-0.5">{data?.discountStats.ordersWithDiscount ?? 0} orders</div>
+            <div className="text-xs text-stone-400 mt-0.5">{data?.discountStats.ordersWithDiscount ?? 0} {t('anOrders')}</div>
           </Card>
         </div>
 
@@ -499,7 +501,7 @@ export default function AnalyticsPage() {
             </>
           ) : (
             <>
-              <SectionTitle>Revenue Trend — Last 14 Days</SectionTitle>
+              <SectionTitle>{t('anRevTrend14')}</SectionTitle>
               {data ? (
                 <div className="space-y-2">
                   <VertBar
@@ -527,7 +529,7 @@ export default function AnalyticsPage() {
           {/* Top Items */}
           <Card className="col-span-3">
             <div className="flex items-center justify-between mb-3">
-              <SectionTitle>Top Items{isMoM ? ' — This Month' : ''}</SectionTitle>
+              <SectionTitle>{t('anTopItems')}{isMoM ? ` — ${t('anThisMonthSuffix')}` : ''}</SectionTitle>
               <div className="flex bg-stone-100 rounded-lg p-0.5 gap-0.5">
                 {(['revenue', 'qty'] as const).map(k => (
                   <button
@@ -589,7 +591,7 @@ export default function AnalyticsPage() {
           {/* Payment Methods + Sources */}
           <Card className="col-span-2 space-y-5">
             <div>
-              <SectionTitle>Payment Methods</SectionTitle>
+              <SectionTitle>{t('anPaymentMethods')}</SectionTitle>
               {data ? (
                 <div className="space-y-3">
                   {data.byPayment.map(p => (
@@ -613,7 +615,7 @@ export default function AnalyticsPage() {
                       ))}
                     </div>
                   )}
-                  {data.byPayment.length === 0 && <p className="text-sm text-stone-400">No data</p>}
+                  {data.byPayment.length === 0 && <p className="text-sm text-stone-400">{t('anNoData')}</p>}
                 </div>
               ) : (
                 <div className="space-y-2">
@@ -625,7 +627,7 @@ export default function AnalyticsPage() {
             <div className="border-t border-stone-200" />
 
             <div>
-              <SectionTitle>Order Sources</SectionTitle>
+              <SectionTitle>{t('anOrderSources')}</SectionTitle>
               {data ? (
                 <div className="space-y-3">
                   {data.bySource.map(s => (
@@ -649,7 +651,7 @@ export default function AnalyticsPage() {
                       ))}
                     </div>
                   )}
-                  {data.bySource.length === 0 && <p className="text-sm text-stone-400">No data</p>}
+                  {data.bySource.length === 0 && <p className="text-sm text-stone-400">{t('anNoData')}</p>}
                 </div>
               ) : (
                 <div className="space-y-2">
@@ -694,7 +696,7 @@ export default function AnalyticsPage() {
 
         {/* ── Peak Hours Heatmap ─────────────────────────────────────────── */}
         <Card>
-          <SectionTitle>Peak Hours — Orders by Hour{isMoM ? ' (This Month)' : ''}</SectionTitle>
+          <SectionTitle>{t('anPeakHours')}{isMoM ? ` (${t('anThisMonthSuffix')})` : ''}</SectionTitle>
           {data ? (
             <div className="space-y-2">
               <HeatHour data={data.byHour} />
@@ -726,7 +728,7 @@ export default function AnalyticsPage() {
         <div className="grid grid-cols-5 gap-4 pb-4">
 
           <Card className="col-span-2">
-            <SectionTitle>Revenue by Category</SectionTitle>
+            <SectionTitle>{t('anRevByCategory')}</SectionTitle>
             {data ? (
               <div className="space-y-3">
                 {data.byCategory.map(c => (
@@ -739,7 +741,7 @@ export default function AnalyticsPage() {
                     sub={`${pct(c.revenue, totalCatRevenue)}%`}
                   />
                 ))}
-                {data.byCategory.length === 0 && <p className="text-sm text-stone-400">No data</p>}
+                {data.byCategory.length === 0 && <p className="text-sm text-stone-400">{t('anNoData')}</p>}
               </div>
             ) : (
               <div className="space-y-2">

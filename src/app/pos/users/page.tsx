@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import type { UserRole } from '@/lib/types'
+import { usePosLang } from '@/lib/pos-i18n'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -113,6 +114,7 @@ type Mode = 'idle' | 'new' | 'view' | 'edit-pin'
 type Tab  = 'staff' | 'pending'
 
 export default function UsersPage() {
+  const { t } = usePosLang()
   const [tab, setTab] = useState<Tab>('staff')
 
   // ── Staff (PIN) state ────────────────────────────────────────
@@ -402,12 +404,12 @@ export default function UsersPage() {
       return (
         <div className="flex-1 flex flex-col items-center justify-center gap-3 text-center px-8">
           <span className="text-5xl opacity-20">👤</span>
-          <p className="text-gray-400 text-sm">เลือก User หรือสร้างใหม่</p>
+          <p className="text-gray-400 text-sm">{t('usersSelectHint')}</p>
           <button
             onPointerDown={startNew}
             className="mt-2 px-5 py-2 bg-amber-500 hover:bg-amber-400 text-black text-sm font-bold rounded-xl active:scale-95 transition-all"
           >
-            + New User
+            + {t('newUser')}
           </button>
         </div>
       )
@@ -419,7 +421,7 @@ export default function UsersPage() {
           <div className="flex items-center gap-3">
             <Avatar name={name || '?'} color={color} size="lg" />
             <div>
-              <h2 className="text-base font-bold text-gray-900">New User</h2>
+              <h2 className="text-base font-bold text-gray-900">{t('newUser')}</h2>
               <p className="text-xs text-gray-500">กรอกข้อมูลและตั้ง PIN</p>
             </div>
           </div>

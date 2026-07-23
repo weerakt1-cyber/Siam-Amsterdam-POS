@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from 'react'
 import type { DailyReport, Order, ExpenseCategory } from '@/lib/types'
 import NumPad from '@/components/pos/NumPad'
 import { generateDailyReportPDF } from '@/lib/pdf-report'
+import { usePosLang } from '@/lib/pos-i18n'
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -111,6 +112,7 @@ function AddModal({
   onClose: () => void
   onSave: (amount: number, note: string, category?: ExpenseCategory) => void
 }) {
+  const { t } = usePosLang()
   const [amount, setAmount] = useState('')
   const [note, setNote] = useState('')
   const [category, setCategory] = useState<ExpenseCategory>('supplies')
@@ -129,7 +131,7 @@ function AddModal({
     <div className="fixed inset-0 z-40 bg-black/70 backdrop-blur-sm flex items-end justify-center">
       <div className="bg-white rounded-t-2xl shadow-2xl w-full max-w-lg p-5 pb-8 flex flex-col gap-4">
         <div className="flex items-center justify-between">
-          <h3 className="font-bold text-lg">{type === 'cash-in' ? '📥 Add Cash In' : '📤 Add Expense'}</h3>
+          <h3 className="font-bold text-lg">{type === 'cash-in' ? `📥 ${t('cashAddCashIn')}` : `📤 ${t('cashAddExpense')}`}</h3>
           <button onClick={onClose} className="text-stone-400 hover:text-stone-800 text-xl leading-none">✕</button>
         </div>
 
@@ -205,6 +207,7 @@ function AddModal({
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
 export default function CashPage() {
+  const { t } = usePosLang()
   const [date, setDate] = useState(today())
   const [report, setReport] = useState<DailyReport>({ date, openingCash: 0, cashIns: [], expenses: [], updatedAt: '' })
   const [orders, setOrders] = useState<Order[]>([])
@@ -306,7 +309,7 @@ export default function CashPage() {
           <button onClick={() => shiftDate(-1)} className="w-8 h-8 rounded-lg bg-stone-100 hover:bg-stone-200 flex items-center justify-center text-stone-600 hover:text-stone-900 transition">‹</button>
           <div className="text-center">
             <p className="font-bold text-base leading-tight text-stone-900">{displayDate(date)}</p>
-            {isToday && <span className="text-xs text-amber-500 font-semibold">TODAY</span>}
+            {isToday && <span className="text-xs text-amber-500 font-semibold">{t('cashToday')}</span>}
           </div>
           <button
             onClick={() => shiftDate(+1)}
@@ -318,7 +321,7 @@ export default function CashPage() {
         <div className="flex gap-2">
           {!isToday && (
             <button onClick={() => setDate(today())} className="text-xs px-3 py-2 rounded-xl border border-amber-400 text-amber-600 font-semibold hover:bg-amber-50 transition">
-              Go to Today
+              {t('cashGoToday')}
             </button>
           )}
           <button
@@ -342,11 +345,11 @@ export default function CashPage() {
       {/* Summary Bar */}
       <div className="px-5 py-3 bg-stone-50 border-b border-stone-200 grid grid-cols-5 gap-3 shrink-0">
         {[
-          { label: 'Opening Cash', value: baht(report.openingCash), color: 'text-stone-700', action: () => { setOpeningVal(String(report.openingCash || '')); setShowOpeningNumPad(true) } },
-          { label: 'Order Revenue', value: baht(summary.orderRevenue), color: 'text-emerald-400', action: undefined },
-          { label: 'Cash In', value: baht(summary.cashInTotal), color: 'text-blue-400', action: undefined },
-          { label: 'Expenses', value: baht(summary.expenseTotal), color: 'text-red-400', action: undefined },
-          { label: 'Closing Balance', value: baht(summary.closingBalance), color: summary.closingBalance >= 0 ? 'text-amber-400' : 'text-red-400', action: undefined },
+          { label: t('cashOpeningCash'), value: baht(report.openingCash), color: 'text-stone-700', action: () => { setOpeningVal(String(report.openingCash || '')); setShowOpeningNumPad(true) } },
+          { label: t('cashOrderRevenue'), value: baht(summary.orderRevenue), color: 'text-emerald-400', action: undefined },
+          { label: t('cashInLabel'), value: baht(summary.cashInTotal), color: 'text-blue-400', action: undefined },
+          { label: t('cashExpenses'), value: baht(summary.expenseTotal), color: 'text-red-400', action: undefined },
+          { label: t('cashClosing'), value: baht(summary.closingBalance), color: summary.closingBalance >= 0 ? 'text-amber-400' : 'text-red-400', action: undefined },
         ].map(({ label, value, color, action }) => (
           <button
             key={label}
@@ -355,7 +358,7 @@ export default function CashPage() {
           >
             <p className={`text-lg font-black leading-tight ${color}`}>{value}</p>
             <p className="text-xs text-stone-400 mt-0.5">{label}</p>
-            {action && <p className="text-xs text-amber-500/60 mt-0.5">✎ tap to edit</p>}
+            {action && <p className="text-xs text-amber-500/60 mt-0.5">{t('cashTapEdit')}</p>}
           </button>
         ))}
       </div>
@@ -363,7 +366,7 @@ export default function CashPage() {
       {/* Body */}
       <div className="flex-1 overflow-y-auto">
         {isLoading ? (
-          <div className="flex items-center justify-center h-32 text-stone-400">Loading...</div>
+          <div className="flex items-center justify-center h-32 text-stone-400">{t('loading')}</div>
         ) : (
           <div className="p-5 grid grid-cols-2 gap-5 max-w-4xl">
 
@@ -424,7 +427,7 @@ export default function CashPage() {
             <div className="flex flex-col gap-3">
               <div className="flex items-center justify-between">
                 <div>
-                  <h3 className="font-bold text-sm text-stone-600 uppercase tracking-wider">📋 Orders</h3>
+                  <h3 className="font-bold text-sm text-stone-600 uppercase tracking-wider">📋 {t('cashOrders')}</h3>
                   <p className="text-xs text-stone-400 mt-0.5">{orders.length} orders · {orders.filter(o => o.status === 'paid').length} paid</p>
                 </div>
                 <span className="text-base font-black text-emerald-400">{baht(summary.orderRevenue)}</span>

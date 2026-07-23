@@ -229,20 +229,20 @@ export default function InventoryPage() {
       <div className="px-5 pt-4 pb-3 bg-white border-b border-gray-200 shrink-0 flex items-center justify-between gap-3">
         <div>
           <h1 className="text-xl font-bold">{tr('navInventory')}</h1>
-          <p className="text-xs text-gray-500 mt-0.5">{items.length} items · stock value {baht(totalValue)}</p>
+          <p className="text-xs text-gray-500 mt-0.5">{items.length} {tr('invItemsStock')} {baht(totalValue)}</p>
         </div>
         <div className="flex gap-2">
           <button
             onClick={() => exportCSV(items)}
             className="text-xs px-3 py-2 rounded-xl border border-gray-200 text-gray-500 hover:text-gray-900 hover:border-gray-400 font-semibold transition active:scale-95"
           >
-            ⬇ Export CSV
+            ⬇ {tr('invExportCSV')}
           </button>
           <button
             onClick={startCreate}
             className="bg-amber-500 hover:bg-amber-400 active:scale-95 text-black font-bold text-sm px-4 py-2 rounded-xl transition"
           >
-            + Add Item
+            + {tr('invAddItem')}
           </button>
         </div>
       </div>
@@ -251,7 +251,7 @@ export default function InventoryPage() {
       {lowItems.length > 0 && (
         <div className="px-5 py-2.5 bg-amber-50 border-b border-amber-200 shrink-0">
           <div className="flex items-center gap-2 flex-wrap">
-            <span className="text-amber-700 text-sm font-semibold shrink-0">⚠ Low stock:</span>
+            <span className="text-amber-700 text-sm font-semibold shrink-0">⚠ {tr('invLowStockLabel')}</span>
             {lowItems.map(i => (
               <button
                 key={i.id}
@@ -276,7 +276,7 @@ export default function InventoryPage() {
             <input
               value={search}
               onChange={e => setSearch(e.target.value)}
-              placeholder="🔍 Search items..."
+              placeholder={`🔍 ${tr('searchInventory')}`}
               className="w-full bg-gray-100 rounded-xl px-3 py-2 text-sm text-gray-900 placeholder-gray-300 outline-none focus:ring-1 focus:ring-amber-500 transition"
             />
           </div>

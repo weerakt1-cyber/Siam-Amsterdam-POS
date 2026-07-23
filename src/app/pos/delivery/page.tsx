@@ -6,6 +6,7 @@ import {
   DELIVERY_CHANNELS, CHANNEL_KEYS,
   loadDeliverySettings, saveDeliverySettings, type DeliverySettings,
 } from '@/lib/delivery'
+import { usePosLang } from '@/lib/pos-i18n'
 
 // ─── Config ───────────────────────────────────────────────────────────────────
 
@@ -561,6 +562,7 @@ function SettingsModal({
 // ─── Main page ────────────────────────────────────────────────────────────────
 
 export default function DeliveryPage() {
+  const { t } = usePosLang()
   const [orders,   setOrders]   = useState<Order[]>([])
   const [menu,     setMenu]     = useState<MenuItem[]>([])
   const [loading,  setLoading]  = useState(true)
@@ -647,10 +649,10 @@ export default function DeliveryPage() {
       {/* Top bar */}
       <div className="flex items-center gap-3 px-4 py-3 border-b border-white/10 shrink-0 flex-wrap">
         <span className="text-xl">🛵</span>
-        <h1 className="font-black text-base tracking-tight">Delivery Orders</h1>
+        <h1 className="font-black text-base tracking-tight">{t('deliveryOrders')}</h1>
         {pending.length > 0 && (
           <span className="bg-red-600 text-white text-xs font-bold px-2.5 py-0.5 rounded-full animate-pulse">
-            {pending.length} new
+            {pending.length} {t('delNew')}
           </span>
         )}
         <div className="ml-auto flex items-center gap-2">

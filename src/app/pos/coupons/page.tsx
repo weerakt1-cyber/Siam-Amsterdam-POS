@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from 'react'
 import type { Coupon, CouponUse, CouponType } from '@/lib/types'
 import NumPad from '@/components/pos/NumPad'
 import PromotionsManager from '@/components/pos/PromotionsManager'
+import { usePosLang } from '@/lib/pos-i18n'
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -55,6 +56,7 @@ type NumPadTarget = 'value' | 'minOrder' | 'maxUses' | null
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
 export default function CouponsPage() {
+  const { t } = usePosLang()
   const [tab, setTab] = useState<'coupons' | 'promotions'>('coupons')
   const [coupons, setCoupons] = useState<Coupon[]>([])
   const [uses, setUses] = useState<CouponUse[]>([])
@@ -211,7 +213,7 @@ export default function CouponsPage() {
                 tab === tb ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'
               }`}
             >
-              {tb === 'coupons' ? '🎟️ Coupons' : '🎁 Promotions'}
+              {tb === 'coupons' ? `🎟️ ${t('tabCoupons')}` : `🎁 ${t('tabPromotions')}`}
             </button>
           ))}
         </div>
@@ -220,7 +222,7 @@ export default function CouponsPage() {
             onClick={startCreate}
             className="bg-amber-500 hover:bg-amber-400 active:scale-95 text-black font-bold text-sm px-4 py-2 rounded-xl transition"
           >
-            + New Coupon
+            + {t('newCoupon')}
           </button>
         )}
       </div>
@@ -237,11 +239,16 @@ export default function CouponsPage() {
             <input
               value={search}
               onChange={e => setSearch(e.target.value)}
-              placeholder="🔍 Search code or name..."
+              placeholder={`🔍 ${t('searchCoupon')}`}
               className="w-full bg-gray-100 rounded-xl px-3 py-2 text-sm text-gray-900 placeholder-gray-300 outline-none focus:ring-1 focus:ring-amber-500 transition"
             />
             <div className="flex gap-1 flex-wrap">
-              {(['all', 'active', 'inactive', 'expired'] as const).map(f => (
+              {([
+                { f: 'all',      label: t('filterAll') },
+                { f: 'active',   label: t('filterActive') },
+                { f: 'inactive', label: t('filterInactive') },
+                { f: 'expired',  label: t('filterExpired') },
+              ] as const).map(({ f, label }) => (
                 <button
                   key={f}
                   onClick={() => setFilter(f)}
@@ -249,7 +256,7 @@ export default function CouponsPage() {
                     filter === f ? 'bg-amber-500/25 text-amber-400' : 'text-gray-400 hover:text-gray-600'
                   }`}
                 >
-                  {f}
+                  {label}
                 </button>
               ))}
             </div>
@@ -306,8 +313,8 @@ export default function CouponsPage() {
         {!selectedId && !isCreating ? (
           <div className="flex-1 flex flex-col items-center justify-center text-gray-300">
             <p className="text-6xl mb-4">🎟️</p>
-            <p className="text-base font-semibold">Select a coupon</p>
-            <p className="text-sm mt-1">or create a new one</p>
+            <p className="text-base font-semibold">{t('couponSelectHint')}</p>
+            <p className="text-sm mt-1">{t('couponCreateHint')}</p>
           </div>
         ) : (
           <div className="flex-1 overflow-y-auto p-5 flex flex-col gap-5">
@@ -316,7 +323,7 @@ export default function CouponsPage() {
             <div className="flex items-start justify-between gap-3">
               <div>
                 <h2 className="text-xl font-bold font-mono">
-                  {isCreating ? 'New Coupon' : selected?.code}
+                  {isCreating ? t('newCoupon') : selected?.code}
                 </h2>
                 {!isCreating && selected && (
                   <p className="text-sm text-gray-500 mt-0.5">{selected.name}</p>
