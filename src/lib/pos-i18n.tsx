@@ -302,6 +302,26 @@ const DICT = {
   setSystemIntegrations: { en: 'System & Integrations', th: 'ระบบและการเชื่อมต่อ' },
   setStop:           { en: 'Stop',            th: 'หยุด' },
 
+  // ── Delivery settings (moved to Settings, manager-only) ──
+  setDelivery:        { en: 'Delivery',          th: 'เดลิเวอรี่' },
+  dsCommissionRates:  { en: 'Commission Rates',  th: 'อัตราค่าคอมมิชชั่น' },
+  dsCommissionNote:   { en: 'Applied to new orders only — existing orders keep the rate at the time they were created.', th: 'ใช้กับออเดอร์ใหม่เท่านั้น — ออเดอร์เดิมยังคงอัตราเดิม ณ ตอนที่สร้าง' },
+  dsGrabApi:          { en: 'GrabFood API (Phase 2)', th: 'GrabFood API (เฟส 2)' },
+  dsConfigured:       { en: 'Configured',        th: 'ตั้งค่าแล้ว' },
+  dsNotConfigured:    { en: 'Not configured',    th: 'ยังไม่ได้ตั้งค่า' },
+  dsGrabNote:         { en: 'Requires GrabFood partner API access. Orders pushed by Grab appear on the delivery board automatically; Accept / Ready / Cancel are relayed back to Grab.', th: 'ต้องมีสิทธิ์เข้าใช้ GrabFood partner API ออเดอร์ที่ Grab ส่งมาจะขึ้นบนบอร์ดเดลิเวอรี่อัตโนมัติ และการรับ / พร้อม / ยกเลิก จะถูกส่งกลับไปที่ Grab' },
+  dsClientId:         { en: 'Client ID',         th: 'Client ID' },
+  dsClientSecret:     { en: 'Client Secret',     th: 'Client Secret' },
+  dsMerchantId:       { en: 'Merchant ID',       th: 'Merchant ID' },
+  dsWebhookSecret:    { en: 'Webhook Secret',    th: 'Webhook Secret' },
+  dsSavedReplace:     { en: 'saved — type to replace', th: 'บันทึกแล้ว — พิมพ์เพื่อเปลี่ยน' },
+  dsWebhookSecretHint:{ en: 'Webhook Secret (credential registered with Grab)', th: 'Webhook Secret (รหัสที่ลงทะเบียนกับ Grab)' },
+  dsAutoAccept:       { en: 'Auto-accept incoming Grab orders', th: 'รับออเดอร์ Grab อัตโนมัติ' },
+  dsWebhookRegister:  { en: 'Register this URL as your order webhook in the Grab partner portal.', th: 'ลงทะเบียน URL นี้เป็น order webhook ในพอร์ทัลพาร์ทเนอร์ Grab' },
+  dsCopy:             { en: 'Copy',              th: 'คัดลอก' },
+  dsCopied:           { en: 'Copied',            th: 'คัดลอกแล้ว' },
+  dsSaving:           { en: 'Saving…',           th: 'กำลังบันทึก…' },
+
   // ── Item edit form ──
   fItemName:         { en: 'Name',            th: 'ชื่อ' },
   fItemNameTh:       { en: 'Thai Name',       th: 'ชื่อภาษาไทย' },

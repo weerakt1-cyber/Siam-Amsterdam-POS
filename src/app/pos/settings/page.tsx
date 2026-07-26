@@ -13,6 +13,11 @@ import { useBluetooth, bluetoothManager } from '@/lib/bluetooth-manager'
 import { OwnerProfileBadge } from '@/components/pos/GoogleAuthGuard'
 import { AI_NAME, APP_VERSION } from '@/lib/ai-brand'
 import { usePosLang, POS_LANGS, type PosStringKey } from '@/lib/pos-i18n'
+import {
+  DELIVERY_CHANNELS, CHANNEL_KEYS,
+  loadDeliverySettings, saveDeliverySettings, type DeliverySettings,
+} from '@/lib/delivery'
+import type { DeliveryChannel } from '@/lib/types'
 
 // ─── Section title ─────────────────────────────────────────────────────────────
 
@@ -425,6 +430,172 @@ function ApiWebhooksSection() {
           Include <span className="font-mono bg-white rounded px-1">X-API-Key: {'<key>'}</span> header in all requests.
         </p>
       </div>
+    </div>
+  )
+}
+
+// ─── Delivery settings (moved here from the staff-facing delivery board so ──────
+//     partner API secrets stay behind the manager-only Settings gate) ────────────
+
+type GrabApiConfig = {
+  clientIdConfigured: boolean
+  clientIdLast4: string | null
+  clientSecretConfigured: boolean
+  merchantId: string
+  webhookSecretConfigured: boolean
+  autoAccept: boolean
+  commission: string
+}
+
+function DeliverySettingsSection() {
+  const { t: tr } = usePosLang()
+  const [rates, setRates] = useState<Record<DeliveryChannel, string>>(() => {
+    const s = loadDeliverySettings()
+    return {
+      grab:       (s.commission.grab * 100).toFixed(0),
+      lineman:    (s.commission.lineman * 100).toFixed(0),
+      shopeefood: (s.commission.shopeefood * 100).toFixed(0),
+    }
+  })
+  const [grabCfg, setGrabCfg]         = useState<GrabApiConfig | null>(null)
+  const [grabClientId, setClientId]   = useState('')
+  const [grabSecret, setGrabSecret]   = useState('')
+  const [grabMerchant, setMerchant]   = useState('')
+  const [grabWebhookSecret, setWhSecret] = useState('')
+  const [grabAutoAccept, setAutoAccept]  = useState(false)
+  const [saving, setSaving] = useState(false)
+  const [saved, setSaved]   = useState(false)
+  const [copied, setCopied] = useState(false)
+
+  useEffect(() => {
+    fetch('/api/delivery/config')
+      .then(r => r.ok ? r.json() : null)
+      .then(d => {
+        if (!d?.grab) return
+        setGrabCfg(d.grab)
+        setMerchant(d.grab.merchantId ?? '')
+        setAutoAccept(!!d.grab.autoAccept)
+      })
+      .catch(() => {})
+  }, [])
+
+  const webhookUrl = typeof window !== 'undefined' ? `${window.location.origin}/api/delivery/webhooks/grab` : ''
+  const grabConnected = !!(grabCfg?.clientIdConfigured && grabCfg?.clientSecretConfigured && grabCfg?.merchantId)
+
+  async function save() {
+    setSaving(true); setSaved(false)
+    const current = loadDeliverySettings()
+    const commission = { ...current.commission }
+    for (const key of CHANNEL_KEYS) {
+      const v = Number(rates[key])
+      if (Number.isFinite(v) && v >= 0 && v <= 100) commission[key] = v / 100
+    }
+    saveDeliverySettings({ commission })
+
+    // Persist Grab config server-side; secrets only when a new value was typed
+    const grab: Record<string, unknown> = {
+      merchantId: grabMerchant,
+      autoAccept: grabAutoAccept,
+      commission: (commission.grab * 100).toFixed(0),
+    }
+    if (grabClientId.trim())      grab.clientId = grabClientId
+    if (grabSecret.trim())        grab.clientSecret = grabSecret
+    if (grabWebhookSecret.trim()) grab.webhookSecret = grabWebhookSecret
+    try {
+      await fetch('/api/delivery/config', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ grab }),
+      })
+    } catch { /* ignore — commission rates already saved locally */ }
+    setSaving(false)
+    setSaved(true); setTimeout(() => setSaved(false), 2000)
+  }
+
+  return (
+    <div className="bg-white border border-gray-100 rounded-2xl p-5 shadow-sm flex flex-col gap-4">
+      {/* Commission rates */}
+      <div>
+        <p className="text-xs font-bold text-gray-400 uppercase tracking-wide mb-1">{tr('dsCommissionRates')}</p>
+        <p className="text-gray-400 text-xs mb-3">{tr('dsCommissionNote')}</p>
+        <div className="flex flex-col gap-2">
+          {CHANNEL_KEYS.map(key => (
+            <label key={key} className="flex items-center gap-3">
+              <span className="text-gray-700 text-sm flex-1">{DELIVERY_CHANNELS[key].icon} {DELIVERY_CHANNELS[key].label}</span>
+              <input
+                value={rates[key]}
+                onChange={e => setRates(prev => ({ ...prev, [key]: e.target.value }))}
+                inputMode="numeric"
+                className="w-20 bg-white border border-gray-200 rounded-xl px-3 py-2 text-sm text-gray-900 text-right focus:outline-none focus:border-amber-400"
+              />
+              <span className="text-gray-400 text-sm">%</span>
+            </label>
+          ))}
+        </div>
+      </div>
+
+      {/* Grab partner API */}
+      <div className="border-t border-gray-100 pt-3">
+        <div className="flex items-center gap-2 mb-1">
+          <p className="text-xs font-bold text-gray-400 uppercase tracking-wide">🟢 {tr('dsGrabApi')}</p>
+          <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${grabConnected ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-400'}`}>
+            {grabConnected ? tr('dsConfigured') : tr('dsNotConfigured')}
+          </span>
+        </div>
+        <p className="text-gray-400 text-xs mb-3">{tr('dsGrabNote')}</p>
+        <div className="flex flex-col gap-2">
+          <input
+            value={grabClientId}
+            onChange={e => setClientId(e.target.value)}
+            placeholder={grabCfg?.clientIdConfigured ? `${tr('dsClientId')} (···${grabCfg.clientIdLast4}) — ${tr('dsSavedReplace')}` : tr('dsClientId')}
+            className="bg-white border border-gray-200 rounded-xl px-3 py-2 text-sm text-gray-900 placeholder:text-gray-300 focus:outline-none focus:border-amber-400"
+          />
+          <input
+            value={grabSecret}
+            onChange={e => setGrabSecret(e.target.value)}
+            type="password"
+            placeholder={grabCfg?.clientSecretConfigured ? `${tr('dsClientSecret')} — ${tr('dsSavedReplace')}` : tr('dsClientSecret')}
+            className="bg-white border border-gray-200 rounded-xl px-3 py-2 text-sm text-gray-900 placeholder:text-gray-300 focus:outline-none focus:border-amber-400"
+          />
+          <input
+            value={grabMerchant}
+            onChange={e => setMerchant(e.target.value)}
+            placeholder={tr('dsMerchantId')}
+            className="bg-white border border-gray-200 rounded-xl px-3 py-2 text-sm text-gray-900 placeholder:text-gray-300 focus:outline-none focus:border-amber-400"
+          />
+          <input
+            value={grabWebhookSecret}
+            onChange={e => setWhSecret(e.target.value)}
+            type="password"
+            placeholder={grabCfg?.webhookSecretConfigured ? `${tr('dsWebhookSecret')} — ${tr('dsSavedReplace')}` : tr('dsWebhookSecretHint')}
+            className="bg-white border border-gray-200 rounded-xl px-3 py-2 text-sm text-gray-900 placeholder:text-gray-300 focus:outline-none focus:border-amber-400"
+          />
+          <label className="flex items-center gap-2 text-sm text-gray-700 py-1">
+            <input type="checkbox" checked={grabAutoAccept} onChange={e => setAutoAccept(e.target.checked)} className="accent-green-500 w-4 h-4" />
+            {tr('dsAutoAccept')}
+          </label>
+          <div className="flex items-center gap-2 bg-gray-50 border border-gray-200 rounded-xl px-3 py-2">
+            <span className="text-[11px] text-gray-400 font-mono truncate flex-1">{webhookUrl}</span>
+            <button
+              onClick={() => { navigator.clipboard?.writeText(webhookUrl); setCopied(true); setTimeout(() => setCopied(false), 1500) }}
+              className="text-[11px] text-gray-500 hover:text-gray-900 font-bold shrink-0"
+            >
+              {copied ? `✓ ${tr('dsCopied')}` : tr('dsCopy')}
+            </button>
+          </div>
+          <p className="text-[10px] text-gray-400">{tr('dsWebhookRegister')}</p>
+        </div>
+      </div>
+
+      <button
+        onClick={save}
+        disabled={saving}
+        className={`px-6 py-2.5 rounded-xl text-sm font-bold transition active:scale-95 self-start ${
+          saved ? 'bg-emerald-500 text-white' : 'bg-amber-500 hover:bg-amber-400 text-black'
+        } disabled:opacity-40`}
+      >
+        {saving ? tr('dsSaving') : saved ? `✓ ${tr('savedBang')}` : tr('saveChanges')}
+      </button>
     </div>
   )
 }
@@ -1882,6 +2053,14 @@ export default function SettingsPage() {
             )}
           </div>
         </section>}
+
+        {/* ── Delivery (manager only — holds partner API secrets) ── */}
+        {activeTab === 'integrations' && isManager && (
+          <section>
+            <SectionTitle>🛵 {tr('setDelivery')}</SectionTitle>
+            <DeliverySettingsSection />
+          </section>
+        )}
 
         {/* ── API & Webhooks (manager only) ── */}
         {activeTab === 'integrations' && isManager && (

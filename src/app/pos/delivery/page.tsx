@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback, useMemo } from 'react'
 import type { Order, OrderStatus, MenuItem, DeliveryChannel } from '@/lib/types'
 import {
   DELIVERY_CHANNELS, CHANNEL_KEYS,
-  loadDeliverySettings, saveDeliverySettings, type DeliverySettings,
+  loadDeliverySettings, type DeliverySettings,
 } from '@/lib/delivery'
 import { usePosLang } from '@/lib/pos-i18n'
 
@@ -395,170 +395,6 @@ function QuickEntryModal({
   )
 }
 
-// ─── Commission settings popover ──────────────────────────────────────────────
-
-type GrabApiConfig = {
-  clientIdConfigured: boolean
-  clientIdLast4: string | null
-  clientSecretConfigured: boolean
-  merchantId: string
-  webhookSecretConfigured: boolean
-  autoAccept: boolean
-  commission: string
-}
-
-function SettingsModal({
-  settings, onSave, onClose,
-}: {
-  settings: DeliverySettings
-  onSave: (s: DeliverySettings) => void
-  onClose: () => void
-}) {
-  const [rates, setRates] = useState<Record<DeliveryChannel, string>>({
-    grab:       (settings.commission.grab * 100).toFixed(0),
-    lineman:    (settings.commission.lineman * 100).toFixed(0),
-    shopeefood: (settings.commission.shopeefood * 100).toFixed(0),
-  })
-  // Grab partner API credentials (server-side app_config; secrets are write-only)
-  const [grabCfg, setGrabCfg]         = useState<GrabApiConfig | null>(null)
-  const [grabClientId, setClientId]   = useState('')
-  const [grabSecret, setGrabSecret]   = useState('')
-  const [grabMerchant, setMerchant]   = useState('')
-  const [grabWebhookSecret, setWhSecret] = useState('')
-  const [grabAutoAccept, setAutoAccept]  = useState(false)
-  const [saving, setSaving] = useState(false)
-  const [copied, setCopied] = useState(false)
-
-  useEffect(() => {
-    fetch('/api/delivery/config')
-      .then(r => r.ok ? r.json() : null)
-      .then(d => {
-        if (!d?.grab) return
-        setGrabCfg(d.grab)
-        setMerchant(d.grab.merchantId ?? '')
-        setAutoAccept(!!d.grab.autoAccept)
-      })
-      .catch(() => {})
-  }, [])
-
-  const webhookUrl = typeof window !== 'undefined' ? `${window.location.origin}/api/delivery/webhooks/grab` : ''
-
-  async function save() {
-    setSaving(true)
-    const commission = { ...settings.commission }
-    for (const key of CHANNEL_KEYS) {
-      const v = Number(rates[key])
-      if (Number.isFinite(v) && v >= 0 && v <= 100) commission[key] = v / 100
-    }
-    onSave({ commission })
-
-    // Persist Grab config server-side; secrets only when a new value was typed
-    const grab: Record<string, unknown> = {
-      merchantId: grabMerchant,
-      autoAccept: grabAutoAccept,
-      commission: (commission.grab * 100).toFixed(0),
-    }
-    if (grabClientId.trim())      grab.clientId = grabClientId
-    if (grabSecret.trim())        grab.clientSecret = grabSecret
-    if (grabWebhookSecret.trim()) grab.webhookSecret = grabWebhookSecret
-    try {
-      await fetch('/api/delivery/config', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ grab }),
-      })
-    } catch { /* ignore — commission rates already saved locally */ }
-    setSaving(false)
-    onClose()
-  }
-
-  const grabConnected = !!(grabCfg?.clientIdConfigured && grabCfg?.clientSecretConfigured && grabCfg?.merchantId)
-
-  return (
-    <div className="fixed inset-0 z-50 bg-black/70 flex items-center justify-center p-6" onClick={onClose}>
-      <div className="bg-gray-900 border border-white/10 rounded-3xl w-full max-w-md p-5 flex flex-col gap-4 max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
-        <h2 className="text-white font-black">⚙️ Delivery Settings</h2>
-
-        {/* Commission rates */}
-        <p className="text-xs font-bold text-white/40 uppercase tracking-wide -mb-1">Commission Rates</p>
-        <p className="text-white/40 text-xs">Applied to new orders only — existing orders keep the rate at the time they were created.</p>
-        {CHANNEL_KEYS.map(key => (
-          <label key={key} className="flex items-center gap-3">
-            <span className="text-white/70 text-sm flex-1">{DELIVERY_CHANNELS[key].icon} {DELIVERY_CHANNELS[key].label}</span>
-            <input
-              value={rates[key]}
-              onChange={e => setRates(prev => ({ ...prev, [key]: e.target.value }))}
-              inputMode="numeric"
-              className="w-20 bg-gray-800 border border-white/10 rounded-xl px-3 py-2 text-sm text-white text-right focus:outline-none focus:border-white/30"
-            />
-            <span className="text-white/40 text-sm">%</span>
-          </label>
-        ))}
-
-        {/* Grab partner API */}
-        <div className="border-t border-white/10 pt-3">
-          <div className="flex items-center gap-2 mb-1">
-            <p className="text-xs font-bold text-white/40 uppercase tracking-wide">🟢 GrabFood API (Phase 2)</p>
-            <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${grabConnected ? 'bg-green-600/20 text-green-300' : 'bg-white/10 text-white/40'}`}>
-              {grabConnected ? 'Configured' : 'Not configured'}
-            </span>
-          </div>
-          <p className="text-white/40 text-xs mb-3">
-            Requires GrabFood partner API access. Orders pushed by Grab appear on this board automatically;
-            Accept / Ready / Cancel are relayed back to Grab.
-          </p>
-          <div className="flex flex-col gap-2">
-            <input
-              value={grabClientId}
-              onChange={e => setClientId(e.target.value)}
-              placeholder={grabCfg?.clientIdConfigured ? `Client ID (saved ···${grabCfg.clientIdLast4}) — type to replace` : 'Client ID'}
-              className="bg-gray-800 border border-white/10 rounded-xl px-3 py-2 text-sm text-white placeholder:text-white/25 focus:outline-none focus:border-white/30"
-            />
-            <input
-              value={grabSecret}
-              onChange={e => setGrabSecret(e.target.value)}
-              type="password"
-              placeholder={grabCfg?.clientSecretConfigured ? 'Client Secret (saved) — type to replace' : 'Client Secret'}
-              className="bg-gray-800 border border-white/10 rounded-xl px-3 py-2 text-sm text-white placeholder:text-white/25 focus:outline-none focus:border-white/30"
-            />
-            <input
-              value={grabMerchant}
-              onChange={e => setMerchant(e.target.value)}
-              placeholder="Merchant ID"
-              className="bg-gray-800 border border-white/10 rounded-xl px-3 py-2 text-sm text-white placeholder:text-white/25 focus:outline-none focus:border-white/30"
-            />
-            <input
-              value={grabWebhookSecret}
-              onChange={e => setWhSecret(e.target.value)}
-              type="password"
-              placeholder={grabCfg?.webhookSecretConfigured ? 'Webhook Secret (saved) — type to replace' : 'Webhook Secret (credential registered with Grab)'}
-              className="bg-gray-800 border border-white/10 rounded-xl px-3 py-2 text-sm text-white placeholder:text-white/25 focus:outline-none focus:border-white/30"
-            />
-            <label className="flex items-center gap-2 text-sm text-white/70 py-1">
-              <input type="checkbox" checked={grabAutoAccept} onChange={e => setAutoAccept(e.target.checked)} className="accent-green-500 w-4 h-4" />
-              Auto-accept incoming Grab orders
-            </label>
-            <div className="flex items-center gap-2 bg-gray-800 border border-white/10 rounded-xl px-3 py-2">
-              <span className="text-[11px] text-white/40 font-mono truncate flex-1">{webhookUrl}</span>
-              <button
-                onClick={() => { navigator.clipboard?.writeText(webhookUrl); setCopied(true); setTimeout(() => setCopied(false), 1500) }}
-                className="text-[11px] text-white/60 hover:text-white font-bold shrink-0"
-              >
-                {copied ? '✓ Copied' : 'Copy'}
-              </button>
-            </div>
-            <p className="text-[10px] text-white/30">Register this URL as your order webhook in the Grab partner portal.</p>
-          </div>
-        </div>
-
-        <button onClick={save} disabled={saving} className="w-full py-3 rounded-xl bg-white text-gray-900 font-bold transition active:scale-95 disabled:opacity-40">
-          {saving ? 'Saving…' : 'Save'}
-        </button>
-      </div>
-    </div>
-  )
-}
-
 // ─── Main page ────────────────────────────────────────────────────────────────
 
 export default function DeliveryPage() {
@@ -567,8 +403,7 @@ export default function DeliveryPage() {
   const [menu,     setMenu]     = useState<MenuItem[]>([])
   const [loading,  setLoading]  = useState(true)
   const [showEntry, setShowEntry] = useState(false)
-  const [showSettings, setShowSettings] = useState(false)
-  const [settings, setSettings] = useState<DeliverySettings>(() => loadDeliverySettings())
+  const [settings] = useState<DeliverySettings>(() => loadDeliverySettings())
   const [, forceRender] = useState(0)
 
   const todayStr = new Date().toDateString()
@@ -657,17 +492,10 @@ export default function DeliveryPage() {
         )}
         <div className="ml-auto flex items-center gap-2">
           <button
-            onClick={() => setShowSettings(true)}
-            className="w-9 h-9 rounded-lg flex items-center justify-center text-white/40 hover:text-white hover:bg-white/10 transition"
-            title="Commission settings"
-          >
-            ⚙️
-          </button>
-          <button
             onClick={() => setShowEntry(true)}
             className="bg-amber-500 hover:bg-amber-400 text-black font-black text-sm px-4 py-2 rounded-xl transition active:scale-95"
           >
-            + New Order
+            + {t('newDelivery')}
           </button>
         </div>
       </div>
@@ -717,13 +545,6 @@ export default function DeliveryPage() {
           settings={settings}
           onClose={() => setShowEntry(false)}
           onCreated={fetchAll}
-        />
-      )}
-      {showSettings && (
-        <SettingsModal
-          settings={settings}
-          onSave={(s) => { setSettings(s); saveDeliverySettings(s) }}
-          onClose={() => setShowSettings(false)}
         />
       )}
     </div>
