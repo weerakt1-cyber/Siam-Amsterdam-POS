@@ -468,7 +468,7 @@ export default function InventoryPage() {
               </h3>
 
               <div>
-                <label className="text-xs text-gray-500 mb-1 block">Name *</label>
+                <label className="text-xs text-gray-500 mb-1 block">{tr('fInvNameReq')}</label>
                 <input value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
                   placeholder="e.g. Rum (Bacardi)"
                   className="w-full bg-gray-100 border border-gray-200 rounded-xl px-3 py-2.5 text-sm text-gray-900 outline-none focus:border-amber-500/60 transition" />
@@ -476,7 +476,7 @@ export default function InventoryPage() {
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="text-xs text-gray-500 mb-1 block">Unit</label>
+                  <label className="text-xs text-gray-500 mb-1 block">{tr('fInvUnit')}</label>
                   <select value={form.unit} onChange={e => setForm(f => ({ ...f, unit: e.target.value }))}
                     className="w-full bg-gray-100 border border-gray-200 rounded-xl px-3 py-2.5 text-sm text-gray-900 outline-none focus:border-amber-500/60 transition">
                     {['bottle', 'can', 'pcs', 'kg', 'liter', 'portion', 'bag', 'box'].map(u => (
@@ -485,7 +485,7 @@ export default function InventoryPage() {
                   </select>
                 </div>
                 <div>
-                  <label className="text-xs text-gray-500 mb-1 block">Category</label>
+                  <label className="text-xs text-gray-500 mb-1 block">{tr('fInvCategory')}</label>
                   <select value={form.category} onChange={e => setForm(f => ({ ...f, category: e.target.value as InventoryCategory }))}
                     className="w-full bg-gray-100 border border-gray-200 rounded-xl px-3 py-2.5 text-sm text-gray-900 outline-none focus:border-amber-500/60 transition">
                     {CATEGORIES.map(c => (
@@ -497,7 +497,7 @@ export default function InventoryPage() {
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="text-xs text-gray-500 mb-1 block">Current Stock</label>
+                  <label className="text-xs text-gray-500 mb-1 block">{tr('fInvStock')}</label>
                   <button
                     type="button"
                     onClick={() => { setNumPadVal(form.currentStock); setNumPadTarget('stock') }}
@@ -507,7 +507,7 @@ export default function InventoryPage() {
                   </button>
                 </div>
                 <div>
-                  <label className="text-xs text-gray-500 mb-1 block">Alert Threshold</label>
+                  <label className="text-xs text-gray-500 mb-1 block">{tr('fInvThreshold')}</label>
                   <button
                     type="button"
                     onClick={() => { setNumPadVal(form.lowStockThreshold); setNumPadTarget('threshold') }}
@@ -519,7 +519,7 @@ export default function InventoryPage() {
               </div>
 
               <div>
-                <label className="text-xs text-gray-500 mb-1 block">Cost per Unit (฿)</label>
+                <label className="text-xs text-gray-500 mb-1 block">{tr('fInvCost')}</label>
                 <button
                   type="button"
                   onClick={() => { setNumPadVal(form.costPerUnit); setNumPadTarget('cost') }}
@@ -532,7 +532,7 @@ export default function InventoryPage() {
               </div>
 
               <div>
-                <label className="text-xs text-gray-500 mb-1 block">Notes</label>
+                <label className="text-xs text-gray-500 mb-1 block">{tr('fInvNotes')}</label>
                 <input value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))}
                   placeholder="Brand, supplier notes..."
                   className="w-full bg-gray-100 border border-gray-200 rounded-xl px-3 py-2.5 text-sm text-gray-900 outline-none focus:border-amber-500/60 transition" />

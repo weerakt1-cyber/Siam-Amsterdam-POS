@@ -409,7 +409,7 @@ export default function CouponsPage() {
 
               {/* Code */}
               <div>
-                <label className="text-xs text-gray-500 mb-1 block">Coupon Code * (auto-uppercase)</label>
+                <label className="text-xs text-gray-500 mb-1 block">{t('fCouponCodeAuto')}</label>
                 <input
                   value={form.code}
                   onChange={e => setForm(f => ({ ...f, code: e.target.value.toUpperCase().replace(/\s/g, '') }))}
@@ -420,7 +420,7 @@ export default function CouponsPage() {
 
               {/* Name */}
               <div>
-                <label className="text-xs text-gray-500 mb-1 block">Display Name *</label>
+                <label className="text-xs text-gray-500 mb-1 block">{t('fCouponDisplayName')}</label>
                 <input
                   value={form.name}
                   onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
@@ -432,7 +432,7 @@ export default function CouponsPage() {
               {/* Type + Value */}
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="text-xs text-gray-500 mb-1 block">Type</label>
+                  <label className="text-xs text-gray-500 mb-1 block">{t('fCouponTypeLabel')}</label>
                   <div className="flex rounded-xl overflow-hidden border border-gray-200">
                     {(['percent', 'fixed'] as CouponType[]).map(t => (
                       <button
@@ -461,7 +461,7 @@ export default function CouponsPage() {
               {/* Min Order + Max Uses */}
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="text-xs text-gray-500 mb-1 block">Min Order (฿, 0 = none)</label>
+                  <label className="text-xs text-gray-500 mb-1 block">{t('fCouponMinOrder')}</label>
                   <button
                     onClick={() => { setNumPadVal(form.minOrder); setNumPadTarget('minOrder') }}
                     className={`w-full text-left bg-gray-100 border border-gray-200 rounded-xl px-3 py-2.5 text-sm hover:border-amber-500/40 transition ${form.minOrder ? 'text-gray-900 font-semibold' : 'text-gray-400'}`}
@@ -470,7 +470,7 @@ export default function CouponsPage() {
                   </button>
                 </div>
                 <div>
-                  <label className="text-xs text-gray-500 mb-1 block">Max Uses (0 = unlimited)</label>
+                  <label className="text-xs text-gray-500 mb-1 block">{t('fCouponMaxUses')}</label>
                   <button
                     onClick={() => { setNumPadVal(form.maxUses); setNumPadTarget('maxUses') }}
                     className={`w-full text-left bg-gray-100 border border-gray-200 rounded-xl px-3 py-2.5 text-sm hover:border-amber-500/40 transition ${form.maxUses ? 'text-gray-900 font-semibold' : 'text-gray-400'}`}
@@ -483,14 +483,14 @@ export default function CouponsPage() {
               {/* Dates */}
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="text-xs text-gray-500 mb-1 block">Start Date (optional)</label>
+                  <label className="text-xs text-gray-500 mb-1 block">{t('fCouponStartDate')}</label>
                   <input type="date" value={form.startDate}
                     onChange={e => setForm(f => ({ ...f, startDate: e.target.value }))}
                     className="w-full bg-gray-100 border border-gray-200 rounded-xl px-3 py-2.5 text-sm text-gray-900 outline-none focus:border-amber-500/60 transition"
                     style={{ colorScheme: 'dark' }} />
                 </div>
                 <div>
-                  <label className="text-xs text-gray-500 mb-1 block">End Date (optional)</label>
+                  <label className="text-xs text-gray-500 mb-1 block">{t('fCouponEndDate')}</label>
                   <input type="date" value={form.endDate}
                     onChange={e => setForm(f => ({ ...f, endDate: e.target.value }))}
                     className="w-full bg-gray-100 border border-gray-200 rounded-xl px-3 py-2.5 text-sm text-gray-900 outline-none focus:border-amber-500/60 transition"
@@ -516,7 +516,7 @@ export default function CouponsPage() {
 
               {/* Description */}
               <div>
-                <label className="text-xs text-gray-500 mb-1 block">Description (optional)</label>
+                <label className="text-xs text-gray-500 mb-1 block">{t('fCouponDescription')}</label>
                 <input value={form.description}
                   onChange={e => setForm(f => ({ ...f, description: e.target.value }))}
                   placeholder="Internal note..."

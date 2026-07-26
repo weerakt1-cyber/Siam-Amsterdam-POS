@@ -672,7 +672,7 @@ export default function ItemsPage() {
           <div className="bg-white border border-gray-200 rounded-2xl p-4 flex flex-col gap-4">
             <p className="text-xs font-bold text-gray-400 uppercase tracking-widest">+ Add Category</p>
             <div>
-              <label className="text-xs text-gray-500 mb-1 block">Category Name</label>
+              <label className="text-xs text-gray-500 mb-1 block">{tr('fCategoryName')}</label>
               <input
                 value={newCatName}
                 onChange={e => setNewCatName(e.target.value)}
@@ -682,7 +682,7 @@ export default function ItemsPage() {
               />
             </div>
             <div>
-              <label className="text-xs text-gray-500 mb-2 block">Color</label>
+              <label className="text-xs text-gray-500 mb-2 block">{tr('fColor')}</label>
               <div className="flex flex-wrap gap-2">
                 {COLOR_SWATCHES.map(s => (
                   <button
@@ -867,7 +867,7 @@ export default function ItemsPage() {
                     {/* Name fields */}
                     <div className="flex-1 flex flex-col gap-2">
                       <div>
-                        <label className="text-xs text-gray-500 mb-1 block">Name (English) *</label>
+                        <label className="text-xs text-gray-500 mb-1 block">{tr('fNameEn')}</label>
                         <input
                           value={form.name}
                           onChange={(e) => setField('name', e.target.value)}
@@ -876,7 +876,7 @@ export default function ItemsPage() {
                         />
                       </div>
                       <div>
-                        <label className="text-xs text-gray-500 mb-1 block">Name (Thai)</label>
+                        <label className="text-xs text-gray-500 mb-1 block">{tr('fNameThai')}</label>
                         <input
                           value={form.nameTh}
                           onChange={(e) => setField('nameTh', e.target.value)}
@@ -889,7 +889,7 @@ export default function ItemsPage() {
 
                   {/* Description */}
                   <div>
-                    <label className="text-xs text-gray-500 mb-1 block">Description</label>
+                    <label className="text-xs text-gray-500 mb-1 block">{tr('fItemDescription')}</label>
                     <textarea
                       value={form.description}
                       onChange={(e) => setField('description', e.target.value)}
@@ -901,7 +901,7 @@ export default function ItemsPage() {
 
                   {/* SKU */}
                   <div>
-                    <label className="text-xs text-gray-500 mb-1 block">SKU / Barcode</label>
+                    <label className="text-xs text-gray-500 mb-1 block">{tr('fSkuBarcode')}</label>
                     <input
                       value={form.sku}
                       onChange={(e) => setField('sku', e.target.value)}
@@ -918,7 +918,7 @@ export default function ItemsPage() {
                   <div className="grid grid-cols-2 gap-3">
                     {/* Category */}
                     <div>
-                      <label className="text-xs text-gray-500 mb-1 block">Category *</label>
+                      <label className="text-xs text-gray-500 mb-1 block">{tr('fCategoryReq')}</label>
                       <select
                         value={form.category}
                         onChange={(e) => setField('category', e.target.value)}
@@ -932,7 +932,7 @@ export default function ItemsPage() {
 
                     {/* Unit */}
                     <div>
-                      <label className="text-xs text-gray-500 mb-1 block">Unit</label>
+                      <label className="text-xs text-gray-500 mb-1 block">{tr('fItemUnit')}</label>
                       <select
                         value={form.unit}
                         onChange={(e) => setField('unit', e.target.value)}
@@ -965,7 +965,7 @@ export default function ItemsPage() {
                   <div className="grid grid-cols-3 gap-3">
                     {/* Selling price */}
                     <div>
-                      <label className="text-xs text-gray-500 mb-1 block">Selling Price (฿) *</label>
+                      <label className="text-xs text-gray-500 mb-1 block">{tr('fSellingPrice')}</label>
                       <button
                         onClick={() => setNumPadTarget('price')}
                         className="w-full bg-gray-100 border border-gray-200 rounded-xl px-3 py-2.5 text-sm text-left font-bold transition hover:border-amber-500/40 active:bg-gray-100"
@@ -978,7 +978,7 @@ export default function ItemsPage() {
 
                     {/* Cost */}
                     <div>
-                      <label className="text-xs text-gray-500 mb-1 block">Cost / COGS (฿)</label>
+                      <label className="text-xs text-gray-500 mb-1 block">{tr('fCostCogs')}</label>
                       <button
                         onClick={() => setNumPadTarget('cost')}
                         className="w-full bg-gray-100 border border-gray-200 rounded-xl px-3 py-2.5 text-sm text-left transition hover:border-amber-500/40 active:bg-gray-100"
@@ -991,7 +991,7 @@ export default function ItemsPage() {
 
                     {/* Tax */}
                     <div>
-                      <label className="text-xs text-gray-500 mb-1 block">VAT (%)</label>
+                      <label className="text-xs text-gray-500 mb-1 block">{tr('fVatPct')}</label>
                       <select
                         value={form.taxRate}
                         onChange={(e) => setField('taxRate', e.target.value)}
@@ -1027,7 +1027,7 @@ export default function ItemsPage() {
                 {/* ── Section: Variants / Selections ── */}
                 <section className="flex flex-col gap-4">
                   <div>
-                    <h3 className="text-xs font-bold text-gray-400 uppercase tracking-widest">Selections / Variants</h3>
+                    <h3 className="text-xs font-bold text-gray-400 uppercase tracking-widest">{tr('fSelectionsVariants')}</h3>
                     <p className="text-xs text-gray-400 mt-1">
                       Add modifier groups — e.g. Size (S/M/L), Ice level, Spirit choice
                     </p>
@@ -1041,7 +1041,7 @@ export default function ItemsPage() {
                 {/* ── Section: Ingredients ── */}
                 <section className="flex flex-col gap-4">
                   <div>
-                    <h3 className="text-xs font-bold text-gray-400 uppercase tracking-widest">Ingredients</h3>
+                    <h3 className="text-xs font-bold text-gray-400 uppercase tracking-widest">{tr('fIngredients')}</h3>
                     <p className="text-xs text-gray-400 mt-1">
                       Link inventory items consumed per serving — stock auto-deducts when orders are paid
                     </p>

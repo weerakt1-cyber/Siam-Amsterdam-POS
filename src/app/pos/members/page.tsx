@@ -519,7 +519,7 @@ export default function MembersPage() {
               </h3>
 
               <div>
-                <label className="text-xs text-gray-400 mb-1 block">Full Name *</label>
+                <label className="text-xs text-gray-400 mb-1 block">{tr('fMemberFullName')}</label>
                 <input
                   value={form.name}
                   onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
@@ -529,7 +529,7 @@ export default function MembersPage() {
               </div>
 
               <div>
-                <label className="text-xs text-gray-400 mb-1 block">Phone</label>
+                <label className="text-xs text-gray-400 mb-1 block">{tr('fMemberPhone')}</label>
                 <input
                   value={form.phone ?? ''}
                   onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))}
@@ -539,18 +539,18 @@ export default function MembersPage() {
               </div>
 
               <div>
-                <label className="text-xs text-gray-400 mb-1 block">Contact (optional)</label>
+                <label className="text-xs text-gray-400 mb-1 block">{tr('fMemberContact')}</label>
                 <input
                   value={form.contact ?? ''}
                   onChange={(e) => setForm((f) => ({ ...f, contact: e.target.value }))}
                   placeholder="Email, LINE ID, Facebook..."
                   className="w-full bg-white border border-gray-200 rounded-xl px-3 py-2.5 text-sm text-gray-900 outline-none focus:border-amber-400 transition"
                 />
-                <p className="text-[10px] text-gray-400 mt-1">For sending promotions or birthday greetings</p>
+                <p className="text-[10px] text-gray-400 mt-1">{tr('fMemberContactHint')}</p>
               </div>
 
               <div>
-                <label className="text-xs text-gray-400 mb-1 block">Birthday</label>
+                <label className="text-xs text-gray-400 mb-1 block">{tr('fMemberBirthday')}</label>
                 <input
                   type="date"
                   value={form.birthday ?? ''}
@@ -561,7 +561,7 @@ export default function MembersPage() {
               </div>
 
               <div>
-                <label className="text-xs text-gray-400 mb-1 block">Notes</label>
+                <label className="text-xs text-gray-400 mb-1 block">{tr('fMemberNotes')}</label>
                 <textarea
                   value={form.notes ?? ''}
                   onChange={(e) => setForm((f) => ({ ...f, notes: e.target.value }))}

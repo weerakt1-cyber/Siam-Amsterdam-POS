@@ -48,6 +48,7 @@ function SettingInput({
 // ─── Payment (Omise) sub-component ────────────────────────────────────────────
 
 function PaymentSettings() {
+  const { t: tr } = usePosLang()
   const [publicKey, setPublicKey]   = useState('')
   const [secretKey, setSecretKey]   = useState('')          // only sent if the user types a new one
   const [secretSet, setSecretSet]   = useState(false)
@@ -123,7 +124,7 @@ function PaymentSettings() {
       )}
 
       <div>
-        <label className="text-xs text-gray-500 mb-1 block">Publishable key (pkey_…)</label>
+        <label className="text-xs text-gray-500 mb-1 block">{tr('setPublishableKey')}</label>
         <input
           value={publicKey}
           onChange={e => setPublicKey(e.target.value)}
@@ -181,6 +182,7 @@ type Webhook    = { id: string; url: string; events: string[]; active: boolean; 
 const VALID_EVENTS = ['order.created', 'order.paid', 'member.created']
 
 function ApiWebhooksSection() {
+  const { t: tr } = usePosLang()
   const [keys, setKeys]             = useState<ApiKey[]>([])
   const [webhooks, setWebhooks]     = useState<Webhook[]>([])
   const [newKey, setNewKey]         = useState<string | null>(null)
@@ -260,7 +262,7 @@ function ApiWebhooksSection() {
       <div className="bg-white border border-gray-100 rounded-2xl p-5 shadow-sm flex flex-col gap-4">
         <div className="flex items-center justify-between">
           <div>
-            <h3 className="font-bold text-gray-900">API Keys</h3>
+            <h3 className="font-bold text-gray-900">{tr('setApiKeys')}</h3>
             <p className="text-sm text-gray-400 mt-0.5">Keys grant read-only access to v1 API endpoints.</p>
           </div>
         </div>
@@ -320,7 +322,7 @@ function ApiWebhooksSection() {
       {/* Webhooks */}
       <div className="bg-white border border-gray-100 rounded-2xl p-5 shadow-sm flex flex-col gap-4">
         <div>
-          <h3 className="font-bold text-gray-900">Outbound Webhooks</h3>
+          <h3 className="font-bold text-gray-900">{tr('setOutboundWebhooks')}</h3>
           <p className="text-sm text-gray-400 mt-0.5">
             POST JSON to your endpoint on each event. Signed with HMAC-SHA256 in{' '}
             <code className="text-[11px] bg-gray-100 px-1 rounded">X-Webhook-Signature</code>.
@@ -359,13 +361,13 @@ function ApiWebhooksSection() {
 
         {webhooks.length === 0 && (
           <div className="border-2 border-dashed border-gray-100 rounded-xl py-6 text-center text-gray-300">
-            <p className="text-sm">No webhooks configured</p>
+            <p className="text-sm">{tr('setNoWebhooks')}</p>
           </div>
         )}
 
         {/* Add webhook form */}
         <div className="flex flex-col gap-2 border-t border-gray-50 pt-4">
-          <p className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-1">Add Endpoint</p>
+          <p className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-1">{tr('setAddEndpoint')}</p>
           <input
             value={whLabel}
             onChange={e => setWhLabel(e.target.value)}
@@ -406,7 +408,7 @@ function ApiWebhooksSection() {
 
       {/* Reference */}
       <div className="bg-gray-50 border border-gray-100 rounded-xl p-4">
-        <p className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-2">API Reference</p>
+        <p className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-2">{tr('setApiReference')}</p>
         <div className="flex flex-col gap-1">
           {[
             { method: 'GET', path: '/api/v1/orders?from=&to=&status=&page=' },
@@ -944,13 +946,13 @@ export default function SettingsPage() {
 
         {/* ── Business Information ── */}
         {activeTab === 'general' && <section>
-          <SectionTitle>Business Information</SectionTitle>
+          <SectionTitle>{tr('setBizInfo')}</SectionTitle>
           <div className="bg-white border border-gray-100 rounded-2xl p-5 flex flex-col gap-3 shadow-sm">
             {cfg && (
               <>
                 {/* Logo upload */}
                 <div className="flex items-center gap-4">
-                  <label className="text-sm text-gray-500 w-24 shrink-0">Logo</label>
+                  <label className="text-sm text-gray-500 w-24 shrink-0">{tr('setLogo')}</label>
                   <div className="flex items-center gap-3">
                     <div className="w-14 h-14 rounded-2xl overflow-hidden border border-gray-200 bg-gray-50 shrink-0 flex items-center justify-center">
                       <img
@@ -961,7 +963,7 @@ export default function SettingsPage() {
                     </div>
                     <div className="flex flex-col gap-1.5">
                       <label className="cursor-pointer inline-block px-3 py-1.5 rounded-lg text-xs font-semibold bg-gray-100 hover:bg-gray-200 text-gray-700 transition text-center">
-                        {cfg.logoDataUrl ? 'Change' : 'Upload'}
+                        {cfg.logoDataUrl ? tr('change') : tr('upload')}
                         <input type="file" accept="image/*" className="hidden" onChange={handleLogoUpload} />
                       </label>
                       {cfg.logoDataUrl && (
@@ -969,19 +971,19 @@ export default function SettingsPage() {
                           onClick={() => { setCfg(prev => prev ? { ...prev, logoDataUrl: '' } : prev); setCfgSaved(false) }}
                           className="px-3 py-1.5 rounded-lg text-xs font-semibold text-red-400 hover:bg-red-50 transition"
                         >
-                          Remove
+                          {tr('remove')}
                         </button>
                       )}
                     </div>
                   </div>
                 </div>
 
-                <SettingInput label="Business Name"  value={cfg.barName}               onChange={v => updateCfg('barName', v)}         placeholder="🍹 Your Bar Name" />
-                <SettingInput label="Address"        value={cfg.address}               onChange={v => updateCfg('address', v)}         placeholder="Sukhumvit Soi 11, Bangkok" />
-                <SettingInput label="Phone"          value={cfg.phone}                 onChange={v => updateCfg('phone', v)}           placeholder="02-xxx-xxxx" />
-                <SettingInput label="Tax ID"         value={cfg.taxId}                 onChange={v => updateCfg('taxId', v)}           placeholder="0-0000-00000-00-0" />
-                <SettingInput label="PromptPay"      value={cfg.promptpayNumber ?? ''} onChange={v => updateCfg('promptpayNumber', v)} placeholder="0812345678" />
-                <SettingInput label="Google Review Link" value={cfg.googleReviewUrl ?? ''} onChange={v => updateCfg('googleReviewUrl', v)} placeholder="https://maps.app.goo.gl/..." />
+                <SettingInput label={tr('setBizName')}  value={cfg.barName}               onChange={v => updateCfg('barName', v)}         placeholder="🍹 Your Bar Name" />
+                <SettingInput label={tr('setAddress')}        value={cfg.address}               onChange={v => updateCfg('address', v)}         placeholder="Sukhumvit Soi 11, Bangkok" />
+                <SettingInput label={tr('setPhone')}          value={cfg.phone}                 onChange={v => updateCfg('phone', v)}           placeholder="02-xxx-xxxx" />
+                <SettingInput label={tr('setTaxId')}         value={cfg.taxId}                 onChange={v => updateCfg('taxId', v)}           placeholder="0-0000-00000-00-0" />
+                <SettingInput label={tr('setPromptPay')}      value={cfg.promptpayNumber ?? ''} onChange={v => updateCfg('promptpayNumber', v)} placeholder="0812345678" />
+                <SettingInput label={tr('setGoogleReview')} value={cfg.googleReviewUrl ?? ''} onChange={v => updateCfg('googleReviewUrl', v)} placeholder="https://maps.app.goo.gl/..." />
 
                 <div className="pt-1">
                   <button
@@ -990,7 +992,7 @@ export default function SettingsPage() {
                       cfgSaved ? 'bg-emerald-500 text-white' : 'bg-amber-500 hover:bg-amber-400 text-black'
                     }`}
                   >
-                    {cfgSaved ? '✓ Saved!' : 'Save Changes'}
+                    {cfgSaved ? `✓ ${tr('savedBang')}` : tr('saveChanges')}
                   </button>
                 </div>
               </>
@@ -1000,22 +1002,22 @@ export default function SettingsPage() {
 
         {/* ── Security ── */}
         {activeTab === 'general' && <section>
-          <SectionTitle>Security</SectionTitle>
+          <SectionTitle>{tr('setSecurity')}</SectionTitle>
           <div className="bg-white border border-gray-100 rounded-2xl p-5 flex flex-col gap-3 shadow-sm">
             {cfg && (
               <>
                 <div>
-                  <p className="text-sm font-semibold text-gray-700">Display Time Lock</p>
+                  <p className="text-sm font-semibold text-gray-700">{tr('setDisplayTimeLock')}</p>
                   <p className="text-xs text-gray-400 mt-0.5 mb-3">
-                    Re-request staff PIN after this much inactivity, instead of on every screen-off or app switch.
+                    {tr('setDisplayTimeLockDesc')}
                   </p>
                   <div className="flex flex-wrap gap-2">
                     {([
-                      { val: 0,  label: 'Off' },
-                      { val: 5,  label: '5 min' },
-                      { val: 10, label: '10 min' },
-                      { val: 15, label: '15 min' },
-                      { val: 30, label: '30 min' },
+                      { val: 0,  label: tr('setOff') },
+                      { val: 5,  label: `5 ${tr('setMin')}` },
+                      { val: 10, label: `10 ${tr('setMin')}` },
+                      { val: 15, label: `15 ${tr('setMin')}` },
+                      { val: 30, label: `30 ${tr('setMin')}` },
                     ] as const).map(opt => (
                       <button
                         key={opt.val}
@@ -1037,7 +1039,7 @@ export default function SettingsPage() {
                       cfgSaved ? 'bg-emerald-500 text-white' : 'bg-amber-500 hover:bg-amber-400 text-black'
                     }`}
                   >
-                    {cfgSaved ? '✓ Saved!' : 'Save Changes'}
+                    {cfgSaved ? `✓ ${tr('savedBang')}` : tr('saveChanges')}
                   </button>
                 </div>
               </>
@@ -1047,17 +1049,17 @@ export default function SettingsPage() {
 
         {/* ── Revenue Targets ── */}
         {activeTab === 'general' && <section>
-          <SectionTitle>Revenue Targets</SectionTitle>
+          <SectionTitle>{tr('setRevenueTargets')}</SectionTitle>
           <div className="bg-white border border-gray-100 rounded-2xl p-5 flex flex-col gap-3 shadow-sm">
             {cfg && (
               <>
                 <p className="text-xs text-gray-400 -mt-1 mb-1">
-                  Set sales goals to get 🔔 alerts when you hit them (or get close). Leave 0 to disable.
+                  {tr('setRevenueTargetsDesc')}
                 </p>
                 {([
-                  { key: 'dailyRevenueTarget'   as const, label: 'Daily target',   placeholder: 'e.g. 20000' },
-                  { key: 'weeklyRevenueTarget'  as const, label: 'Weekly target',  placeholder: 'e.g. 120000' },
-                  { key: 'monthlyRevenueTarget' as const, label: 'Monthly target', placeholder: 'e.g. 500000' },
+                  { key: 'dailyRevenueTarget'   as const, label: tr('setDailyTarget'),   placeholder: 'e.g. 20000' },
+                  { key: 'weeklyRevenueTarget'  as const, label: tr('setWeeklyTarget'),  placeholder: 'e.g. 120000' },
+                  { key: 'monthlyRevenueTarget' as const, label: tr('setMonthlyTarget'), placeholder: 'e.g. 500000' },
                 ]).map(t => (
                   <div key={t.key} className="flex items-center gap-4">
                     <label className="text-sm text-gray-500 w-28 shrink-0">{t.label}</label>
@@ -1081,7 +1083,7 @@ export default function SettingsPage() {
                       cfgSaved ? 'bg-emerald-500 text-white' : 'bg-amber-500 hover:bg-amber-400 text-black'
                     }`}
                   >
-                    {cfgSaved ? '✓ Saved!' : 'Save Changes'}
+                    {cfgSaved ? `✓ ${tr('savedBang')}` : tr('saveChanges')}
                   </button>
                 </div>
               </>
@@ -1091,13 +1093,13 @@ export default function SettingsPage() {
 
         {/* ── Receipt & Printer ── */}
         {activeTab === 'printer' && <section>
-          <SectionTitle>Receipt &amp; Printer</SectionTitle>
+          <SectionTitle>{tr('setReceiptPrinter')}</SectionTitle>
           <div className="bg-white border border-gray-100 rounded-2xl p-5 flex flex-col gap-5 shadow-sm">
             {cfg && (
               <>
                 {/* Template selector */}
                 <div>
-                  <p className="text-xs font-semibold text-gray-500 mb-3">Receipt Template</p>
+                  <p className="text-xs font-semibold text-gray-500 mb-3">{tr('setReceiptTemplate')}</p>
                   <div className="grid grid-cols-3 gap-3">
                     {([
                       { id: 'classic' as ReceiptTemplate,  label: 'Classic',  desc: 'Monospace · Retro' },
@@ -1166,7 +1168,7 @@ export default function SettingsPage() {
 
                 {/* Footer text */}
                 <div className="flex items-start gap-4">
-                  <label className="text-sm text-gray-500 w-28 shrink-0 pt-2.5">Footer Text</label>
+                  <label className="text-sm text-gray-500 w-28 shrink-0 pt-2.5">{tr('setFooterText')}</label>
                   <textarea
                     value={cfg.footer}
                     onChange={e => updateCfg('footer', e.target.value)}
@@ -1178,7 +1180,7 @@ export default function SettingsPage() {
 
                 {/* Paper size */}
                 <div className="flex items-center gap-4">
-                  <label className="text-sm text-gray-500 w-28 shrink-0">Paper Size</label>
+                  <label className="text-sm text-gray-500 w-28 shrink-0">{tr('setPaperSize')}</label>
                   <div className="flex gap-2">
                     {([{ val: 32, label: '58 mm' }, { val: 48, label: '80 mm' }] as const).map(opt => (
                       <button
@@ -1207,7 +1209,7 @@ export default function SettingsPage() {
 
             {/* ── Printer Connection ── */}
             <div className="border-t border-gray-100 pt-4">
-              <p className="text-xs font-semibold text-gray-400 uppercase tracking-widest mb-3">Printer Connection</p>
+              <p className="text-xs font-semibold text-gray-400 uppercase tracking-widest mb-3">{tr('setPrinterConn')}</p>
 
               {/* Connection type toggle */}
               {cfg && (
@@ -1239,7 +1241,7 @@ export default function SettingsPage() {
                   </div>
 
                   <div className="flex items-center gap-4">
-                    <label className="text-sm text-gray-500 w-28 shrink-0">IP Address</label>
+                    <label className="text-sm text-gray-500 w-28 shrink-0">{tr('setIpAddress')}</label>
                     <input
                       type="text"
                       value={cfg.printerLanIp ?? ''}
@@ -1250,7 +1252,7 @@ export default function SettingsPage() {
                   </div>
 
                   <div className="flex items-center gap-4">
-                    <label className="text-sm text-gray-500 w-28 shrink-0">Port</label>
+                    <label className="text-sm text-gray-500 w-28 shrink-0">{tr('setPort')}</label>
                     <input
                       type="number"
                       value={cfg.printerLanPort ?? 9100}
@@ -1335,7 +1337,7 @@ export default function SettingsPage() {
                             <div className="w-2 h-2 rounded-full bg-blue-400 animate-pulse shrink-0" />
                             <span className="text-sm text-blue-700 font-medium">กำลังสแกน...</span>
                           </div>
-                          <button onClick={handleStopScan} className="px-4 py-2.5 rounded-xl text-sm font-semibold border border-gray-200 text-gray-500 hover:bg-gray-100 transition">Stop</button>
+                          <button onClick={handleStopScan} className="px-4 py-2.5 rounded-xl text-sm font-semibold border border-gray-200 text-gray-500 hover:bg-gray-100 transition">{tr('setStop')}</button>
                         </div>
                       )}
                       {scanResults.length > 0 && (
@@ -1403,7 +1405,7 @@ export default function SettingsPage() {
 
         {/* ── Payment (Omise) ── */}
         {activeTab === 'payment' && <section>
-          <SectionTitle>Online Payment · Omise</SectionTitle>
+          <SectionTitle>{tr('setOnlinePayment')}</SectionTitle>
           <div className="bg-white border border-gray-100 rounded-2xl p-5 shadow-sm">
             <PaymentSettings />
           </div>
@@ -1411,13 +1413,13 @@ export default function SettingsPage() {
 
         {/* ── Google Sheets ── */}
         {activeTab === 'integrations' && <section>
-          <SectionTitle>Google Sheets Export</SectionTitle>
+          <SectionTitle>{tr('setGoogleSheets')}</SectionTitle>
           <div className="bg-white border border-gray-100 rounded-2xl p-5 flex flex-col gap-4 shadow-sm">
             <div className="flex items-center justify-between gap-3">
               <div className="flex items-center gap-3">
                 <span className="text-2xl">📊</span>
                 <div>
-                  <h3 className="font-bold text-gray-900">Auto-export to Sheets</h3>
+                  <h3 className="font-bold text-gray-900">{tr('setAutoExport')}</h3>
                   <p className="text-xs text-gray-400 mt-0.5">Every order is appended to your spreadsheet automatically</p>
                 </div>
               </div>
@@ -1445,7 +1447,7 @@ export default function SettingsPage() {
                                         'bg-amber-50 border-amber-200'
             }`}>
               <div>
-                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-0.5">Sheet ID</p>
+                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-0.5">{tr('setSheetId')}</p>
                 {sheetsCfg === null ? (
                   <p className="text-sm text-gray-400">Checking...</p>
                 ) : sheetsCfg.configured ? (
@@ -1479,7 +1481,7 @@ export default function SettingsPage() {
         {/* ── Telegram Bot ── */}
         {activeTab === 'notify' && <>
         <section>
-          <SectionTitle>Telegram Bot Notifications</SectionTitle>
+          <SectionTitle>{tr('setTelegram')}</SectionTitle>
           <div className="bg-white border border-gray-100 rounded-2xl p-5 flex flex-col gap-4 shadow-sm">
 
             {/* Status row */}
@@ -1517,7 +1519,7 @@ export default function SettingsPage() {
                   </span>
                 </div>
                 <div className="flex items-center justify-between">
-                  <span className="text-xs text-gray-500">Chat ID</span>
+                  <span className="text-xs text-gray-500">{tr('setChatId')}</span>
                   <code className="text-xs font-mono text-emerald-700">{tgCfg.chatId}</code>
                 </div>
               </div>
@@ -1592,7 +1594,7 @@ export default function SettingsPage() {
                   <div className="bg-white border border-emerald-200 rounded-xl px-4 py-3 flex flex-col gap-1">
                     <p className="text-xs font-semibold text-emerald-700">Chat ID found!</p>
                     <div className="flex items-center justify-between">
-                      <span className="text-xs text-gray-500">Chat ID</span>
+                      <span className="text-xs text-gray-500">{tr('setChatId')}</span>
                       <code className="text-sm font-mono font-bold text-emerald-700 select-all">{tgDetectResult.chatId}</code>
                     </div>
                     {tgDetectResult.from && (
@@ -1626,7 +1628,7 @@ export default function SettingsPage() {
 
         {/* ── LINE Notify ── */}
         <section>
-          <SectionTitle>LINE Notify</SectionTitle>
+          <SectionTitle>{tr('setLineNotify')}</SectionTitle>
           <div className="bg-white border border-gray-100 rounded-2xl p-5 flex flex-col gap-4 shadow-sm">
 
             {/* Status row */}
@@ -1634,7 +1636,7 @@ export default function SettingsPage() {
               <div className="flex items-center gap-3">
                 <span className="text-2xl">💬</span>
                 <div>
-                  <h3 className="font-bold text-gray-900">LINE Notify</h3>
+                  <h3 className="font-bold text-gray-900">{tr('setLineNotify')}</h3>
                   <p className="text-xs text-gray-400 mt-0.5">New order alerts + daily revenue summary</p>
                 </div>
               </div>
@@ -1657,11 +1659,11 @@ export default function SettingsPage() {
             {lineCfg?.configured && (
               <div className="bg-emerald-50 border border-emerald-100 rounded-xl px-4 py-3 flex flex-col gap-1">
                 <div className="flex items-center justify-between">
-                  <span className="text-xs text-gray-500">Channel Token</span>
+                  <span className="text-xs text-gray-500">{tr('setChannelToken')}</span>
                   <code className="text-xs font-mono text-emerald-700">{lineCfg.tokenPreview}</code>
                 </div>
                 <div className="flex items-center justify-between">
-                  <span className="text-xs text-gray-500">Target ID</span>
+                  <span className="text-xs text-gray-500">{tr('setTargetId')}</span>
                   <code className="text-xs font-mono text-emerald-700">{lineCfg.targetId}</code>
                 </div>
               </div>
@@ -1670,7 +1672,7 @@ export default function SettingsPage() {
             {/* Partial config warning */}
             {lineCfg && !lineCfg.configured && (lineCfg.hasToken || lineCfg.hasTargetId) && (
               <div className="bg-amber-50 border border-amber-100 rounded-xl px-4 py-3 text-xs text-amber-700 flex flex-col gap-1">
-                <p className="font-semibold">Missing env vars:</p>
+                <p className="font-semibold">{tr('setMissingEnv')}</p>
                 {!lineCfg.hasToken    && <p>✗ LINE_CHANNEL_ACCESS_TOKEN</p>}
                 {!lineCfg.hasTargetId && <p>✗ LINE_TARGET_ID</p>}
               </div>
@@ -1739,7 +1741,7 @@ export default function SettingsPage() {
 
         {/* ── QR Self-Ordering ── */}
         {activeTab === 'qr' && <section>
-          <SectionTitle>QR Self-Ordering</SectionTitle>
+          <SectionTitle>{tr('setQrOrdering')}</SectionTitle>
           <div className="bg-white border border-gray-100 rounded-2xl p-5 flex flex-col gap-5 shadow-sm">
 
             {/* Config row */}
@@ -1749,7 +1751,7 @@ export default function SettingsPage() {
               </p>
 
               <div className="flex flex-col gap-1">
-                <label className="text-xs font-semibold text-gray-400 uppercase tracking-wide">Base URL</label>
+                <label className="text-xs font-semibold text-gray-400 uppercase tracking-wide">{tr('setBaseUrl')}</label>
                 <input
                   type="text"
                   value={qrBaseUrl}
@@ -1875,7 +1877,7 @@ export default function SettingsPage() {
             {qrImages.length === 0 && (
               <div className="border-2 border-dashed border-gray-100 rounded-2xl py-8 text-center text-gray-300">
                 <p className="text-3xl mb-2">📱</p>
-                <p className="text-sm">Click Generate to create QR codes</p>
+                <p className="text-sm">{tr('setClickGenerate')}</p>
               </div>
             )}
           </div>
@@ -1884,14 +1886,14 @@ export default function SettingsPage() {
         {/* ── API & Webhooks (manager only) ── */}
         {activeTab === 'integrations' && isManager && (
           <section>
-            <SectionTitle>API &amp; Webhooks</SectionTitle>
+            <SectionTitle>{tr('setApiWebhooks')}</SectionTitle>
             <ApiWebhooksSection />
           </section>
         )}
 
         {/* ── System / Integrations ── */}
         {activeTab === 'integrations' && <section>
-          <SectionTitle>System &amp; Integrations</SectionTitle>
+          <SectionTitle>{tr('setSystemIntegrations')}</SectionTitle>
           <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
             {SYSTEM_CARDS.map((card) => (
               <div key={card.title} className="bg-white border border-gray-100 rounded-2xl p-5 flex flex-col gap-3 shadow-sm">
@@ -1913,7 +1915,7 @@ export default function SettingsPage() {
                   </p>
                 )}
                 {card.badge === 'Coming soon' && (
-                  <span className="text-xs text-amber-500 font-semibold">Coming next sprint</span>
+                  <span className="text-xs text-amber-500 font-semibold">{tr('setComingSoon')}</span>
                 )}
               </div>
             ))}
@@ -1925,7 +1927,7 @@ export default function SettingsPage() {
       {/* Google account section */}
       {process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID && (
         <div className="px-6 pb-4 shrink-0">
-          <p className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-2">Google Account</p>
+          <p className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-2">{tr('setGoogleAccount')}</p>
           <OwnerProfileBadge />
         </div>
       )}
