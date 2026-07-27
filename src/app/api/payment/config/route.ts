@@ -2,6 +2,7 @@ export const dynamic = 'force-dynamic'
 
 import { NextRequest, NextResponse } from 'next/server'
 import { getConfigMany, setConfig } from '@/lib/store'
+import { getSessionProfile, requireRole } from '@/lib/api-auth'
 
 const PUBLIC_KEY = 'omise_public_key'
 const SECRET_KEY = 'omise_secret_key'
@@ -12,20 +13,28 @@ function modeOf(key: string | undefined): 'test' | 'live' | null {
   return key.includes('_test_') ? 'test' : 'live'
 }
 
-// GET — returns the publishable key (safe to expose) plus whether a secret key
-// is set and which mode the keys are in. The secret key itself is NEVER returned.
-export async function GET() {
+// GET — the publishable key is public (the customer checkout on their own phone
+// needs it, unauthenticated). Secret metadata (configured flag / last4 / source)
+// is returned ONLY to an admin caller. The secret key itself is NEVER returned.
+export async function GET(req: NextRequest) {
   try {
     const cfg = await getConfigMany([PUBLIC_KEY, SECRET_KEY])
     const publicKey = cfg[PUBLIC_KEY] || process.env.NEXT_PUBLIC_OMISE_PUBLIC_KEY || ''
     const secretKey = cfg[SECRET_KEY] || process.env.OMISE_SECRET_KEY || ''
+
+    const profile = await getSessionProfile(req)
+    const isAdmin = profile?.role === 'admin'
+
     return NextResponse.json({
       publicKey,
-      secretConfigured: !!secretKey,
-      secretLast4: secretKey ? secretKey.slice(-4) : null,
       mode: modeOf(publicKey || secretKey),
-      // whether the values come from env (read-only here) vs the DB (editable)
-      fromEnv: !cfg[PUBLIC_KEY] && !!process.env.NEXT_PUBLIC_OMISE_PUBLIC_KEY,
+      // Secret status is owner-only; anonymous/customer callers see just the publishable key.
+      ...(isAdmin ? {
+        secretConfigured: !!secretKey,
+        secretLast4: secretKey ? secretKey.slice(-4) : null,
+        // whether the values come from env (read-only here) vs the DB (editable)
+        fromEnv: !cfg[PUBLIC_KEY] && !!process.env.NEXT_PUBLIC_OMISE_PUBLIC_KEY,
+      } : {}),
     })
   } catch (err) {
     console.error('[payment/config] GET', err instanceof Error ? err.message : err)
@@ -33,9 +42,11 @@ export async function GET() {
   }
 }
 
-// POST — save keys. Only fields present in the body are updated; pass an empty
-// string to clear a key.
+// POST — save keys (owner-only). Only fields present in the body are updated;
+// pass an empty string to clear a key.
 export async function POST(req: NextRequest) {
+  const auth = await requireRole(req, ['admin'])
+  if (!auth.ok) return auth.res
   try {
     const body = await req.json()
     if (typeof body.publicKey === 'string') await setConfig(PUBLIC_KEY, body.publicKey.trim())

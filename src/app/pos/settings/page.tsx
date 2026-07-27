@@ -1,8 +1,10 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
+import { useRouter } from 'next/navigation'
 import QRCode from 'qrcode'
 import { useAuth } from '@/lib/pos-auth'
+import { authedFetch } from '@/lib/supabase-browser'
 import {
   loadBarSettings, saveBarSettings,
   loadPrinterDevice, clearPrinterDevice,
@@ -67,7 +69,7 @@ function PaymentSettings() {
 
   const load = useCallback(async () => {
     try {
-      const r = await fetch('/api/payment/config')
+      const r = await authedFetch('/api/payment/config')
       const d = await r.json()
       setPublicKey(d.publicKey ?? '')
       setSecretSet(!!d.secretConfigured)
@@ -92,7 +94,7 @@ function PaymentSettings() {
     try {
       const body: Record<string, string> = { publicKey: publicKey.trim() }
       if (secretKey.trim()) body.secretKey = secretKey.trim()   // don't overwrite unless a new one is entered
-      const r = await fetch('/api/payment/config', {
+      const r = await authedFetch('/api/payment/config', {
         method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
       })
       if (!r.ok) throw new Error((await r.json()).error ?? 'Save failed')
@@ -204,7 +206,7 @@ function ApiWebhooksSection() {
     const safeJson = (p: Promise<Response>): Promise<Record<string, unknown>> =>
       p.then(r => r.ok ? r.json() : {}).catch(() => ({}))
     const [kr, wr]: Record<string, unknown>[] = await Promise.all([
-      safeJson(fetch('/api/v1/keys')),
+      safeJson(authedFetch('/api/v1/keys')),
       safeJson(fetch('/api/v1/webhooks', { headers: { 'X-Internal': '1' } })),
     ])
     if (kr.keys)     setKeys(kr.keys as ApiKey[])
@@ -216,7 +218,7 @@ function ApiWebhooksSection() {
   async function genKey() {
     if (keyLoading) return
     setKeyLoading(true); setNewKey(null)
-    const r = await fetch('/api/v1/keys', {
+    const r = await authedFetch('/api/v1/keys', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ label: keyLabel || 'Default' }),
@@ -229,7 +231,7 @@ function ApiWebhooksSection() {
 
   async function revokeKey(id: string) {
     if (!confirm('Revoke this API key? It will stop working immediately.')) return
-    await fetch(`/api/v1/keys?id=${id}`, { method: 'DELETE' })
+    await authedFetch(`/api/v1/keys?id=${id}`, { method: 'DELETE' })
     loadAll()
   }
 
@@ -468,7 +470,7 @@ function DeliverySettingsSection() {
   const [copied, setCopied] = useState(false)
 
   useEffect(() => {
-    fetch('/api/delivery/config')
+    authedFetch('/api/delivery/config')
       .then(r => r.ok ? r.json() : null)
       .then(d => {
         if (!d?.grab) return
@@ -502,7 +504,7 @@ function DeliverySettingsSection() {
     if (grabSecret.trim())        grab.clientSecret = grabSecret
     if (grabWebhookSecret.trim()) grab.webhookSecret = grabWebhookSecret
     try {
-      await fetch('/api/delivery/config', {
+      await authedFetch('/api/delivery/config', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ grab }),
@@ -614,9 +616,20 @@ const TABS: { key: TabKey; icon: string; labelKey: PosStringKey }[] = [
 ]
 
 export default function SettingsPage() {
+  const router = useRouter()
   const { user } = useAuth()
-  const isManager = ['admin', 'manager'].includes(user?.role ?? '')
+  const role = user?.role ?? ''
+  const isManager = ['admin', 'manager'].includes(role)
+  const isAdmin   = role === 'admin'   // Owner-only — gates the secret sections
   const { t: tr, lang, setLang } = usePosLang()
+
+  // Page-level guard: Settings is manager+ only. Hiding the nav link isn't
+  // access control — a bartender/staff hitting /pos/settings directly must be
+  // bounced. `user` is null for a beat during hydration, so only redirect once
+  // a role is known and it isn't manager+.
+  useEffect(() => {
+    if (role && !isManager) router.replace('/pos')
+  }, [role, isManager, router])
 
   const [activeTab, setActiveTab] = useState<TabKey>('general')
 
@@ -1062,6 +1075,9 @@ export default function SettingsPage() {
     },
   ]
 
+  // Block render for non-managers (the redirect above is in flight).
+  if (role && !isManager) return null
+
   return (
     <div
       className="flex-1 flex flex-col overflow-hidden bg-gray-50 text-gray-900"
@@ -1072,9 +1088,9 @@ export default function SettingsPage() {
         <p className="text-sm text-gray-400 mt-0.5">Business info, receipt, printer, and system configuration</p>
       </div>
 
-      {/* Tab nav */}
+      {/* Tab nav — the Payment tab (Omise secret keys) is owner-only */}
       <div className="px-6 border-b border-gray-200 bg-white shrink-0 flex gap-1 overflow-x-auto">
-        {TABS.map(tab => (
+        {TABS.filter(tab => tab.key !== 'payment' || isAdmin).map(tab => (
           <button
             key={tab.key}
             onClick={() => setActiveTab(tab.key)}
@@ -1575,7 +1591,7 @@ export default function SettingsPage() {
         </section>}
 
         {/* ── Payment (Omise) ── */}
-        {activeTab === 'payment' && <section>
+        {activeTab === 'payment' && isAdmin && <section>
           <SectionTitle>{tr('setOnlinePayment')}</SectionTitle>
           <div className="bg-white border border-gray-100 rounded-2xl p-5 shadow-sm">
             <PaymentSettings />
@@ -2054,16 +2070,16 @@ export default function SettingsPage() {
           </div>
         </section>}
 
-        {/* ── Delivery (manager only — holds partner API secrets) ── */}
-        {activeTab === 'integrations' && isManager && (
+        {/* ── Delivery (owner only — holds partner API secrets) ── */}
+        {activeTab === 'integrations' && isAdmin && (
           <section>
             <SectionTitle>🛵 {tr('setDelivery')}</SectionTitle>
             <DeliverySettingsSection />
           </section>
         )}
 
-        {/* ── API & Webhooks (manager only) ── */}
-        {activeTab === 'integrations' && isManager && (
+        {/* ── API & Webhooks (owner only — mints API keys) ── */}
+        {activeTab === 'integrations' && isAdmin && (
           <section>
             <SectionTitle>{tr('setApiWebhooks')}</SectionTitle>
             <ApiWebhooksSection />

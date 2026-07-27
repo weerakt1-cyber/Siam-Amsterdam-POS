@@ -1,12 +1,14 @@
 export const dynamic = 'force-dynamic'
 
 import { NextRequest, NextResponse } from 'next/server'
-import { generateApiKey, listApiKeys, revokeApiKey } from '@/lib/api-auth'
+import { generateApiKey, listApiKeys, revokeApiKey, requireRole } from '@/lib/api-auth'
 
-// Internal route — protected by POS session auth (manager-only UI calls this).
-// Not protected by API key itself since the key doesn't exist yet when first generating.
+// Internal route — owner-only. Managing API keys (mint/list/revoke) is an admin
+// action, verified server-side against the caller's Supabase profile role.
 
-export async function GET() {
+export async function GET(req: NextRequest) {
+  const auth = await requireRole(req, ['admin'])
+  if (!auth.ok) return auth.res
   try {
     const keys = await listApiKeys()
     return NextResponse.json({ keys })
@@ -17,6 +19,8 @@ export async function GET() {
 }
 
 export async function POST(req: NextRequest) {
+  const auth = await requireRole(req, ['admin'])
+  if (!auth.ok) return auth.res
   try {
     const body = await req.json()
     const label = (body.label as string | undefined)?.trim() || 'Default'
@@ -29,6 +33,8 @@ export async function POST(req: NextRequest) {
 }
 
 export async function DELETE(req: NextRequest) {
+  const auth = await requireRole(req, ['admin'])
+  if (!auth.ok) return auth.res
   try {
     const { searchParams } = req.nextUrl
     const id = searchParams.get('id')

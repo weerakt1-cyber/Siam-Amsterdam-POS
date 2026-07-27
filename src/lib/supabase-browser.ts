@@ -19,6 +19,26 @@ export function getSupabaseBrowser() {
   return _client
 }
 
+// Returns the current Supabase access token (JWT), or null if not signed in.
+// Used to authenticate calls to owner-only internal API routes.
+export async function getAccessToken(): Promise<string | null> {
+  try {
+    const { data } = await getSupabaseBrowser().auth.getSession()
+    return data.session?.access_token ?? null
+  } catch {
+    return null
+  }
+}
+
+// fetch() wrapper that attaches the Supabase access token as a Bearer header so
+// the server can verify the caller's role on owner-only endpoints.
+export async function authedFetch(input: string, init: RequestInit = {}): Promise<Response> {
+  const token = await getAccessToken()
+  const headers = new Headers(init.headers)
+  if (token) headers.set('Authorization', `Bearer ${token}`)
+  return fetch(input, { ...init, headers })
+}
+
 export type AppProfile = {
   id:             string
   name:           string

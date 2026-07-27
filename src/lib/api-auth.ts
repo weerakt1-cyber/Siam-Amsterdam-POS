@@ -1,5 +1,52 @@
-import { NextRequest } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 import { supabase } from './supabase'
+
+// ─── Session role guard (for owner/manager-only endpoints) ────────────────────
+// The browser Supabase session lives in localStorage, so callers must send their
+// access token as `Authorization: Bearer <token>`. We verify the JWT server-side
+// and look up the caller's role in `profiles` — the tamper-proof source of truth
+// (the PIN staff-switcher role is client-only and cannot be trusted here).
+
+export type SessionProfile = { id: string; role: string; name: string }
+
+export async function getSessionProfile(req: NextRequest): Promise<SessionProfile | null> {
+  const authz = req.headers.get('authorization') ?? ''
+  const token = authz.toLowerCase().startsWith('bearer ') ? authz.slice(7).trim() : ''
+  if (!token) return null
+
+  const { data: userData, error } = await supabase.auth.getUser(token)
+  if (error || !userData?.user) return null
+
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('id, name, role')
+    .eq('id', userData.user.id)
+    .maybeSingle()
+
+  if (!profile?.role) return null
+  return { id: profile.id as string, role: profile.role as string, name: profile.name as string }
+}
+
+/**
+ * Guard for API routes. Returns `{ ok: true, profile }` when the caller's role
+ * is in `allowed`, otherwise `{ ok: false, res }` with a 401/403 to return.
+ *
+ *   const auth = await requireRole(req, ['admin'])
+ *   if (!auth.ok) return auth.res
+ */
+export async function requireRole(
+  req: NextRequest,
+  allowed: string[],
+): Promise<{ ok: true; profile: SessionProfile } | { ok: false; res: NextResponse }> {
+  const profile = await getSessionProfile(req)
+  if (!profile) {
+    return { ok: false, res: NextResponse.json({ error: 'Authentication required' }, { status: 401 }) }
+  }
+  if (!allowed.includes(profile.role)) {
+    return { ok: false, res: NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 }) }
+  }
+  return { ok: true, profile }
+}
 
 async function sha256Hex(input: string): Promise<string> {
   const encoded = new TextEncoder().encode(input)

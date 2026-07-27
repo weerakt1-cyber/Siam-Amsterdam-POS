@@ -3,12 +3,15 @@ export const dynamic = 'force-dynamic'
 import { NextRequest, NextResponse } from 'next/server'
 import { getConfigMany, setConfig } from '@/lib/store'
 import { GRAB_CONFIG_KEYS } from '@/lib/delivery-platforms/grab'
+import { requireRole } from '@/lib/api-auth'
 
 // ─── Delivery platform API config (server-side, app_config table) ─────────────
 // Mirrors /api/payment/config: secrets are write-only — GET returns configured
 // flags + last4 only, never the secret values themselves.
 
-export async function GET() {
+export async function GET(req: NextRequest) {
+  const auth = await requireRole(req, ['admin'])
+  if (!auth.ok) return auth.res
   try {
     const cfg = await getConfigMany([...GRAB_CONFIG_KEYS])
     return NextResponse.json({
@@ -31,6 +34,8 @@ export async function GET() {
 // POST — save Grab keys. Only fields present in the body are updated; pass an
 // empty string to clear a key.
 export async function POST(req: NextRequest) {
+  const auth = await requireRole(req, ['admin'])
+  if (!auth.ok) return auth.res
   try {
     const body = await req.json()
     const g = body.grab ?? {}
