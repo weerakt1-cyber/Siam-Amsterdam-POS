@@ -923,7 +923,7 @@ export default function POSPage() {
                     <div
                       key={o.id}
                       onClick={() => { if (!isMerged) mergeQrOrder(o) }}
-                      className={`rounded-xl border overflow-hidden transition ${
+                      className={`shrink-0 rounded-xl border overflow-hidden transition ${
                         isMerged
                           ? 'border-amber-300 bg-amber-50/60'
                           : 'border-stone-200 bg-white hover:border-amber-400 hover:shadow-md cursor-pointer active:scale-[0.99]'
