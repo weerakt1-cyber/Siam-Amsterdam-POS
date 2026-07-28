@@ -1044,21 +1044,21 @@ export default function POSPage() {
       )}
 
       {/* ── Header ── */}
-      <div className="flex items-center gap-2 px-3 py-2 bg-white border-b border-stone-200 shrink-0 shadow-sm">
+      <div className="flex items-center gap-2 px-3 py-2.5 bg-white border-b border-stone-200 shrink-0 shadow-sm">
         {/* Greeting + daily power quote (replaces the old table-tab strip) */}
         {(() => {
           const greet = getThaiGreeting()
           const quote = getDailyQuote()
           return (
-            <div className="flex-1 min-w-0 flex items-center gap-2.5 rounded-xl bg-gradient-to-r from-amber-50 via-orange-50/60 to-transparent px-3 py-1">
-              <span className="text-xl shrink-0 leading-none">{greet.emoji}</span>
-              <div className="min-w-0 flex flex-col justify-center">
-                <p className="text-xs font-black text-stone-800 leading-tight truncate">
+            <div className="flex-1 min-w-0 flex items-center gap-2.5 rounded-xl bg-gradient-to-r from-amber-50 via-orange-50/60 to-transparent px-3 py-1.5">
+              <span className="text-2xl shrink-0 leading-none">{greet.emoji}</span>
+              <div className="min-w-0 flex flex-col justify-center gap-0.5">
+                <p className="text-sm font-black text-stone-900 leading-tight truncate">
                   {greet.text}{' '}
                   <span className="bg-gradient-to-r from-amber-600 to-orange-500 bg-clip-text text-transparent">{bizName}</span>
                   {' '}!
                 </p>
-                <p className="text-[10px] text-stone-400 italic leading-tight truncate">
+                <p className="text-xs font-semibold text-stone-600 italic leading-tight truncate">
                   ✨ “{quote}”
                 </p>
               </div>
