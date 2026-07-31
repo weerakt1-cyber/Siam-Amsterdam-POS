@@ -187,6 +187,22 @@ npx cap open android
 #    หรือ build APK: Build > Generate Signed Bundle/APK
 ```
 
+**Repeatable signed release build (CLI, no Android Studio):**
+```bash
+# One-time: create a keystore (BACK IT UP — losing it = can't update the app ever again)
+keytool -genkeypair -v -keystore android/baze-release.keystore \
+  -alias baze-pos -keyalg RSA -keysize 2048 -validity 10000
+
+# One-time: create android/keystore.properties from the example and fill in passwords
+cp android/keystore.properties.example android/keystore.properties
+
+# Every build after that — automatically signed via signingConfigs.release in app/build.gradle:
+cd android && ./gradlew :app:assembleRelease
+#   → android/app/build/outputs/apk/release/app-release.apk  (signed)
+# If keystore.properties is missing it builds app-release-unsigned.apk + prints a warning.
+```
+`keystore.properties`, `*.keystore`, and `*.jks` are gitignored — never commit them.
+
 **ทดสอบ Bluetooth:**
 1. เปิดแอปบน Android device จริง (ไม่ใช่ emulator)
 2. เปิด Bluetooth + ให้สิทธิ์ Location เมื่อระบบถาม

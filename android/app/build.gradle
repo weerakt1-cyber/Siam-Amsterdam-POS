@@ -1,14 +1,51 @@
 apply plugin: 'com.android.application'
 
+// ── Release signing ──────────────────────────────────────────────────────────
+// Credentials are read from android/keystore.properties (gitignored) so that
+// `./gradlew :app:assembleRelease` produces a signed APK with no extra steps —
+// repeatable, no passwords on the command line, nothing secret in git.
+// If the file is absent (fresh clone, CI, debug-only work) the release build is
+// simply left unsigned instead of failing. Copy keystore.properties.example to
+// keystore.properties and fill it in to enable signing — see DEV_HANDOFF.md.
+def keystorePropsFile = rootProject.file("keystore.properties")
+def keystoreProps = new Properties()
+def hasKeystore = keystorePropsFile.exists()
+if (hasKeystore) {
+    keystoreProps.load(new FileInputStream(keystorePropsFile))
+}
+
+// ── App version ──────────────────────────────────────────────────────────────
+// versionCode / versionName are derived from android/version.properties (tracked
+// in git) so releases are bumped in one place, not by hand-editing this file.
+def versionPropsFile = rootProject.file("version.properties")
+def versionProps = new Properties()
+if (versionPropsFile.exists()) {
+    versionProps.load(new FileInputStream(versionPropsFile))
+} else {
+    throw new GradleException("android/version.properties is missing — cannot determine app version.")
+}
+def appVersionCode = Integer.parseInt(versionProps['versionCode'].trim())
+def appVersionName = versionProps['versionName'].trim()
+
 android {
     namespace "com.baze.pos"
     compileSdk rootProject.ext.compileSdkVersion
+    signingConfigs {
+        release {
+            if (hasKeystore) {
+                storeFile rootProject.file(keystoreProps['storeFile'])
+                storePassword keystoreProps['storePassword']
+                keyAlias keystoreProps['keyAlias']
+                keyPassword keystoreProps['keyPassword']
+            }
+        }
+    }
     defaultConfig {
         applicationId "com.baze.pos"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 1
-        versionName "1.0"
+        versionCode appVersionCode
+        versionName appVersionName
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
@@ -18,6 +55,11 @@ android {
     }
     buildTypes {
         release {
+            if (hasKeystore) {
+                signingConfig signingConfigs.release
+            } else {
+                logger.warn("⚠️  android/keystore.properties not found — release APK will be UNSIGNED. See keystore.properties.example.")
+            }
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
         }
