@@ -204,6 +204,7 @@ const C = {
   MEDIUM:   [GS,  0x21, 0x01],
   NORMAL:   [GS,  0x21, 0x00],
   CUT:      [GS,  0x56, 0x42, 0x10],
+  DRAWER:   [ESC, 0x70, 0x00, 0x19, 0xFA],  // ESC p 0 25ms 250ms — kick cash drawer (pin 2)
 }
 
 // ─── Text helpers ─────────────────────────────────────────────────────────────
@@ -488,13 +489,22 @@ function canvasToRasterBytes(canvas: HTMLCanvasElement): Uint8Array {
 
 // ─── Build ESC/POS bytes for the full receipt (raster image + optional QR) ────
 
-export async function buildReceiptBytes(d: ReceiptData, cfg: BarSettings): Promise<Uint8Array> {
+export async function buildReceiptBytes(
+  d: ReceiptData, cfg: BarSettings, opts?: { openDrawer?: boolean },
+): Promise<Uint8Array> {
   if (typeof document === 'undefined') {
     throw new Error('Receipt rendering requires a browser context')
   }
   const raster = canvasToRasterBytes(renderReceiptCanvas(d, cfg))
 
-  const parts: Uint8Array[] = [b(C.INIT), b(C.CENTER), raster]
+  const parts: Uint8Array[] = [b(C.INIT)]
+  // Kick the cash drawer as the FIRST command of the SAME print job. Sending it
+  // as a separate connection right after the receipt raced with the printer
+  // still being busy feeding the long bill, and the drawer usually didn't fire
+  // even though the 22 bytes flushed. Bundling it into one job makes it reliable
+  // and pops the till the moment printing starts.
+  if (opts?.openDrawer) parts.push(b(C.DRAWER))
+  parts.push(b(C.CENTER), raster)
   if (cfg.googleReviewUrl) {
     parts.push(b('\n', C.CENTER, 'Scan to rate us on Google!\n'), buildQRBytes(cfg.googleReviewUrl, 6), b('\n'))
   }
@@ -595,13 +605,15 @@ export async function sendBytesViaLan(bytes: Uint8Array, ip: string, port = 9100
 
 // ─── Universal: route to Bluetooth or LAN based on cfg ───────────────────────
 
-export async function printReceipt(d: ReceiptData, cfg: BarSettings): Promise<void> {
-  const bytes = await buildReceiptBytes(d, cfg)
+export async function printReceipt(
+  d: ReceiptData, cfg: BarSettings, opts?: { openDrawer?: boolean },
+): Promise<void> {
+  const bytes = await buildReceiptBytes(d, cfg, opts)
   if ((cfg.printerConnectionType ?? 'bluetooth') === 'lan') {
     if (!cfg.printerLanIp) throw new Error('ยังไม่ได้ตั้งค่า IP ปริ้นเตอร์ — ไปที่ Settings → Printer')
     await sendBytesViaLan(bytes, cfg.printerLanIp, cfg.printerLanPort ?? 9100)
   } else {
-    await printReceiptBluetooth(d, cfg)
+    await reconnectAndWrite(bytes) // single job: drawer kick (if any) + receipt
   }
 }
 

@@ -258,16 +258,18 @@ export default function CheckoutModal({
     setBtStatus('printing')
     let printed = false
     try {
-      await printReceipt(data, cfg)
+      // Bundle the cash-drawer kick INTO the print job (openDrawer flag) rather
+      // than firing it as a separate connection afterwards — that separate kick
+      // raced with the printer still feeding the bill and usually didn't open
+      // the till even though the bytes flushed. One job = reliable.
+      await printReceipt(data, cfg, { openDrawer: payment === 'cash' })
       printed = true
     } catch (err) {
       setBtError(err instanceof Error ? err.message : 'เกิดข้อผิดพลาด')
     }
-    // Open the cash drawer whenever cash is taken — INDEPENDENT of the print
-    // result. Previously this sat inside the print try/catch, so any print
-    // hiccup left the drawer shut on a cash sale. It runs its own fresh
-    // disconnect→connect→write, so it works whether print succeeded or not.
-    if (payment === 'cash') await openCashDrawer(cfg).catch(() => {})
+    // Fallback: if the whole print job failed to connect on a cash sale, still
+    // try a standalone drawer kick so the till can open.
+    if (!printed && payment === 'cash') await openCashDrawer(cfg).catch(() => {})
     setBtStatus(printed ? 'done' : 'error')
   }
 
