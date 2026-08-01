@@ -521,6 +521,7 @@ export async function buildReceiptBytes(d: ReceiptData, cfg: BarSettings): Promi
 //     sequence that is proven to print.
 interface NativeThermalPrinter {
   connect(opts: { address: string }): Promise<{ name?: string; address: string } | null>
+  disconnect(): Promise<void>
   begin(opts?: Record<string, never>): Promise<void>
   raw(opts: { data: string }): Promise<void>
   write(opts?: Record<string, never>): Promise<void>
@@ -551,6 +552,13 @@ async function reconnectAndWrite(bytes: Uint8Array): Promise<void> {
   if (!native) throw new Error('เครื่องพิมพ์ใช้ได้เฉพาะใน Android app')
   const saved = await loadPrinterDevice()
   if (!saved) throw new Error('ยังไม่ได้ตั้งค่าปริ้นเตอร์ — ไปที่ Settings → Printer')
+  // Drop any existing socket BEFORE connecting. Calling connect() while an SPP
+  // link is already open makes Android RFCOMM fail with "already at opened
+  // state" and — critically — tears down the live socket, so the drawer/print
+  // works exactly once and then every following attempt dies. A clean
+  // disconnect → (settle) → connect yields a fresh socket on every write.
+  await native.disconnect().catch(() => {})
+  await new Promise(res => setTimeout(res, 350)) // let RFCOMM release the DLCI
   const device = await native.connect({ address: saved.address })
   if (!device) throw new Error('เชื่อมต่อปริ้นเตอร์ไม่สำเร็จ — ตรวจสอบว่าเปิดเครื่องพิมพ์และอยู่ใกล้')
   await native.begin({})

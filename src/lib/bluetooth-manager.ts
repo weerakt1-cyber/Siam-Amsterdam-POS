@@ -321,6 +321,11 @@ class BluetoothManager {
    */
   async autoConnectOnStartup(): Promise<void> {
     if (!isNativePlatform()) return
+    // Called from both the POS layout and the Settings page — and possibly again
+    // on remount. If a connection is already up or in flight, a second connect()
+    // collides at the RFCOMM layer ("already at opened state") and drops the live
+    // link. Only auto-connect from a resting state.
+    if (this.state === 'connected' || this.state === 'connecting' || this.state === 'reconnecting') return
     const saved = await loadPrinterDevice()
     if (!saved) return
 
