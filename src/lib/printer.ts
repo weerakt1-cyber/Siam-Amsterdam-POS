@@ -282,7 +282,7 @@ function layoutReceipt(ctx: CanvasRenderingContext2D, W: number, d: ReceiptData,
   const t     = cfg.receiptTemplate ?? 'classic'
   const scale = W / 384                          // 1 @58mm, 1.5 @80mm
   const S     = (n: number) => Math.round(n * scale)
-  const pad   = S(12)
+  const pad   = S(4)   // near edge-to-edge — minimal side margin
   const innerW = W - pad * 2
 
   const sansFamily = "'Noto Sans Thai','Sarabun','Prompt',sans-serif"
@@ -293,10 +293,15 @@ function layoutReceipt(ctx: CanvasRenderingContext2D, W: number, d: ReceiptData,
   ctx.fillStyle = '#000'
   ctx.textBaseline = 'top'
 
+  // Fonts printed too small to read. Enlarge every glyph by FONT_BOOST for
+  // near-standard receipt legibility; line-height scales with it so lines never
+  // overlap. Combined with the smaller `pad` above, the layout runs close to the
+  // paper edge and uses the full width.
+  const FONT_BOOST = 1.3
   const setFont = (size: number, bold: boolean, family = bodyFamily) => {
-    ctx.font = `${bold ? 'bold ' : ''}${S(size)}px ${family}`
+    ctx.font = `${bold ? 'bold ' : ''}${S(size * FONT_BOOST)}px ${family}`
   }
-  const lh = (size: number) => S(size) + S(7)
+  const lh = (size: number) => S(size * FONT_BOOST) + S(6)
 
   function center(text: string, size: number, bold: boolean, family = bodyFamily) {
     const s = stripEmoji(text); if (!s) return
@@ -508,11 +513,10 @@ export async function buildReceiptBytes(
   if (cfg.googleReviewUrl) {
     parts.push(b('\n', C.CENTER, 'Scan to rate us on Google!\n'), buildQRBytes(cfg.googleReviewUrl, 6), b('\n'))
   }
-  // Feed the whole bill clear of the print head before cutting, so the receipt
-  // is fully presented past the tear bar / auto-cutter instead of stopping with
-  // the last lines still inside the mechanism. 6 blank lines (~18mm) + the cut
-  // command's own feed gives a clean margin below the last printed content.
-  parts.push(b(C.LEFT, '\n\n\n\n\n\n'), b(C.CUT))
+  // Feed just enough to clear the print head before cutting — 3 blank lines
+  // (~9mm) plus the cut command's own feed. Keeps the tail short while still
+  // presenting the last printed line past the tear bar / auto-cutter.
+  parts.push(b(C.LEFT, '\n\n\n'), b(C.CUT))
 
   const total  = parts.reduce((s, p) => s + p.length, 0)
   const result = new Uint8Array(total)
