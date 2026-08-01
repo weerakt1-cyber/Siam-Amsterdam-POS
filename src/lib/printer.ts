@@ -85,7 +85,13 @@ export function isNativePlatform(): boolean {
 
 async function getPlugin() {
   const { CapacitorThermalPrinter } = await import('capacitor-thermal-printer')
-  return CapacitorThermalPrinter
+  // Box the proxy. Returning it bare from an async function makes the promise
+  // machinery read `.then` on the Capacitor proxy to test if it's a thenable —
+  // the proxy treats that as a native `then()` call and throws
+  // "CapacitorThermalPrinter.then() is not implemented on android", which breaks
+  // scan/connect/print entirely. Wrapping in a plain object avoids the thenable
+  // check. Same gotcha is documented for Preferences below.
+  return { plugin: CapacitorThermalPrinter }
 }
 
 // ─── Prefs helpers — localStorage บน web, Capacitor Preferences บน native ────
@@ -148,7 +154,7 @@ export async function startScanPrinters(
   if (!isNativePlatform()) {
     throw new Error('การสแกน Bluetooth ต้องใช้ผ่าน Android/iOS app — ไม่สามารถใช้งานใน browser')
   }
-  const printer = await getPlugin()
+  const { plugin: printer } = await getPlugin()
 
   const handles: PluginListenerHandle[] = []
   handles.push(await printer.addListener('discoverDevices', ({ devices }) => onDevices(devices)))
@@ -165,7 +171,7 @@ export async function startScanPrinters(
 // ─── Connect / Disconnect ─────────────────────────────────────────────────────
 
 export async function connectPrinter(address: string): Promise<string> {
-  const printer = await getPlugin()
+  const { plugin: printer } = await getPlugin()
   const device  = await printer.connect({ address })
   if (!device) throw new Error(`เชื่อมต่อ ${address} ล้มเหลว — ตรวจสอบว่าเปิด Bluetooth และอยู่ใกล้ปริ้นเตอร์`)
   return device.name ?? address
@@ -173,13 +179,13 @@ export async function connectPrinter(address: string): Promise<string> {
 
 export async function disconnectPrinter(): Promise<void> {
   if (!isNativePlatform()) return
-  const printer = await getPlugin()
+  const { plugin: printer } = await getPlugin()
   await printer.disconnect().catch(() => {})
 }
 
 export async function checkPrinterConnected(): Promise<boolean> {
   if (!isNativePlatform()) return false
-  const printer = await getPlugin()
+  const { plugin: printer } = await getPlugin()
   return printer.isConnected()
 }
 
