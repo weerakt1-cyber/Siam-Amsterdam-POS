@@ -252,18 +252,23 @@ export default function CheckoutModal({
       change:    payment === 'cash' ? change       : undefined,
       note:      note || undefined,
     }
+    // printReceipt / openCashDrawer reconnect to the saved printer via the
+    // native plugin themselves before writing, so we no longer pre-connect or
+    // trust the (stale) isConnected flag here.
+    setBtStatus('printing')
+    let printed = false
     try {
-      // printReceipt / openCashDrawer reconnect to the saved printer via the
-      // native plugin themselves before writing, so we no longer pre-connect or
-      // trust the (stale) isConnected flag here.
-      setBtStatus('printing')
       await printReceipt(data, cfg)
-      if (payment === 'cash') await openCashDrawer(cfg).catch(() => {})
-      setBtStatus('done')
+      printed = true
     } catch (err) {
-      setBtStatus('error')
       setBtError(err instanceof Error ? err.message : 'เกิดข้อผิดพลาด')
     }
+    // Open the cash drawer whenever cash is taken — INDEPENDENT of the print
+    // result. Previously this sat inside the print try/catch, so any print
+    // hiccup left the drawer shut on a cash sale. It runs its own fresh
+    // disconnect→connect→write, so it works whether print succeeded or not.
+    if (payment === 'cash') await openCashDrawer(cfg).catch(() => {})
+    setBtStatus(printed ? 'done' : 'error')
   }
 
   // receivedOverride ใช้เมื่อกดปุ่มแบงค์ (ไม่ต้องรอ state update)

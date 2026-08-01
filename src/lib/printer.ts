@@ -498,7 +498,11 @@ export async function buildReceiptBytes(d: ReceiptData, cfg: BarSettings): Promi
   if (cfg.googleReviewUrl) {
     parts.push(b('\n', C.CENTER, 'Scan to rate us on Google!\n'), buildQRBytes(cfg.googleReviewUrl, 6), b('\n'))
   }
-  parts.push(b(C.LEFT, '\n\n\n'), b(C.CUT))
+  // Feed the whole bill clear of the print head before cutting, so the receipt
+  // is fully presented past the tear bar / auto-cutter instead of stopping with
+  // the last lines still inside the mechanism. 6 blank lines (~18mm) + the cut
+  // command's own feed gives a clean margin below the last printed content.
+  parts.push(b(C.LEFT, '\n\n\n\n\n\n'), b(C.CUT))
 
   const total  = parts.reduce((s, p) => s + p.length, 0)
   const result = new Uint8Array(total)
