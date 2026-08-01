@@ -282,7 +282,7 @@ function layoutReceipt(ctx: CanvasRenderingContext2D, W: number, d: ReceiptData,
   const t     = cfg.receiptTemplate ?? 'classic'
   const scale = W / 384                          // 1 @58mm, 1.5 @80mm
   const S     = (n: number) => Math.round(n * scale)
-  const pad   = S(4)   // near edge-to-edge — minimal side margin
+  const pad   = S(1)   // hard against the printable edge — minimal side margin
   const innerW = W - pad * 2
 
   const sansFamily = "'Noto Sans Thai','Sarabun','Prompt',sans-serif"
@@ -297,7 +297,7 @@ function layoutReceipt(ctx: CanvasRenderingContext2D, W: number, d: ReceiptData,
   // near-standard receipt legibility; line-height scales with it so lines never
   // overlap. Combined with the smaller `pad` above, the layout runs close to the
   // paper edge and uses the full width.
-  const FONT_BOOST = 1.3
+  const FONT_BOOST = 1.6
   const setFont = (size: number, bold: boolean, family = bodyFamily) => {
     ctx.font = `${bold ? 'bold ' : ''}${S(size * FONT_BOOST)}px ${family}`
   }
@@ -442,7 +442,7 @@ function layoutReceipt(ctx: CanvasRenderingContext2D, W: number, d: ReceiptData,
     for (const line of footerLines) center(line, 15, false)
   }
 
-  gap(6)
+  gap(2)   // minimal bottom whitespace — keep the tail short
   return y
 }
 
@@ -513,10 +513,9 @@ export async function buildReceiptBytes(
   if (cfg.googleReviewUrl) {
     parts.push(b('\n', C.CENTER, 'Scan to rate us on Google!\n'), buildQRBytes(cfg.googleReviewUrl, 6), b('\n'))
   }
-  // Feed just enough to clear the print head before cutting — 3 blank lines
-  // (~9mm) plus the cut command's own feed. Keeps the tail short while still
-  // presenting the last printed line past the tear bar / auto-cutter.
-  parts.push(b(C.LEFT, '\n\n\n'), b(C.CUT))
+  // Minimal feed before the cut — 1 blank line plus the cut command's own feed.
+  // Keeps the tail short; still clears the last printed line past the cutter.
+  parts.push(b(C.LEFT, '\n'), b(C.CUT))
 
   const total  = parts.reduce((s, p) => s + p.length, 0)
   const result = new Uint8Array(total)
