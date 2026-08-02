@@ -143,7 +143,7 @@ export default function MembersPage() {
   }
 
   async function handleSave() {
-    if (!form.name?.trim()) return showToast('Name is required', false)
+    if (!form.name?.trim()) return showToast(tr('itNameRequired'), false)
     setIsSaving(true)
     try {
       if (isCreating) {
@@ -161,12 +161,12 @@ export default function MembersPage() {
           body: JSON.stringify(form),
         })
         if (!r.ok) throw new Error((await r.json()).error)
-        showToast('Saved')
+        showToast(tr('saved'))
       }
       await fetchAll()
       setIsCreating(false)
     } catch (e) {
-      showToast(e instanceof Error ? e.message : 'Save failed', false)
+      showToast(e instanceof Error ? e.message : tr('itSaveFailed'), false)
     } finally {
       setIsSaving(false)
     }
@@ -179,7 +179,7 @@ export default function MembersPage() {
     setIsDeleting(true)
     try {
       await fetch(`/api/members/${selectedId}`, { method: 'DELETE' })
-      showToast('Member deleted')
+      showToast(tr('memDeleted'))
       setSelectedId(null)
       await fetchAll()
     } finally {
@@ -227,7 +227,7 @@ export default function MembersPage() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ stamps: 0 }),
     })
-    showToast('Reward redeemed! Stamp card reset.')
+    showToast(tr('memRewardRedeemed'))
     await fetchAll()
   }
 
@@ -311,7 +311,7 @@ export default function MembersPage() {
             <input
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder="🔍 Search name, phone, or contact..."
+              placeholder={tr('memSearchPh')}
               className="w-full bg-white rounded-xl px-3 py-2 text-sm text-gray-900 placeholder-gray-300 outline-none focus:ring-1 focus:ring-amber-500 transition"
             />
             <div className="flex gap-1">
@@ -323,7 +323,7 @@ export default function MembersPage() {
                     sortBy === s ? 'bg-amber-500/20 text-amber-400' : 'text-gray-400 hover:text-gray-700'
                   }`}
                 >
-                  {s === 'name' ? 'A–Z' : s === 'visits' ? 'Visits' : s === 'spend' ? 'Spend' : 'Tier'}
+                  {s === 'name' ? tr('memSortAZ') : s === 'visits' ? tr('memSortVisits') : s === 'spend' ? tr('memSortSpend') : tr('memSortTier')}
                 </button>
               ))}
             </div>
@@ -334,7 +334,7 @@ export default function MembersPage() {
             {sorted.length === 0 ? (
               <div className="flex flex-col items-center justify-center h-32 text-gray-300 text-sm">
                 <p className="text-3xl mb-2">👤</p>
-                <p>{search ? 'No results' : 'No members yet'}</p>
+                <p>{search ? tr('memNoResults') : tr('memNoMembers')}</p>
               </div>
             ) : (
               sorted.map(({ m, stats }) => {
@@ -401,7 +401,7 @@ export default function MembersPage() {
                   disabled={isDeleting}
                   className="text-xs text-gray-400 hover:text-red-500 transition px-3 py-1.5 rounded-lg border border-gray-200 hover:border-red-400/30"
                 >
-                  {isDeleting ? '...' : 'Delete'}
+                  {isDeleting ? '...' : tr('delete')}
                 </button>
               )}
             </div>
@@ -443,9 +443,9 @@ export default function MembersPage() {
             {!isCreating && selStats && (
               <div className="grid grid-cols-3 gap-3">
                 {[
-                  { label: 'Total Visits', value: selStats.visits, icon: '🗓️' },
-                  { label: 'Lifetime Spend', value: baht(selStats.lifetimeSpend), icon: '💰' },
-                  { label: 'Avg Order', value: baht(selStats.avgOrder), icon: '📊' },
+                  { label: tr('memTotalVisits'), value: selStats.visits, icon: '🗓️' },
+                  { label: tr('memLifetimeSpend'), value: baht(selStats.lifetimeSpend), icon: '💰' },
+                  { label: tr('memAvgOrder'), value: baht(selStats.avgOrder), icon: '📊' },
                 ].map(({ label, value, icon }) => (
                   <div key={label} className="bg-white border border-gray-200 rounded-2xl p-3 text-center">
                     <p className="text-xl mb-1">{icon}</p>
@@ -473,7 +473,7 @@ export default function MembersPage() {
                   </button>
                   <button
                     onClick={() => {
-                      if (selected.points < 100) return showToast('Need 100 points to redeem', false)
+                      if (selected.points < 100) return showToast(tr('memNeed100'), false)
                       fetch(`/api/members/${selectedId}`, {
                         method: 'PUT',
                         headers: { 'Content-Type': 'application/json' },
@@ -515,7 +515,7 @@ export default function MembersPage() {
             {/* ── Edit / Create form ── */}
             <div className="bg-gray-50 border border-gray-200 rounded-2xl p-4 flex flex-col gap-3">
               <h3 className="text-xs font-bold text-gray-400 uppercase tracking-widest">
-                {isCreating ? 'Member Info' : 'Edit Profile'}
+                {isCreating ? tr('memMemberInfo') : tr('memEditProfile')}
               </h3>
 
               <div>
@@ -523,7 +523,7 @@ export default function MembersPage() {
                 <input
                   value={form.name}
                   onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
-                  placeholder="Name..."
+                  placeholder={tr('memNamePh')}
                   className="w-full bg-white border border-gray-200 rounded-xl px-3 py-2.5 text-sm text-gray-900 outline-none focus:border-amber-400 transition"
                 />
               </div>
@@ -543,7 +543,7 @@ export default function MembersPage() {
                 <input
                   value={form.contact ?? ''}
                   onChange={(e) => setForm((f) => ({ ...f, contact: e.target.value }))}
-                  placeholder="Email, LINE ID, Facebook..."
+                  placeholder={tr('memContactPh')}
                   className="w-full bg-white border border-gray-200 rounded-xl px-3 py-2.5 text-sm text-gray-900 outline-none focus:border-amber-400 transition"
                 />
                 <p className="text-[10px] text-gray-400 mt-1">{tr('fMemberContactHint')}</p>
@@ -565,7 +565,7 @@ export default function MembersPage() {
                 <textarea
                   value={form.notes ?? ''}
                   onChange={(e) => setForm((f) => ({ ...f, notes: e.target.value }))}
-                  placeholder="Preferences, allergies, VIP notes..."
+                  placeholder={tr('memNotesPh')}
                   rows={2}
                   className="w-full bg-white border border-gray-200 rounded-xl px-3 py-2.5 text-sm text-gray-900 outline-none focus:border-amber-400 transition resize-none"
                 />
@@ -577,7 +577,7 @@ export default function MembersPage() {
                   disabled={isSaving}
                   className="flex-1 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-black font-bold text-sm transition active:scale-95 disabled:opacity-50"
                 >
-                  {isSaving ? 'Saving...' : isCreating ? 'Create Member' : 'Save Changes'}
+                  {isSaving ? tr('saving') : isCreating ? tr('memCreateMember') : tr('saveChanges')}
                 </button>
                 {isCreating && (
                   <button

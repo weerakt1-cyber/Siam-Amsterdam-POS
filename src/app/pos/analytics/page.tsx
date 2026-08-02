@@ -486,7 +486,7 @@ export default function AnalyticsPage() {
           {isMoM ? (
             <>
               <SectionTitle>
-                Weekly Revenue — {comparison?.currMonthLabel ?? 'This Month'} vs {comparison?.prevMonthLabel ?? 'Last Month'}
+                {t('anWeeklyRevenue')} — {comparison?.currMonthLabel ?? t('anThisMonthSuffix')} vs {comparison?.prevMonthLabel ?? t('anLastMonth')}
               </SectionTitle>
               {data && comparison ? (
                 <GroupedBar
@@ -539,7 +539,7 @@ export default function AnalyticsPage() {
                       topBy === k ? 'bg-amber-500 text-black' : 'text-stone-400 hover:text-stone-700'
                     }`}
                   >
-                    {k === 'revenue' ? 'By Revenue' : 'By Qty'}
+                    {k === 'revenue' ? t('anByRevenue') : t('anByQty')}
                   </button>
                 ))}
               </div>
@@ -701,9 +701,9 @@ export default function AnalyticsPage() {
             <div className="space-y-2">
               <HeatHour data={data.byHour} />
               <div className="flex justify-between text-[9px] text-stone-400 mt-1 px-0.5">
-                <span>Midnight</span>
+                <span>{t('anMidnight')}</span>
                 <span>6am</span>
-                <span>Noon</span>
+                <span>{t('anNoon')}</span>
                 <span>6pm</span>
                 <span>11pm</span>
               </div>
@@ -795,7 +795,7 @@ export default function AnalyticsPage() {
           </Card>
 
           <Card className="col-span-1">
-            <SectionTitle>Discounts</SectionTitle>
+            <SectionTitle>{t('anDiscounts')}</SectionTitle>
             {data ? (
               <div className="space-y-4">
                 <div>
@@ -841,7 +841,7 @@ export default function AnalyticsPage() {
 
         {/* ── Loyalty Tier Breakdown ─────────────────────────────────────── */}
         <Card className="pb-4">
-          <SectionTitle>Loyalty Tier Breakdown</SectionTitle>
+          <SectionTitle>{t('anLoyaltyTier')}</SectionTitle>
           {tierStats ? (() => {
             const total = tierStats.bronze + tierStats.silver + tierStats.gold
             const tiers = [

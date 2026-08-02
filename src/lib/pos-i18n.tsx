@@ -505,6 +505,37 @@ const DICT = {
   itApplyAll:        { en: 'Apply All', th: 'ใช้ทั้งหมด' },
   itAllApplied:      { en: 'All Applied', th: 'ใช้แล้วทั้งหมด' },
   itSearchNameSku:   { en: 'Search name, SKU...', th: 'ค้นหาชื่อ, SKU...' },
+
+  // ── Members page ──
+  memDeleted:      { en: 'Member deleted', th: 'ลบสมาชิกแล้ว' },
+  memRewardRedeemed:{ en: 'Reward redeemed! Stamp card reset.', th: 'แลกรางวัลแล้ว! รีเซ็ตบัตรสะสมแสตมป์' },
+  memNeed100:      { en: 'Need 100 points to redeem', th: 'ต้องมี 100 แต้มเพื่อแลก' },
+  memSortAZ:       { en: 'A–Z', th: 'ก–ฮ' },
+  memSortVisits:   { en: 'Visits', th: 'จำนวนครั้ง' },
+  memSortSpend:    { en: 'Spend', th: 'ยอดใช้จ่าย' },
+  memSortTier:     { en: 'Tier', th: 'ระดับ' },
+  memNoResults:    { en: 'No results', th: 'ไม่พบผลลัพธ์' },
+  memNoMembers:    { en: 'No members yet', th: 'ยังไม่มีสมาชิก' },
+  memTotalVisits:  { en: 'Total Visits', th: 'จำนวนครั้งทั้งหมด' },
+  memLifetimeSpend:{ en: 'Lifetime Spend', th: 'ยอดใช้จ่ายสะสม' },
+  memAvgOrder:     { en: 'Avg Order', th: 'เฉลี่ยต่อออเดอร์' },
+  memMemberInfo:   { en: 'Member Info', th: 'ข้อมูลสมาชิก' },
+  memEditProfile:  { en: 'Edit Profile', th: 'แก้ไขข้อมูล' },
+  memCreateMember: { en: 'Create Member', th: 'สร้างสมาชิก' },
+  memSearchPh:     { en: '🔍 Search name, phone, or contact...', th: '🔍 ค้นหาชื่อ, เบอร์โทร, หรือช่องทางติดต่อ...' },
+  memNamePh:       { en: 'Name...', th: 'ชื่อ...' },
+  memContactPh:    { en: 'Email, LINE ID, Facebook...', th: 'อีเมล, LINE ID, Facebook...' },
+  memNotesPh:      { en: 'Preferences, allergies, VIP notes...', th: 'ความชอบ, อาการแพ้, บันทึก VIP...' },
+
+  // ── Analytics page (extra) ──
+  anLastMonth:     { en: 'Last month', th: 'เดือนก่อน' },
+  anWeeklyRevenue: { en: 'Weekly Revenue', th: 'รายได้รายสัปดาห์' },
+  anByRevenue:     { en: 'By Revenue', th: 'ตามรายได้' },
+  anByQty:         { en: 'By Qty', th: 'ตามจำนวน' },
+  anMidnight:      { en: 'Midnight', th: 'เที่ยงคืน' },
+  anNoon:          { en: 'Noon', th: 'เที่ยงวัน' },
+  anDiscounts:     { en: 'Discounts', th: 'ส่วนลด' },
+  anLoyaltyTier:   { en: 'Loyalty Tier Breakdown', th: 'สรุประดับสมาชิก' },
 } as const
 
 export type PosStringKey = keyof typeof DICT
