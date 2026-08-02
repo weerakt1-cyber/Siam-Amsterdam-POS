@@ -458,6 +458,35 @@ const DICT = {
   toastSentLine:       { en: 'Sent! Check your LINE 🎉', th: 'ส่งแล้ว! เช็ค LINE ของคุณ 🎉' },
   toastDone:           { en: 'Done', th: 'สำเร็จ' },
   toastError:          { en: 'Error', th: 'ผิดพลาด' },
+
+  // ── POS screen · check bill (customer pre-payment slip) ──
+  cbCheckBill:     { en: 'CHECK BILL', th: 'ใบแจ้งยอด' },
+  cbDate:          { en: 'Date', th: 'วันที่' },
+  cbTable:         { en: 'Table', th: 'โต๊ะ' },
+  cbMember:        { en: 'Member', th: 'สมาชิก' },
+  cbSubtotal:      { en: 'Subtotal', th: 'ยอดรวม' },
+  cbDiscount:      { en: 'Discount', th: 'ส่วนลด' },
+  cbTotal:         { en: 'TOTAL', th: 'รวมสุทธิ' },
+  cbVat:           { en: 'VAT 7% incl.', th: 'ภาษี 7% (รวมแล้ว)' },
+  cbPleaseCheck:   { en: 'Please check before payment', th: 'กรุณาตรวจสอบก่อนชำระเงิน' },
+  cbNotReceipt:    { en: 'NOT A RECEIPT', th: 'ไม่ใช่ใบเสร็จรับเงิน' },
+
+  // ── POS screen · toasts & misc ──
+  toastOrderVoided:    { en: 'Order voided', th: 'ยกเลิกออเดอร์แล้ว' },
+  toastVoidFail:       { en: 'Failed to void order', th: 'ยกเลิกออเดอร์ไม่สำเร็จ' },
+  toastInvalidCoupon:  { en: 'Invalid coupon', th: 'คูปองไม่ถูกต้อง' },
+  toastValidateCouponFail: { en: 'Could not validate coupon', th: 'ตรวจสอบคูปองไม่สำเร็จ' },
+  toastSaveOrderFail:  { en: 'Failed to save order', th: 'บันทึกออเดอร์ไม่สำเร็จ' },
+  toastHoldBillFail:   { en: 'Hold bill failed', th: 'พักบิลไม่สำเร็จ' },
+  toastNoTicket:       { en: 'No ticket selected', th: 'ยังไม่ได้เลือกบิล' },
+  toastPaymentFail:    { en: 'Failed to process payment', th: 'ชำระเงินไม่สำเร็จ' },
+  posAllTables:        { en: 'All Tables', th: 'ทุกโต๊ะ' },
+  posThisTable:        { en: 'This Table', th: 'โต๊ะนี้' },
+  posNoOrdersToday:    { en: 'No orders today', th: 'วันนี้ยังไม่มีออเดอร์' },
+  posNoOrdersForTable: { en: 'No orders for', th: 'ยังไม่มีออเดอร์สำหรับ' },
+  posTodaySuffix:      { en: 'today', th: 'วันนี้' },
+  posNotAdded:         { en: 'not added', th: 'ยังไม่เพิ่ม' },
+  posAllAdded:         { en: 'All added', th: 'เพิ่มครบแล้ว' },
 } as const
 
 export type PosStringKey = keyof typeof DICT

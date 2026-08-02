@@ -45,70 +45,6 @@ function itemEffectiveTotal(c: CartItem): number {
   return Math.round(gross * (1 - c.itemDiscount / 100))
 }
 
-// สร้าง HTML Check Bill สำหรับให้ลูกค้าดูก่อนชำระเงิน
-function buildTicketHtml({
-  cart, table, memberName, subtotal, discountAmount, total, discountLabel, cfg,
-}: {
-  cart: CartItem[]
-  table: string
-  memberName: string
-  subtotal: number
-  discountAmount: number
-  total: number
-  discountLabel?: string
-  cfg: BarSettings
-}): string {
-  const now     = new Date()
-  const dateStr = now.toLocaleDateString('en-GB')
-  const timeStr = now.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })
-  const vat     = Math.round(total * 7 / 107)
-
-  const itemRows = cart.map(c => {
-    const t = itemEffectiveTotal(c)
-    const d = c.itemDiscount && c.itemDiscount > 0
-    return `<div class="row"><span class="item-name">${c.name}<span class="qty"> ×${c.qty}${d ? ` (-${c.itemDiscount}%)` : ''}</span></span><span>฿${t.toLocaleString()}</span></div>`
-  }).join('')
-
-  const discountRow = discountAmount > 0
-    ? `<div class="row green"><span>Discount${discountLabel ? ` (${discountLabel})` : ''}</span><span>-฿${discountAmount.toLocaleString()}</span></div>`
-    : ''
-
-  return `<!DOCTYPE html>
-<html><head><meta charset="utf-8"><title>Check Bill</title>
-<style>
-  *{margin:0;padding:0;box-sizing:border-box;}
-  body{font-family:'Courier New',Courier,monospace;font-size:12px;width:280px;margin:0 auto;padding:14px 10px;color:#111;background:#fff;}
-  .center{text-align:center;}.bold{font-weight:bold;}.xlarge{font-size:20px;letter-spacing:1px;}
-  .row{display:flex;justify-content:space-between;padding:2px 0;}.item-name{flex:1;}.qty{color:#666;}
-  .sep{border-top:1px dashed #aaa;margin:7px 0;}.sep2{border-top:2px solid #333;margin:7px 0;}
-  .small{font-size:10px;color:#777;}.green{color:#1a7a1a;}.gray{color:#555;}
-  .banner{text-align:center;border:2px dashed #bbb;padding:6px;color:#888;font-size:11px;margin-bottom:8px;letter-spacing:2px;}
-  .total-row{font-size:16px;font-weight:bold;padding:4px 0;}
-  .footer{margin-top:10px;text-align:center;font-size:11px;color:#555;}
-  @media print{body{padding:0;}}
-</style></head>
-<body>
-<div class="banner">── CHECK BILL ──</div>
-<div class="center" style="margin-bottom:8px">
-  <p class="bold xlarge">${cfg.barName}</p>
-  ${cfg.address ? `<p class="small" style="margin-top:2px">${cfg.address}</p>` : ''}
-</div>
-<div class="sep"></div>
-<div class="row"><span>Date: ${dateStr}</span><span>${timeStr}</span></div>
-<div class="row"><span>Table: <strong>${table}</strong></span></div>
-${memberName ? `<div class="row small"><span>Member: ${memberName}</span></div>` : ''}
-<div class="sep"></div>
-${itemRows}
-<div class="sep"></div>
-<div class="row gray"><span>Subtotal</span><span>฿${subtotal.toLocaleString()}</span></div>
-${discountRow}
-<div class="sep2"></div>
-<div class="row total-row"><span>TOTAL</span><span>฿${total.toLocaleString()}</span></div>
-<div class="row small gray"><span>VAT 7% incl.</span><span>฿${vat.toLocaleString()}</span></div>
-<div class="sep"></div>
-<div class="footer">Please check before payment<br><span style="color:#bbb;font-size:10px">── NOT A RECEIPT ──</span></div>
-</body></html>`
-}
 
 export default function POSPage() {
   // Table tabs mirror the Floor Plan layout (single source of truth in @/lib/floor),
@@ -372,9 +308,9 @@ export default function POSPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ status: 'cancelled' }),
       })
-      if (r.ok) { await fetchOrders(); showToast('Order voided') }
-      else showToast('Failed to void order', false)
-    } catch { showToast('Failed to void order', false) }
+      if (r.ok) { await fetchOrders(); showToast(t('toastOrderVoided')) }
+      else showToast(t('toastVoidFail'), false)
+    } catch { showToast(t('toastVoidFail'), false) }
     setVoidConfirmId(null)
   }
 
@@ -394,7 +330,7 @@ export default function POSPage() {
       })
       const data = await r.json()
       if (!r.ok || !data.valid) {
-        setCouponError(data.error ?? 'Invalid coupon')
+        setCouponError(data.error ?? t('toastInvalidCoupon'))
         setAppliedCoupon(null)
       } else {
         // Fix #13: store type + value for client-side discount recalculation
@@ -406,7 +342,7 @@ export default function POSPage() {
         setCouponError('')
       }
     } catch {
-      setCouponError('Could not validate coupon')
+      setCouponError(t('toastValidateCouponFail'))
     }
   }
 
@@ -536,8 +472,8 @@ export default function POSPage() {
 
       if (!res.ok) {
         const err = await res.json()
-        showToast(err.error ?? 'Failed to save order', false)
-        throw new Error(err.error ?? 'Failed to save order')
+        showToast(err.error ?? t('toastSaveOrderFail'), false)
+        throw new Error(err.error ?? t('toastSaveOrderFail'))
       }
 
       const data = await res.json()
@@ -589,7 +525,7 @@ export default function POSPage() {
       })
       if (!res.ok) {
         const err = await res.json()
-        showToast(err.error ?? 'Hold bill failed', false)
+        showToast(err.error ?? t('toastHoldBillFail'), false)
         return
       }
       clearCart()
@@ -603,7 +539,7 @@ export default function POSPage() {
   // Pay a single open ticket on its own — bypasses the shared table cart entirely,
   // so separate customers at the same table can each pay for just their own order.
   async function handleSingleTicketPayment(method: string, received?: number): Promise<string> {
-    if (!payingTicket) throw new Error('No ticket selected')
+    if (!payingTicket) throw new Error(t('toastNoTicket'))
     const r = await fetch(`/api/orders/${payingTicket.id}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
@@ -611,8 +547,8 @@ export default function POSPage() {
     })
     if (!r.ok) {
       const err = await r.json()
-      showToast(err.error ?? 'Failed to process payment', false)
-      throw new Error(err.error ?? 'Failed to process payment')
+      showToast(err.error ?? t('toastPaymentFail'), false)
+      throw new Error(err.error ?? t('toastPaymentFail'))
     }
     const d = await r.json()
     if (method === 'cash') fetch('/api/drawer', { method: 'POST' }).catch(() => {})
@@ -787,7 +723,7 @@ export default function POSPage() {
                       : 'bg-stone-100 text-stone-600 hover:bg-stone-200'
                   }`}
                 >
-                  {showAllHistory ? 'All Tables' : 'This Table'}
+                  {showAllHistory ? t('posAllTables') : t('posThisTable')}
                 </button>
                 <button
                   onClick={() => setShowHistory(false)}
@@ -800,7 +736,7 @@ export default function POSPage() {
               {historyOrders.length === 0 ? (
                 <div className="py-12 text-center text-stone-300">
                   <p className="text-4xl mb-3">📋</p>
-                  <p>{showAllHistory ? 'No orders today' : `No orders for ${table} today`}</p>
+                  <p>{showAllHistory ? t('posNoOrdersToday') : `${t('posNoOrdersForTable')} ${table} ${t('posTodaySuffix')}`}</p>
                 </div>
               ) : (
                 historyOrders.map((o) => (
@@ -1016,7 +952,7 @@ export default function POSPage() {
                   const mergedTotal = allOpenTableOrders.filter(o => mergedOrderIds.has(o.id)).reduce((s, o) => s + o.total, 0)
                   return (
                     <span>
-                      {unmerged > 0 ? `${unmerged} not added` : 'All added'}
+                      {unmerged > 0 ? `${unmerged} ${t('posNotAdded')}` : t('posAllAdded')}
                       {mergedOrderIds.size > 0 && <span className="ml-2 text-amber-600 font-semibold">+{baht(mergedTotal)} merged</span>}
                     </span>
                   )
