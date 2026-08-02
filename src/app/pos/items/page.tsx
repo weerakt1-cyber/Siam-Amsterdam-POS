@@ -406,7 +406,7 @@ export default function ItemsPage() {
       const dataUrl = await compressImage(file)
       setField('image', dataUrl)
     } catch {
-      showToast('Image upload failed', false)
+      showToast(tr('itImageUploadFail'), false)
     }
     e.target.value = ''
   }
@@ -422,8 +422,8 @@ export default function ItemsPage() {
   }
 
   async function handleSave() {
-    if (!form.name.trim()) return showToast('Name is required', false)
-    if (!form.price || isNaN(Number(form.price))) return showToast('Valid price is required', false)
+    if (!form.name.trim()) return showToast(tr('itNameRequired'), false)
+    if (!form.price || isNaN(Number(form.price))) return showToast(tr('itValidPrice'), false)
 
     const payload = {
       name: form.name.trim(),
@@ -478,11 +478,11 @@ export default function ItemsPage() {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ ingredients: ingPayload }),
         })
-        showToast('Changes saved')
+        showToast(tr('itChangesSaved'))
         await fetchMenu()
       }
     } catch (err) {
-      showToast(err instanceof Error ? err.message : 'Save failed', false)
+      showToast(err instanceof Error ? err.message : tr('itSaveFailed'), false)
     } finally {
       setIsSaving(false)
     }
@@ -502,7 +502,7 @@ export default function ItemsPage() {
       setIsCreating(false)
       await fetchMenu()
     } catch (err) {
-      showToast(err instanceof Error ? err.message : 'Delete failed', false)
+      showToast(err instanceof Error ? err.message : tr('itDeleteFailed'), false)
     } finally {
       setIsDeleting(false)
     }
@@ -519,10 +519,10 @@ export default function ItemsPage() {
     try {
       const r = await fetch('/api/ai/menu-optimize')
       const d = await r.json()
-      if (!r.ok) throw new Error(d.error ?? 'Analysis failed')
+      if (!r.ok) throw new Error(d.error ?? tr('itAnalysisFailed'))
       setAiSuggestions(d.suggestions ?? [])
     } catch (err) {
-      setAiError(err instanceof Error ? err.message : 'Failed to analyze menu')
+      setAiError(err instanceof Error ? err.message : tr('itAnalyzeMenuFail'))
     }
     setAiLoading(false)
   }
@@ -540,7 +540,7 @@ export default function ItemsPage() {
       setItems(prev => prev.map(i => i.id === s.menuId ? { ...i, price: s.suggestedPrice } : i))
       if (selectedId === s.menuId) setField('price', String(s.suggestedPrice))
     } catch {
-      showToast('Failed to apply price', false)
+      showToast(tr('itApplyPriceFail'), false)
     }
     setApplyingId(null)
   }
@@ -724,7 +724,7 @@ export default function ItemsPage() {
               <input
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                placeholder="Search name, SKU..."
+                placeholder={tr('itSearchNameSku')}
                 className="w-full bg-gray-100 border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-900 placeholder-white/25 outline-none focus:border-amber-500/50 transition"
               />
             </div>
@@ -822,7 +822,7 @@ export default function ItemsPage() {
                 {/* Editor header */}
                 <div className="flex items-center justify-between">
                   <h2 className="text-base font-bold text-gray-700">
-                    {isCreating ? 'New Item' : `Edit — ${selectedItem?.name ?? ''}`}
+                    {isCreating ? tr('newItem') : `${tr('edit')} — ${selectedItem?.name ?? ''}`}
                   </h2>
                   <div className="flex items-center gap-2">
                     {!isCreating && (
@@ -831,7 +831,7 @@ export default function ItemsPage() {
                         disabled={isDeleting}
                         className="px-3 py-1.5 rounded-lg text-xs font-semibold text-red-400 hover:bg-red-900/30 border border-red-900/40 transition disabled:opacity-40"
                       >
-                        {isDeleting ? 'Deleting...' : 'Delete'}
+                        {isDeleting ? tr('itDeleting') : tr('delete')}
                       </button>
                     )}
                     <button
@@ -839,7 +839,7 @@ export default function ItemsPage() {
                       disabled={isSaving}
                       className="px-4 py-1.5 rounded-lg text-sm font-bold bg-amber-500 hover:bg-amber-400 text-black transition active:scale-95 disabled:opacity-50"
                     >
-                      {isSaving ? 'Saving...' : isCreating ? 'Create Item' : 'Save Changes'}
+                      {isSaving ? tr('saving') : isCreating ? tr('itCreateItem') : tr('saveChanges')}
                     </button>
                   </div>
                 </div>
@@ -1121,7 +1121,7 @@ export default function ItemsPage() {
                           (!ingSearch || i.name.toLowerCase().includes(ingSearch.toLowerCase()))
                         ).length === 0 && (
                           <div className="px-4 py-3 text-sm text-gray-400 text-center">
-                            {ingSearch ? 'No matching items' : 'All inventory items already added'}
+                            {ingSearch ? tr('itNoMatchingItems') : tr('itAllInvAdded')}
                           </div>
                         )}
                       </div>
@@ -1148,7 +1148,7 @@ export default function ItemsPage() {
                     disabled={isSaving}
                     className="ml-auto px-6 py-2.5 rounded-xl text-sm font-bold bg-amber-500 hover:bg-amber-400 text-black transition active:scale-95 disabled:opacity-50"
                   >
-                    {isSaving ? 'Saving...' : isCreating ? 'Create Item' : 'Save Changes'}
+                    {isSaving ? tr('saving') : isCreating ? tr('itCreateItem') : tr('saveChanges')}
                   </button>
                 </div>
 
@@ -1292,7 +1292,7 @@ export default function ItemsPage() {
                   disabled={appliedIds.size === aiSuggestions.length || applyingId !== null}
                   className="shrink-0 text-sm font-bold text-black bg-violet-400 hover:bg-violet-300 px-5 py-2.5 rounded-xl transition active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed"
                 >
-                  {appliedIds.size === aiSuggestions.length ? '✓ All Applied' : 'Apply All'}
+                  {appliedIds.size === aiSuggestions.length ? '✓ ' + tr('itAllApplied') : tr('itApplyAll')}
                 </button>
               </div>
             )}

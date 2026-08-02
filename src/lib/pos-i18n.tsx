@@ -487,6 +487,24 @@ const DICT = {
   posTodaySuffix:      { en: 'today', th: 'วันนี้' },
   posNotAdded:         { en: 'not added', th: 'ยังไม่เพิ่ม' },
   posAllAdded:         { en: 'All added', th: 'เพิ่มครบแล้ว' },
+
+  // ── Items page ──
+  itCreateItem:      { en: 'Create Item', th: 'สร้างสินค้า' },
+  itDeleting:        { en: 'Deleting...', th: 'กำลังลบ...' },
+  itImageUploadFail: { en: 'Image upload failed', th: 'อัปโหลดรูปไม่สำเร็จ' },
+  itNameRequired:    { en: 'Name is required', th: 'กรุณากรอกชื่อ' },
+  itValidPrice:      { en: 'Valid price is required', th: 'กรุณากรอกราคาที่ถูกต้อง' },
+  itChangesSaved:    { en: 'Changes saved', th: 'บันทึกการเปลี่ยนแปลงแล้ว' },
+  itSaveFailed:      { en: 'Save failed', th: 'บันทึกไม่สำเร็จ' },
+  itDeleteFailed:    { en: 'Delete failed', th: 'ลบไม่สำเร็จ' },
+  itAnalysisFailed:  { en: 'Analysis failed', th: 'วิเคราะห์ไม่สำเร็จ' },
+  itAnalyzeMenuFail: { en: 'Failed to analyze menu', th: 'วิเคราะห์เมนูไม่สำเร็จ' },
+  itApplyPriceFail:  { en: 'Failed to apply price', th: 'ปรับราคาไม่สำเร็จ' },
+  itNoMatchingItems: { en: 'No matching items', th: 'ไม่พบสินค้าที่ตรงกัน' },
+  itAllInvAdded:     { en: 'All inventory items already added', th: 'เพิ่มวัตถุดิบครบทุกรายการแล้ว' },
+  itApplyAll:        { en: 'Apply All', th: 'ใช้ทั้งหมด' },
+  itAllApplied:      { en: 'All Applied', th: 'ใช้แล้วทั้งหมด' },
+  itSearchNameSku:   { en: 'Search name, SKU...', th: 'ค้นหาชื่อ, SKU...' },
 } as const
 
 export type PosStringKey = keyof typeof DICT
