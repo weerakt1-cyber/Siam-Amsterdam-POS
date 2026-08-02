@@ -146,7 +146,7 @@ export default function InventoryPage() {
   }
 
   async function handleSave() {
-    if (!form.name.trim()) return showToast('Name is required', false)
+    if (!form.name.trim()) return showToast(tr('itNameRequired'), false)
     setIsSaving(true)
     try {
       const payload = {
@@ -166,7 +166,7 @@ export default function InventoryPage() {
       } else {
         const r = await fetch(`/api/inventory/${selectedId}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) })
         if (!r.ok) throw new Error((await r.json()).error)
-        showToast('Saved')
+        showToast(tr('saved'))
       }
       await fetchAll()
     } catch (e) {
@@ -181,7 +181,7 @@ export default function InventoryPage() {
     const item = items.find(i => i.id === selectedId)
     if (!confirm(`Delete "${item?.name}"?`)) return
     await fetch(`/api/inventory/${selectedId}`, { method: 'DELETE' })
-    showToast('Deleted')
+    showToast(tr('cmDeleted'))
     setSelectedId(null)
     await fetchAll()
   }
@@ -419,7 +419,7 @@ export default function InventoryPage() {
                 <input
                   value={adjustNote}
                   onChange={e => setAdjustNote(e.target.value)}
-                  placeholder="Note (optional)..."
+                  placeholder={tr('invNotePh')}
                   className="w-full bg-gray-100/50 border border-gray-200 rounded-xl px-3 py-2 text-sm text-gray-900 placeholder-gray-300 outline-none focus:border-amber-500/40 transition"
                 />
               </div>
@@ -470,7 +470,7 @@ export default function InventoryPage() {
               <div>
                 <label className="text-xs text-gray-500 mb-1 block">{tr('fInvNameReq')}</label>
                 <input value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
-                  placeholder="e.g. Rum (Bacardi)"
+                  placeholder={tr('invNamePh')}
                   className="w-full bg-gray-100 border border-gray-200 rounded-xl px-3 py-2.5 text-sm text-gray-900 outline-none focus:border-amber-500/60 transition" />
               </div>
 
@@ -534,7 +534,7 @@ export default function InventoryPage() {
               <div>
                 <label className="text-xs text-gray-500 mb-1 block">{tr('fInvNotes')}</label>
                 <input value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))}
-                  placeholder="Brand, supplier notes..."
+                  placeholder={tr('invBrandPh')}
                   className="w-full bg-gray-100 border border-gray-200 rounded-xl px-3 py-2.5 text-sm text-gray-900 outline-none focus:border-amber-500/60 transition" />
               </div>
 

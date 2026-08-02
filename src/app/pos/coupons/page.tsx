@@ -110,7 +110,7 @@ export default function CouponsPage() {
 
   async function handleSave() {
     if (!form.code.trim() || !form.name.trim() || !form.value) {
-      return showToast('Code, name, and value are required', false)
+      return showToast(t('cpRequired'), false)
     }
     setIsSaving(true)
     try {
@@ -135,7 +135,7 @@ export default function CouponsPage() {
       } else {
         const r = await fetch(`/api/coupons/${selectedId}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) })
         if (!r.ok) throw new Error((await r.json()).error)
-        showToast('Saved')
+        showToast(t('saved'))
       }
       await fetchAll()
     } catch (e) {
@@ -161,7 +161,7 @@ export default function CouponsPage() {
     if (!selectedId) return
     if (!confirm(`Delete coupon "${selected?.code}"?`)) return
     await fetch(`/api/coupons/${selectedId}`, { method: 'DELETE' })
-    showToast('Deleted')
+    showToast(t('cmDeleted'))
     setSelectedId(null)
     await fetchAll()
   }
@@ -265,7 +265,7 @@ export default function CouponsPage() {
           <div className="flex-1 overflow-y-auto">
             {filtered.length === 0 ? (
               <div className="flex flex-col items-center justify-center h-24 text-gray-300 text-sm">
-                <p>No coupons</p>
+                <p>{t('cpNoCoupons')}</p>
               </div>
             ) : (
               filtered.map(c => {
@@ -386,7 +386,7 @@ export default function CouponsPage() {
             {!isCreating && selected && selected.maxUses > 0 && (
               <div className="bg-gray-50 border border-gray-200 rounded-2xl p-3">
                 <div className="flex justify-between text-xs text-gray-500 mb-2">
-                  <span>Usage</span>
+                  <span>{t('cpUsage')}</span>
                   <span>{selected.usedCount} / {selected.maxUses}</span>
                 </div>
                 <div className="h-2.5 bg-gray-100 rounded-full overflow-hidden">
@@ -413,7 +413,7 @@ export default function CouponsPage() {
                 <input
                   value={form.code}
                   onChange={e => setForm(f => ({ ...f, code: e.target.value.toUpperCase().replace(/\s/g, '') }))}
-                  placeholder="e.g. HAPPY10"
+                  placeholder={t('cpCodePh')}
                   className="w-full bg-gray-100 border border-gray-200 rounded-xl px-3 py-2.5 text-sm font-mono font-bold text-gray-900 tracking-widest outline-none focus:border-amber-500/60 transition"
                 />
               </div>
@@ -424,7 +424,7 @@ export default function CouponsPage() {
                 <input
                   value={form.name}
                   onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
-                  placeholder="e.g. Happy Hour Discount"
+                  placeholder={t('cpNamePh')}
                   className="w-full bg-gray-100 border border-gray-200 rounded-xl px-3 py-2.5 text-sm text-gray-900 outline-none focus:border-amber-500/60 transition"
                 />
               </div>
@@ -519,7 +519,7 @@ export default function CouponsPage() {
                 <label className="text-xs text-gray-500 mb-1 block">{t('fCouponDescription')}</label>
                 <input value={form.description}
                   onChange={e => setForm(f => ({ ...f, description: e.target.value }))}
-                  placeholder="Internal note..."
+                  placeholder={t('cpNotePh')}
                   className="w-full bg-gray-100 border border-gray-200 rounded-xl px-3 py-2.5 text-sm text-gray-900 outline-none focus:border-amber-500/60 transition" />
               </div>
 
@@ -549,13 +549,13 @@ export default function CouponsPage() {
                 <input
                   value={testCode}
                   onChange={e => { setTestCode(e.target.value.toUpperCase()); setTestResult(null) }}
-                  placeholder="Enter code..."
+                  placeholder={t('cpEnterCodePh')}
                   className="flex-1 bg-gray-100 border border-gray-200 rounded-xl px-3 py-2 text-sm font-mono font-bold text-gray-900 outline-none focus:border-amber-500/60 transition"
                 />
                 <input
                   value={testAmount}
                   onChange={e => { setTestAmount(e.target.value); setTestResult(null) }}
-                  placeholder="฿ amount"
+                  placeholder={t('cpAmountPh')}
                   className="w-24 bg-gray-100 border border-gray-200 rounded-xl px-3 py-2 text-sm text-gray-900 outline-none focus:border-amber-500/60 transition"
                 />
                 <button

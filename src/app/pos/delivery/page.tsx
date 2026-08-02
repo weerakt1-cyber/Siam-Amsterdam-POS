@@ -121,6 +121,7 @@ function QuickEntryModal({
   onClose: () => void
   onCreated: () => void
 }) {
+  const { t } = usePosLang()
   const [channel, setChannel]       = useState<DeliveryChannel>('grab')
   const [platformCode, setCode]     = useState('')
   const [note, setNote]             = useState('')
@@ -257,13 +258,13 @@ function QuickEntryModal({
             <input
               value={platformCode}
               onChange={e => setCode(e.target.value)}
-              placeholder="Platform code (e.g. GF-1234)"
+              placeholder={t('dlPlatformPh')}
               className="bg-gray-800 border border-white/10 rounded-xl px-3 py-2.5 text-sm text-white placeholder:text-white/25 focus:outline-none focus:border-white/30"
             />
             <input
               value={note}
               onChange={e => setNote(e.target.value)}
-              placeholder="Note (optional)"
+              placeholder={t('dlNotePh')}
               className="bg-gray-800 border border-white/10 rounded-xl px-3 py-2.5 text-sm text-white placeholder:text-white/25 focus:outline-none focus:border-white/30"
             />
           </div>
@@ -273,7 +274,7 @@ function QuickEntryModal({
             <input
               value={search}
               onChange={e => setSearch(e.target.value)}
-              placeholder="🔍 Search menu…"
+              placeholder={t('dlSearchMenuPh')}
               className="flex-1 bg-gray-800 border border-white/10 rounded-xl px-3 py-2.5 text-sm text-white placeholder:text-white/25 focus:outline-none focus:border-white/30"
             />
           </div>

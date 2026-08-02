@@ -536,6 +536,42 @@ const DICT = {
   anNoon:          { en: 'Noon', th: 'เที่ยงวัน' },
   anDiscounts:     { en: 'Discounts', th: 'ส่วนลด' },
   anLoyaltyTier:   { en: 'Loyalty Tier Breakdown', th: 'สรุประดับสมาชิก' },
+
+  // ── Shared ──
+  cmDeleted:       { en: 'Deleted', th: 'ลบแล้ว' },
+
+  // ── Coupons page ──
+  cpRequired:      { en: 'Code, name, and value are required', th: 'ต้องกรอกรหัส, ชื่อ, และมูลค่า' },
+  cpNoCoupons:     { en: 'No coupons', th: 'ไม่มีคูปอง' },
+  cpUsage:         { en: 'Usage', th: 'การใช้งาน' },
+  cpCodePh:        { en: 'e.g. HAPPY10', th: 'เช่น HAPPY10' },
+  cpNamePh:        { en: 'e.g. Happy Hour Discount', th: 'เช่น ส่วนลด Happy Hour' },
+  cpNotePh:        { en: 'Internal note...', th: 'บันทึกภายใน...' },
+  cpEnterCodePh:   { en: 'Enter code...', th: 'กรอกรหัส...' },
+  cpAmountPh:      { en: '฿ amount', th: '฿ จำนวน' },
+
+  // ── Delivery page ──
+  dlPlatformPh:    { en: 'Platform code (e.g. GF-1234)', th: 'รหัสแพลตฟอร์ม (เช่น GF-1234)' },
+  dlNotePh:        { en: 'Note (optional)', th: 'หมายเหตุ (ไม่บังคับ)' },
+  dlSearchMenuPh:  { en: '🔍 Search menu…', th: '🔍 ค้นหาเมนู…' },
+
+  // ── Inventory page ──
+  invNotePh:       { en: 'Note (optional)...', th: 'หมายเหตุ (ไม่บังคับ)...' },
+  invNamePh:       { en: 'e.g. Rum (Bacardi)', th: 'เช่น รัม (Bacardi)' },
+  invBrandPh:      { en: 'Brand, supplier notes...', th: 'ยี่ห้อ, บันทึกซัพพลายเออร์...' },
+
+  // ── Floor page ──
+  flTablePh:       { en: 'T7, VIP2, Gameroom…', th: 'T7, VIP2, Gameroom…' },
+
+  // ── Users page ──
+  usEnterName:     { en: 'Please enter a name', th: 'กรุณาใส่ชื่อ' },
+  usPin4:          { en: 'Set a 4-digit PIN', th: 'กรุณาตั้ง PIN 4 หลัก' },
+  usPinMismatch:   { en: 'PINs do not match', th: 'PIN ไม่ตรงกัน' },
+  usCreated:       { en: 'User created ✓', th: 'สร้าง User สำเร็จ ✓' },
+  usSavedOk:       { en: 'Saved ✓', th: 'บันทึกสำเร็จ ✓' },
+  usPinChanged:    { en: 'PIN changed ✓', th: 'เปลี่ยน PIN สำเร็จ ✓' },
+  usDeleted:       { en: 'User deleted', th: 'ลบ User แล้ว' },
+  usNamePh:        { en: 'Staff name', th: 'ชื่อพนักงาน' },
 } as const
 
 export type PosStringKey = keyof typeof DICT

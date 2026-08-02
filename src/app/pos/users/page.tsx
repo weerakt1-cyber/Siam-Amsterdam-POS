@@ -222,9 +222,9 @@ export default function UsersPage() {
   }
 
   const handleCreate = async () => {
-    if (!name.trim()) return showToast('กรุณาใส่ชื่อ')
-    if (pin.length !== 4 || confirmPin.length !== 4) return showToast('กรุณาตั้ง PIN 4 หลัก')
-    if (pin !== confirmPin) return showToast('PIN ไม่ตรงกัน')
+    if (!name.trim()) return showToast(t('usEnterName'))
+    if (pin.length !== 4 || confirmPin.length !== 4) return showToast(t('usPin4'))
+    if (pin !== confirmPin) return showToast(t('usPinMismatch'))
     setSaving(true)
     try {
       const r = await fetch('/api/users', {
@@ -236,7 +236,7 @@ export default function UsersPage() {
         const d = await r.json()
         setUsers(prev => [...prev, d.user])
         selectUser(d.user)
-        showToast('สร้าง User สำเร็จ ✓')
+        showToast(t('usCreated'))
       } else {
         const e = await r.json()
         showToast(e.error ?? 'เกิดข้อผิดพลาด')
@@ -257,7 +257,7 @@ export default function UsersPage() {
         const d = await r.json()
         setUsers(prev => prev.map(u => u.id === selected.id ? d.user : u))
         setSelected(d.user)
-        showToast('บันทึกสำเร็จ ✓')
+        showToast(t('usSavedOk'))
       }
     } finally { setSaving(false) }
   }
@@ -274,7 +274,7 @@ export default function UsersPage() {
       if (r.ok) {
         setMode('view')
         setNewPin('')
-        showToast('เปลี่ยน PIN สำเร็จ ✓')
+        showToast(t('usPinChanged'))
       }
     } finally { setSaving(false) }
   }
@@ -287,7 +287,7 @@ export default function UsersPage() {
       setUsers(prev => prev.filter(u => u.id !== selected.id))
       setSelected(null)
       setMode('idle')
-      showToast('ลบ User แล้ว')
+      showToast(t('usDeleted'))
     }
   }
 
@@ -432,7 +432,7 @@ export default function UsersPage() {
             <input
               value={name}
               onChange={e => setName(e.target.value)}
-              placeholder="ชื่อพนักงาน"
+              placeholder={t('usNamePh')}
               className="mt-1 w-full bg-gray-100 border border-gray-200 rounded-xl px-4 py-2.5 text-sm text-gray-900 placeholder-white/25 focus:outline-none focus:border-amber-500"
             />
           </div>
