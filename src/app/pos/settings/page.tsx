@@ -166,9 +166,6 @@ function PaymentSettings() {
         >
           {saving ? 'Saving…' : saved ? '✓ Saved' : 'Save Keys'}
         </button>
-        <a href="https://dashboard.omise.co" target="_blank" rel="noopener noreferrer" className="text-xs text-amber-600 hover:underline">
-          Get keys from Omise dashboard →
-        </a>
       </div>
 
       <p className="text-[11px] text-gray-400 leading-relaxed border-t border-gray-100 pt-3">
