@@ -252,7 +252,7 @@ async function buildQRRaster(url: string, cfg: BarSettings): Promise<Uint8Array>
   ctx.fillStyle = '#000'
   ctx.textBaseline = 'top'; ctx.textAlign = 'center'
   ctx.font = `${Sc(22)}px 'Noto Sans Thai','Sarabun',sans-serif`
-  ctx.fillText('สแกนรีวิวเราบน Google', W / 2, Sc(2))
+  ctx.fillText(RECEIPT_T[receiptLang()].qrCaption, W / 2, Sc(2))
 
   const x0 = Math.floor((W - qrPx) / 2)
   const y0 = capH + quiet
@@ -293,7 +293,34 @@ export type ReceiptData = {
 // any ESC/POS printer regardless of its language support, and lets each of the
 // three templates have its own distinct, good-looking layout.
 
-const PAY_LABEL: Record<string, string> = { cash: 'Cash', card: 'Card', promptpay: 'QR PromptPay' }
+// Receipt label translations — follow the POS language setting (localStorage
+// 'pos_lang'), so a Thai venue prints a Thai bill and an English venue English.
+// The footer text itself is venue-entered (cfg.footer) and printed as-is.
+type ReceiptLang = 'th' | 'en'
+function receiptLang(): ReceiptLang {
+  try { return localStorage.getItem('pos_lang') === 'th' ? 'th' : 'en' } catch { return 'en' }
+}
+const RECEIPT_T: Record<ReceiptLang, {
+  date: string; table: string; staff: string; member: string; subtotal: string
+  discount: string; total: string; vat: string; payment: string; received: string
+  change: string; note: string; tel: string; tax: string; qrCaption: string
+  pay: Record<string, string>
+}> = {
+  en: {
+    date: 'Date', table: 'Table', staff: 'Staff', member: 'Member', subtotal: 'Subtotal',
+    discount: 'Discount', total: 'TOTAL', vat: 'VAT 7% (incl.)', payment: 'Payment',
+    received: 'Received', change: 'Change', note: 'Note', tel: 'Tel:', tax: 'Tax:',
+    qrCaption: 'Scan to review us on Google',
+    pay: { cash: 'Cash', card: 'Card', credit_card: 'Card', promptpay: 'QR PromptPay', promptpay_qr: 'QR PromptPay' },
+  },
+  th: {
+    date: 'วันที่', table: 'โต๊ะ', staff: 'พนักงาน', member: 'สมาชิก', subtotal: 'ยอดรวม',
+    discount: 'ส่วนลด', total: 'รวมสุทธิ', vat: 'ภาษีมูลค่าเพิ่ม 7% (รวมแล้ว)', payment: 'ชำระโดย',
+    received: 'รับเงิน', change: 'เงินทอน', note: 'หมายเหตุ', tel: 'โทร.', tax: 'เลขภาษี',
+    qrCaption: 'สแกนรีวิวเราบน Google',
+    pay: { cash: 'เงินสด', card: 'บัตร', credit_card: 'บัตร', promptpay: 'พร้อมเพย์', promptpay_qr: 'พร้อมเพย์' },
+  },
+}
 
 // Drop emoji / pictographs so 1-bit thresholding doesn't leave grey blobs.
 function stripEmoji(s: string): string {
@@ -316,6 +343,7 @@ function layoutReceipt(ctx: CanvasRenderingContext2D, W: number, d: ReceiptData,
   const sansFamily = "'Noto Sans Thai','Sarabun','Prompt',sans-serif"
   const monoFamily = "'Noto Sans Thai Mono','Sarabun',monospace"
   const bodyFamily = t === 'classic' ? monoFamily : sansFamily
+  const L = RECEIPT_T[receiptLang()]   // receipt labels in the configured language
 
   let y = S(6)
   ctx.fillStyle = '#000'
@@ -417,15 +445,15 @@ function layoutReceipt(ctx: CanvasRenderingContext2D, W: number, d: ReceiptData,
     }
     y += barH + S(8)
     if (cfg.address) centerWrap(cfg.address, 13, false, sansFamily)
-    if (cfg.phone)   center('Tel: ' + cfg.phone, 14, false, sansFamily)
+    if (cfg.phone)   center(L.tel + ' ' + cfg.phone, 14, false, sansFamily)
   } else if (t === 'minimal') {
     centerWrap(cfg.barName || 'Receipt', 24, true)
     if (cfg.address) centerWrap(cfg.address, 13)
   } else { // classic
     centerWrap(cfg.barName || 'RECEIPT', 26, true)  // smaller + wraps long names
     if (cfg.address) centerWrap(cfg.address, 13, false)  // smaller + wraps to fit fully
-    if (cfg.phone)   center('Tel: ' + cfg.phone, 14, false)
-    if (cfg.taxId)   center('Tax: ' + cfg.taxId, 14, false)
+    if (cfg.phone)   center(L.tel + ' ' + cfg.phone, 14, false)
+    if (cfg.taxId)   center(L.tax + ' ' + cfg.taxId, 14, false)
   }
 
   const dashed = t === 'classic'
@@ -436,10 +464,10 @@ function layoutReceipt(ctx: CanvasRenderingContext2D, W: number, d: ReceiptData,
   const dateStr = dt.toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: '2-digit' })
   const timeStr = dt.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })
   const shortId = d.orderId.slice(-8).toUpperCase()
-  row('Date: ' + dateStr, timeStr, 15)
-  row('Table: ' + d.tableNo, '#' + shortId, 15)
-  if (d.staffName)  row('Staff', d.staffName, 15)
-  if (d.memberName) row('Member', d.memberName, 15, true)
+  row(L.date + ': ' + dateStr, timeStr, 15)
+  row(L.table + ': ' + d.tableNo, '#' + shortId, 15)
+  if (d.staffName)  row(L.staff, d.staffName, 15)
+  if (d.memberName) row(L.member, d.memberName, 15, true)
   hr(dashed)
 
   // ── Items ──
@@ -449,9 +477,9 @@ function layoutReceipt(ctx: CanvasRenderingContext2D, W: number, d: ReceiptData,
   hr(dashed)
 
   // ── Totals ──
-  row('Subtotal', '฿' + d.subtotal.toLocaleString(), 15)
+  row(L.subtotal, '฿' + d.subtotal.toLocaleString(), 15)
   if (d.discountAmount > 0) {
-    row('Discount' + (d.couponCode ? ' [' + d.couponCode + ']' : ''), '-฿' + d.discountAmount.toLocaleString(), 15)
+    row(L.discount + (d.couponCode ? ' [' + d.couponCode + ']' : ''), '-฿' + d.discountAmount.toLocaleString(), 15)
   }
 
   if (t === 'modern') {
@@ -461,31 +489,31 @@ function layoutReceipt(ctx: CanvasRenderingContext2D, W: number, d: ReceiptData,
       ctx.fillStyle = '#000'; ctx.fillRect(pad, y, innerW, boxH)
       ctx.fillStyle = '#fff'; ctx.textBaseline = 'middle'
       setFont(22, true, sansFamily)
-      ctx.textAlign = 'left';  ctx.fillText('TOTAL', pad + S(10), y + boxH / 2)
+      ctx.textAlign = 'left';  ctx.fillText(L.total, pad + S(10), y + boxH / 2)
       ctx.textAlign = 'right'; ctx.fillText('฿' + d.total.toLocaleString(), W - pad - S(10), y + boxH / 2)
       ctx.textBaseline = 'top'; ctx.fillStyle = '#000'
     }
     y += boxH + S(4)
   } else {
     if (t === 'classic') hr(false) // solid rule above total
-    row('TOTAL', '฿' + d.total.toLocaleString(), 22, true)
+    row(L.total, '฿' + d.total.toLocaleString(), 22, true)
   }
-  row('VAT 7% (incl.)', '฿' + d.vatIncluded.toLocaleString(), 13)
+  row(L.vat, '฿' + d.vatIncluded.toLocaleString(), 13)
 
   // ── Payment ──
   if (d.paymentMethod) {
     hr(dashed)
-    row('Payment', PAY_LABEL[d.paymentMethod] ?? d.paymentMethod, 15)
+    row(L.payment, L.pay[d.paymentMethod] ?? d.paymentMethod, 15)
     if (d.paymentMethod === 'cash' && d.received != null) {
-      row('Received', '฿' + d.received.toLocaleString(), 15)
-      row('Change', '฿' + (d.change ?? 0).toLocaleString(), 15)
+      row(L.received, '฿' + d.received.toLocaleString(), 15)
+      row(L.change, '฿' + (d.change ?? 0).toLocaleString(), 15)
     }
   }
 
   // ── Note ──
   if (d.note) {
     hr(dashed)
-    left('Note: ' + d.note, 14)
+    left(L.note + ': ' + d.note, 14)
   }
 
   // ── Footer ──
