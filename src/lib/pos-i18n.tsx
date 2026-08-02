@@ -410,6 +410,54 @@ const DICT = {
   anRevTrend14:   { en: 'Revenue Trend — Last 14 Days', th: 'แนวโน้มรายได้ — 14 วันล่าสุด' },
   anPeakHours:    { en: 'Peak Hours — Orders by Hour', th: 'ชั่วโมงเร่งด่วน — ออเดอร์ตามชั่วโมง' },
   anNoData:       { en: 'No data',            th: 'ไม่มีข้อมูล' },
+
+  // ── Settings · Payment (Omise) ──
+  payAcceptDesc:   { en: 'Accept Card & PromptPay online via Omise.', th: 'รับชำระบัตร & พร้อมเพย์ออนไลน์ผ่าน Omise' },
+  payLiveMode:     { en: 'LIVE MODE',   th: 'โหมดใช้งานจริง' },
+  payTestMode:     { en: 'TEST MODE',   th: 'โหมดทดสอบ' },
+  payEnvOverride:  { en: 'Keys are currently set from environment variables. Saving here will override them.', th: 'ตอนนี้คีย์มาจาก environment variables — บันทึกที่นี่จะเขียนทับ' },
+  paySecretLabel:  { en: 'Secret key (skey_…)', th: 'Secret key (skey_…)' },
+  paySecretSet:    { en: 'set', th: 'ตั้งแล้ว' },
+  paySecretReplace:{ en: 'Enter a new key to replace', th: 'ใส่คีย์ใหม่เพื่อแทนที่' },
+  paySecretStored: { en: 'The secret key is stored server-side and never shown again.', th: 'Secret key ถูกเก็บฝั่งเซิร์ฟเวอร์และจะไม่แสดงอีก' },
+  paySaveKeys:     { en: 'Save Keys', th: 'บันทึกคีย์' },
+  saving:          { en: 'Saving…', th: 'กำลังบันทึก…' },
+
+  // ── Settings · Printer status ──
+  setConnected:        { en: 'Connected', th: 'เชื่อมต่อแล้ว' },
+  setNoPrinter:        { en: 'No printer configured', th: 'ยังไม่ได้ตั้งค่าเครื่องพิมพ์' },
+  setScanToPair:       { en: 'Scan to find and pair a printer', th: 'สแกนเพื่อค้นหาและจับคู่เครื่องพิมพ์' },
+  setReconnect:        { en: 'Reconnect', th: 'เชื่อมต่อใหม่' },
+  setSavedTapReconnect:{ en: 'Saved · tap Reconnect', th: 'บันทึกแล้ว · แตะเชื่อมต่อใหม่' },
+  setSaveReceipt:      { en: 'Save Receipt Settings', th: 'บันทึกตั้งค่าใบเสร็จ' },
+  setSavedBang:        { en: 'Saved!', th: 'บันทึกแล้ว!' },
+  setDisconnect:       { en: 'Disconnect', th: 'ตัดการเชื่อมต่อ' },
+  setForget:           { en: 'Forget', th: 'ลืมเครื่อง' },
+
+  // ── Settings · Integration status badges ──
+  setConfigured:   { en: 'Configured', th: 'ตั้งค่าแล้ว' },
+  setSetEnvVars:   { en: 'Set env vars', th: 'ตั้ง env vars' },
+  setActive:       { en: 'Active', th: 'ใช้งานอยู่' },
+  setPartial:      { en: 'Partial', th: 'บางส่วน' },
+  setNotSet:       { en: 'Not set', th: 'ยังไม่ตั้งค่า' },
+
+  // ── Settings · Receipt templates ──
+  tplClassic:      { en: 'Classic', th: 'คลาสสิก' },
+  tplClassicDesc:  { en: 'Monospace · Retro', th: 'โมโนสเปซ · เรโทร' },
+  tplModern:       { en: 'Modern', th: 'โมเดิร์น' },
+  tplModernDesc:   { en: 'Clean · Stylish', th: 'เรียบ · มีสไตล์' },
+  tplMinimal:      { en: 'Minimal', th: 'มินิมอล' },
+  tplMinimalDesc:  { en: 'Simple · Fast', th: 'เรียบง่าย · เร็ว' },
+
+  // ── Settings · Toast / status messages ──
+  toastNetworkError:   { en: 'Network error', th: 'เครือข่ายผิดพลาด' },
+  toastConnectionFail: { en: 'Connection failed', th: 'เชื่อมต่อไม่สำเร็จ' },
+  toastPrintFailed:    { en: 'Print failed', th: 'พิมพ์ไม่สำเร็จ' },
+  toastFailedSend:     { en: 'Failed to send', th: 'ส่งไม่สำเร็จ' },
+  toastSentTelegram:   { en: 'Sent! Check your Telegram 🎉', th: 'ส่งแล้ว! เช็ค Telegram ของคุณ 🎉' },
+  toastSentLine:       { en: 'Sent! Check your LINE 🎉', th: 'ส่งแล้ว! เช็ค LINE ของคุณ 🎉' },
+  toastDone:           { en: 'Done', th: 'สำเร็จ' },
+  toastError:          { en: 'Error', th: 'ผิดพลาด' },
 } as const
 
 export type PosStringKey = keyof typeof DICT

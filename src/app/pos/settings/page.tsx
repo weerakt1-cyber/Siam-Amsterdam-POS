@@ -109,24 +109,24 @@ function PaymentSettings() {
     }
   }
 
-  if (loading) return <p className="text-sm text-gray-400">Loading…</p>
+  if (loading) return <p className="text-sm text-gray-400">{tr('loading')}</p>
 
   return (
     <div className="flex flex-col gap-4">
       <div className="flex items-center gap-2">
-        <p className="text-sm text-gray-500">Accept Card &amp; PromptPay online via Omise.</p>
+        <p className="text-sm text-gray-500">{tr('payAcceptDesc')}</p>
         {typedMode && (
           <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
             typedMode === 'live' ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'
           }`}>
-            {typedMode === 'live' ? 'LIVE MODE' : 'TEST MODE'}
+            {typedMode === 'live' ? tr('payLiveMode') : tr('payTestMode')}
           </span>
         )}
       </div>
 
       {fromEnv && (
         <p className="text-xs text-blue-600 bg-blue-50 border border-blue-100 rounded-xl px-3 py-2">
-          Keys are currently set from Vercel environment variables. Saving here will override them.
+          {tr('payEnvOverride')}
         </p>
       )}
 
@@ -142,18 +142,18 @@ function PaymentSettings() {
 
       <div>
         <label className="text-xs text-gray-500 mb-1 block">
-          Secret key (skey_…)
-          {secretSet && <span className="text-emerald-600 font-semibold ml-2">✓ set ••••{secretLast4}</span>}
+          {tr('paySecretLabel')}
+          {secretSet && <span className="text-emerald-600 font-semibold ml-2">✓ {tr('paySecretSet')} ••••{secretLast4}</span>}
         </label>
         <input
           type="password"
           value={secretKey}
           onChange={e => setSecretKey(e.target.value)}
-          placeholder={secretSet ? 'Enter a new key to replace' : 'skey_test_xxxxxxxxxxxxxxxx'}
+          placeholder={secretSet ? tr('paySecretReplace') : 'skey_test_xxxxxxxxxxxxxxxx'}
           autoComplete="off"
           className="w-full bg-white border border-gray-200 rounded-xl px-3 py-2.5 text-sm font-mono text-gray-900 placeholder:text-gray-300 focus:outline-none focus:border-amber-400 transition"
         />
-        <p className="text-[11px] text-gray-400 mt-1">The secret key is stored server-side and never shown again.</p>
+        <p className="text-[11px] text-gray-400 mt-1">{tr('paySecretStored')}</p>
       </div>
 
       {error && <p className="text-xs text-red-500">{error}</p>}
@@ -164,14 +164,9 @@ function PaymentSettings() {
           disabled={saving}
           className="px-5 py-2.5 rounded-xl bg-gray-900 text-white font-bold text-sm transition active:scale-95 disabled:opacity-50"
         >
-          {saving ? 'Saving…' : saved ? '✓ Saved' : 'Save Keys'}
+          {saving ? tr('saving') : saved ? '✓ ' + tr('saved') : tr('paySaveKeys')}
         </button>
       </div>
-
-      <p className="text-[11px] text-gray-400 leading-relaxed border-t border-gray-100 pt-3">
-        Test keys let you try the full flow now. To accept real money you need <strong>live keys</strong>, which
-        Omise issues only after your company bank account and KYC are approved.
-      </p>
     </div>
   )
 }
@@ -461,11 +456,11 @@ export default function SettingsPage() {
         setLanTestMsg(`✓ Reached ${cfg.printerLanIp}:${cfg.printerLanPort ?? 9100}`)
       } else {
         setLanTestStatus('error')
-        setLanTestMsg(data.error ?? 'Connection failed')
+        setLanTestMsg(data.error ?? tr('toastConnectionFail'))
       }
     } catch (err) {
       setLanTestStatus('error')
-      setLanTestMsg(err instanceof Error ? err.message : 'Network error')
+      setLanTestMsg(err instanceof Error ? err.message : tr('toastNetworkError'))
     }
     setTimeout(() => { setLanTestStatus('idle'); setLanTestMsg('') }, 5000)
   }
@@ -564,7 +559,7 @@ export default function SettingsPage() {
       setPrintStatus('done')
       setTimeout(() => setPrintStatus('idle'), 3000)
     } catch (err) {
-      setLocalError(err instanceof Error ? err.message : 'Print failed')
+      setLocalError(err instanceof Error ? err.message : tr('toastPrintFailed'))
       setPrintStatus('error')
       setTimeout(() => setPrintStatus('idle'), 3000)
     }
@@ -610,11 +605,11 @@ export default function SettingsPage() {
     try {
       const r    = await fetch('/api/sheets/setup', { method: 'POST' })
       const data = await r.json()
-      setSheetsMsg(data.message ?? (r.ok ? 'Done' : 'Error'))
+      setSheetsMsg(data.message ?? (r.ok ? tr('toastDone') : tr('toastError')))
       setSheetsSetup(r.ok ? 'done' : 'error')
       setTimeout(() => setSheetsSetup('idle'), 5000)
     } catch (err) {
-      setSheetsMsg(err instanceof Error ? err.message : 'Network error')
+      setSheetsMsg(err instanceof Error ? err.message : tr('toastNetworkError'))
       setSheetsSetup('error')
       setTimeout(() => setSheetsSetup('idle'), 5000)
     }
@@ -628,12 +623,12 @@ export default function SettingsPage() {
     try {
       const r    = await fetch('/api/telegram', { method: 'POST' })
       const data = await r.json()
-      setTgTestMsg(data.error ?? (r.ok ? 'Sent! Check your Telegram 🎉' : 'Failed to send'))
+      setTgTestMsg(data.error ?? (r.ok ? tr('toastSentTelegram') : tr('toastFailedSend')))
       setTgTest(r.ok ? 'done' : 'error')
       if (r.ok) fetch('/api/telegram').then(r2 => r2.json()).then(setTgCfg).catch(() => {})
       setTimeout(() => setTgTest('idle'), 5000)
     } catch (err) {
-      setTgTestMsg(err instanceof Error ? err.message : 'Network error')
+      setTgTestMsg(err instanceof Error ? err.message : tr('toastNetworkError'))
       setTgTest('error')
       setTimeout(() => setTgTest('idle'), 5000)
     }
@@ -645,11 +640,11 @@ export default function SettingsPage() {
     try {
       const r    = await fetch('/api/telegram/daily', { method: 'POST' })
       const data = await r.json()
-      setTgDailyMsg(data.error ?? (r.ok ? `Sent! ${data.orders} orders · ฿${(data.revenue ?? 0).toLocaleString()} 🎉` : 'Failed to send'))
+      setTgDailyMsg(data.error ?? (r.ok ? `Sent! ${data.orders} orders · ฿${(data.revenue ?? 0).toLocaleString()} 🎉` : tr('toastFailedSend')))
       setTgDaily(r.ok ? 'done' : 'error')
       setTimeout(() => setTgDaily('idle'), 6000)
     } catch (err) {
-      setTgDailyMsg(err instanceof Error ? err.message : 'Network error')
+      setTgDailyMsg(err instanceof Error ? err.message : tr('toastNetworkError'))
       setTgDaily('error')
       setTimeout(() => setTgDaily('idle'), 5000)
     }
@@ -671,7 +666,7 @@ export default function SettingsPage() {
         setTimeout(() => setTgDetect('idle'), 6000)
       }
     } catch (err) {
-      setTgTestMsg(err instanceof Error ? err.message : 'Network error')
+      setTgTestMsg(err instanceof Error ? err.message : tr('toastNetworkError'))
       setTgDetect('error')
       setTimeout(() => setTgDetect('idle'), 5000)
     }
@@ -685,11 +680,11 @@ export default function SettingsPage() {
     try {
       const r    = await fetch('/api/line', { method: 'POST' })
       const data = await r.json()
-      setLineTestMsg(data.error ?? (r.ok ? 'Sent! Check your LINE 🎉' : 'Failed to send'))
+      setLineTestMsg(data.error ?? (r.ok ? tr('toastSentLine') : tr('toastFailedSend')))
       setLineTest(r.ok ? 'done' : 'error')
       setTimeout(() => setLineTest('idle'), 5000)
     } catch (err) {
-      setLineTestMsg(err instanceof Error ? err.message : 'Network error')
+      setLineTestMsg(err instanceof Error ? err.message : tr('toastNetworkError'))
       setLineTest('error')
       setTimeout(() => setLineTest('idle'), 5000)
     }
@@ -701,11 +696,11 @@ export default function SettingsPage() {
     try {
       const r    = await fetch('/api/line/daily', { method: 'POST' })
       const data = await r.json()
-      setLineDailyMsg(data.error ?? (r.ok ? `Sent! ${data.orders} orders · ฿${(data.revenue ?? 0).toLocaleString()} 🎉` : 'Failed to send'))
+      setLineDailyMsg(data.error ?? (r.ok ? `Sent! ${data.orders} orders · ฿${(data.revenue ?? 0).toLocaleString()} 🎉` : tr('toastFailedSend')))
       setLineDaily(r.ok ? 'done' : 'error')
       setTimeout(() => setLineDaily('idle'), 6000)
     } catch (err) {
-      setLineDailyMsg(err instanceof Error ? err.message : 'Network error')
+      setLineDailyMsg(err instanceof Error ? err.message : tr('toastNetworkError'))
       setLineDaily('error')
       setTimeout(() => setLineDaily('idle'), 5000)
     }
@@ -1031,9 +1026,9 @@ export default function SettingsPage() {
                   <p className="text-xs font-semibold text-gray-500 mb-3">{tr('setReceiptTemplate')}</p>
                   <div className="grid grid-cols-3 gap-3">
                     {([
-                      { id: 'classic' as ReceiptTemplate,  label: 'Classic',  desc: 'Monospace · Retro' },
-                      { id: 'modern'  as ReceiptTemplate,  label: 'Modern',   desc: 'Clean · Stylish' },
-                      { id: 'minimal' as ReceiptTemplate,  label: 'Minimal',  desc: 'Simple · Fast' },
+                      { id: 'classic' as ReceiptTemplate,  label: tr('tplClassic'),  desc: tr('tplClassicDesc') },
+                      { id: 'modern'  as ReceiptTemplate,  label: tr('tplModern'),   desc: tr('tplModernDesc') },
+                      { id: 'minimal' as ReceiptTemplate,  label: tr('tplMinimal'),  desc: tr('tplMinimalDesc') },
                     ]).map(t => {
                       const active = (cfg.receiptTemplate ?? 'classic') === t.id
                       return (
@@ -1131,7 +1126,7 @@ export default function SettingsPage() {
                     cfgSaved ? 'bg-emerald-500 text-white' : 'bg-amber-500 hover:bg-amber-400 text-black'
                   }`}
                 >
-                  {cfgSaved ? '✓ Saved!' : 'Save Receipt Settings'}
+                  {cfgSaved ? '✓ ' + tr('setSavedBang') : tr('setSaveReceipt')}
                 </button>
               </>
             )}
@@ -1230,24 +1225,24 @@ export default function SettingsPage() {
                       <div className={`w-2.5 h-2.5 rounded-full shrink-0 ${connected ? 'bg-emerald-400' : savedDevice ? 'bg-amber-400' : 'bg-gray-300'}`} />
                       <div>
                         <p className="text-sm font-semibold text-gray-900">
-                          {connected ? savedDevice?.name ?? 'Connected' : savedDevice ? savedDevice.name : 'No printer configured'}
+                          {connected ? savedDevice?.name ?? tr('setConnected') : savedDevice ? savedDevice.name : tr('setNoPrinter')}
                         </p>
                         <p className="text-xs text-gray-400">
-                          {connected ? '🟢 Connected · ' + (savedDevice?.address ?? '') : savedDevice ? '🔴 Saved · tap Reconnect' : 'Scan to find and pair a printer'}
+                          {connected ? '🟢 ' + tr('setConnected') + ' · ' + (savedDevice?.address ?? '') : savedDevice ? '🔴 ' + tr('setSavedTapReconnect') : tr('setScanToPair')}
                         </p>
                       </div>
                     </div>
                     {connected ? (
                       <button onClick={handleDisconnect} className="px-3 py-2 rounded-xl text-xs font-semibold border border-gray-200 text-gray-500 hover:bg-gray-100 transition">
-                        Disconnect
+                        {tr('setDisconnect')}
                       </button>
                     ) : savedDevice ? (
                       <div className="flex gap-2">
                         <button onClick={handleReconnect} disabled={btBusy} className="px-4 py-2 rounded-xl text-xs font-bold bg-blue-500 hover:bg-blue-600 disabled:opacity-40 text-white transition active:scale-95">
-                          {btConnecting ? '...' : 'Reconnect'}
+                          {btConnecting ? '...' : tr('setReconnect')}
                         </button>
                         <button onClick={handleForget} className="px-3 py-2 rounded-xl text-xs font-semibold border border-red-100 text-red-400 hover:bg-red-50 transition">
-                          Forget
+                          {tr('setForget')}
                         </button>
                       </div>
                     ) : null}
@@ -1389,7 +1384,7 @@ export default function SettingsPage() {
                 <span className={`text-xs font-semibold px-2.5 py-1 rounded-full shrink-0 ${
                   sheetsCfg.configured ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'
                 }`}>
-                  {sheetsCfg.configured ? '✓ Configured' : 'Set env vars'}
+                  {sheetsCfg.configured ? '✓ ' + tr('setConfigured') : tr('setSetEnvVars')}
                 </span>
               )}
             </div>
@@ -1430,9 +1425,9 @@ export default function SettingsPage() {
                     ? 'bg-amber-100 text-amber-700'
                     : 'bg-gray-100 text-gray-500'
                 }`}>
-                  {tgCfg.configured && tgCfg.tokenOk ? '✓ Active'
-                    : tgCfg.hasToken ? 'Partial'
-                    : 'Not set'}
+                  {tgCfg.configured && tgCfg.tokenOk ? '✓ ' + tr('setActive')
+                    : tgCfg.hasToken ? tr('setPartial')
+                    : tr('setNotSet')}
                 </span>
               )}
             </div>
@@ -1577,9 +1572,9 @@ export default function SettingsPage() {
                     ? 'bg-amber-100 text-amber-700'
                     : 'bg-gray-100 text-gray-500'
                 }`}>
-                  {lineCfg.configured ? '✓ Active'
-                    : (lineCfg.hasToken || lineCfg.hasTargetId) ? 'Partial'
-                    : 'Not set'}
+                  {lineCfg.configured ? '✓ ' + tr('setActive')
+                    : (lineCfg.hasToken || lineCfg.hasTargetId) ? tr('setPartial')
+                    : tr('setNotSet')}
                 </span>
               )}
             </div>
