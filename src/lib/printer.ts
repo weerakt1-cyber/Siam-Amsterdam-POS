@@ -222,18 +222,46 @@ function b(...parts: (number[] | string | Uint8Array)[]): Uint8Array {
 }
 
 // Build ESC/POS QR code bytes (GS ( k commands, model 2, error correction L)
-function buildQRBytes(url: string, moduleSize = 6): Uint8Array {
-  const data = enc.encode(url)
-  const storeLen = data.length + 3
-  const pL = storeLen & 0xFF
-  const pH = (storeLen >> 8) & 0xFF
-  return b(
-    [GS, 0x28, 0x6B, 0x04, 0x00, 0x31, 0x41, 0x32, 0x00],          // model 2
-    [GS, 0x28, 0x6B, 0x03, 0x00, 0x31, 0x43, moduleSize],            // module size
-    [GS, 0x28, 0x6B, 0x03, 0x00, 0x31, 0x45, 0x30],                  // error correction L
-    [GS, 0x28, 0x6B, pL, pH, 0x31, 0x50, 0x30], data,                // store data
-    [GS, 0x28, 0x6B, 0x03, 0x00, 0x31, 0x51, 0x30],                  // print
-  )
+// Render a Google-review QR (plus caption) to a monochrome bitmap and return it
+// as ESC/POS raster bytes. We draw the QR ourselves from the qrcode module
+// matrix — the printer firmware ignores the native GS ( k QR command, so a
+// raster is the only thing that actually prints here.
+async function buildQRRaster(url: string, cfg: BarSettings): Promise<Uint8Array> {
+  const QRCode = (await import('qrcode')).default as unknown as {
+    create(text: string, opts?: { errorCorrectionLevel?: string }): { modules: { size: number; data: Uint8Array | number[] } }
+  }
+  const qr    = QRCode.create(url, { errorCorrectionLevel: 'M' })
+  const count = qr.modules.size
+  const bits  = qr.modules.data
+
+  const W     = cfg.width === 48 ? 576 : 384
+  const scale = W / 384
+  const Sc    = (n: number) => Math.round(n * scale)
+
+  // Size the QR to ~60% of paper width, snapped to a whole module pixel size.
+  const mod   = Math.max(2, Math.floor((W * 0.6) / count))
+  const qrPx  = mod * count
+  const quiet = mod * 3                        // quiet zone around the code
+  const capH  = Sc(30)                          // caption band height
+
+  const canvas = document.createElement('canvas')
+  canvas.width  = W
+  canvas.height = capH + quiet + qrPx + quiet
+  const ctx = canvas.getContext('2d')!
+  ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, W, canvas.height)
+  ctx.fillStyle = '#000'
+  ctx.textBaseline = 'top'; ctx.textAlign = 'center'
+  ctx.font = `${Sc(22)}px 'Noto Sans Thai','Sarabun',sans-serif`
+  ctx.fillText('สแกนรีวิวเราบน Google', W / 2, Sc(2))
+
+  const x0 = Math.floor((W - qrPx) / 2)
+  const y0 = capH + quiet
+  for (let r = 0; r < count; r++) {
+    for (let c = 0; c < count; c++) {
+      if (bits[r * count + c]) ctx.fillRect(x0 + c * mod, y0 + r * mod, mod, mod)
+    }
+  }
+  return canvasToRasterBytes(canvas)
 }
 
 // ─── Receipt data ─────────────────────────────────────────────────────────────
@@ -301,13 +329,38 @@ function layoutReceipt(ctx: CanvasRenderingContext2D, W: number, d: ReceiptData,
   const setFont = (size: number, bold: boolean, family = bodyFamily) => {
     ctx.font = `${bold ? 'bold ' : ''}${S(size * FONT_BOOST)}px ${family}`
   }
-  const lh = (size: number) => S(size * FONT_BOOST) + S(6)
+  const lh = (size: number) => S(size * FONT_BOOST) + S(9)  // roomier line spacing
 
   function center(text: string, size: number, bold: boolean, family = bodyFamily) {
     const s = stripEmoji(text); if (!s) return
     setFont(size, bold, family)
     if (draw) { ctx.textAlign = 'center'; ctx.fillText(s, W / 2, y) }
     y += lh(size)
+  }
+  // Centered text that wraps to as many lines as needed to fit innerW — first by
+  // words, then by characters for scripts without spaces (e.g. Thai addresses),
+  // so long shop names / addresses print in full instead of running off the edge.
+  function centerWrap(text: string, size: number, bold = false, family = bodyFamily) {
+    const s = stripEmoji(text); if (!s) return
+    setFont(size, bold, family)
+    const fit = (str: string) => ctx.measureText(str).width <= innerW
+    const lines: string[] = []
+    for (const word of s.split(/\s+/).filter(Boolean)) {
+      let cur = lines.length ? lines[lines.length - 1] : ''
+      const merged = cur ? cur + ' ' + word : word
+      if (cur && fit(merged)) { lines[lines.length - 1] = merged; continue }
+      // start the word on a new line; hard-break it if it alone is too wide
+      let chunk = ''
+      for (const ch of word) {
+        if (chunk && !fit(chunk + ch)) { lines.push(chunk); chunk = ch }
+        else chunk += ch
+      }
+      if (chunk) lines.push(chunk)
+    }
+    for (const ln of lines) {
+      if (draw) { ctx.textAlign = 'center'; ctx.fillText(ln, W / 2, y) }
+      y += lh(size)
+    }
   }
   function left(text: string, size: number, bold = false) {
     const s = stripEmoji(text); if (!s) return
@@ -363,14 +416,14 @@ function layoutReceipt(ctx: CanvasRenderingContext2D, W: number, d: ReceiptData,
       ctx.textBaseline = 'top'; ctx.fillStyle = '#000'
     }
     y += barH + S(8)
-    if (cfg.address) center(cfg.address, 15, false, sansFamily)
+    if (cfg.address) centerWrap(cfg.address, 13, false, sansFamily)
     if (cfg.phone)   center('Tel: ' + cfg.phone, 14, false, sansFamily)
   } else if (t === 'minimal') {
-    left(cfg.barName || 'Receipt', 26, true)
-    if (cfg.address) left(cfg.address, 14)
+    centerWrap(cfg.barName || 'Receipt', 24, true)
+    if (cfg.address) centerWrap(cfg.address, 13)
   } else { // classic
-    center(cfg.barName || 'RECEIPT', 30, true)
-    if (cfg.address) center(cfg.address, 15, false)
+    centerWrap(cfg.barName || 'RECEIPT', 26, true)  // smaller + wraps long names
+    if (cfg.address) centerWrap(cfg.address, 13, false)  // smaller + wraps to fit fully
     if (cfg.phone)   center('Tel: ' + cfg.phone, 14, false)
     if (cfg.taxId)   center('Tax: ' + cfg.taxId, 14, false)
   }
@@ -511,7 +564,10 @@ export async function buildReceiptBytes(
   if (opts?.openDrawer) parts.push(b(C.DRAWER))
   parts.push(b(C.CENTER), raster)
   if (cfg.googleReviewUrl) {
-    parts.push(b('\n', C.CENTER, 'Scan to rate us on Google!\n'), buildQRBytes(cfg.googleReviewUrl, 6), b('\n'))
+    // Render the QR as a raster image (same proven path as the receipt). The
+    // native ESC/POS QR command (GS ( k) is silently ignored by this RT/Rongta
+    // firmware — only the caption printed before — so we draw a real scannable QR.
+    parts.push(await buildQRRaster(cfg.googleReviewUrl, cfg))
   }
   // Minimal feed before the cut — 1 blank line plus the cut command's own feed.
   // Keeps the tail short; still clears the last printed line past the cutter.
