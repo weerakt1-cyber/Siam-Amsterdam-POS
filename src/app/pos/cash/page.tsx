@@ -5,6 +5,7 @@ import type { DailyReport, Order, ExpenseCategory } from '@/lib/types'
 import NumPad from '@/components/pos/NumPad'
 import { generateDailyReportPDF } from '@/lib/pdf-report'
 import { usePosLang } from '@/lib/pos-i18n'
+import { printReceipt, loadBarSettings, type ReceiptData } from '@/lib/printer'
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -186,13 +187,13 @@ function AddModal({
           disabled={!amount || parseInt(amount) <= 0}
           className="w-full py-3 rounded-xl bg-amber-500 hover:bg-amber-400 text-black font-bold text-base transition active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed"
         >
-          {type === 'cash-in' ? 'Add Cash In' : 'Add Expense'}
+          {type === 'cash-in' ? t('cashAddCashIn') : t('cashAddExpense')}
         </button>
       </div>
 
       {showNumPad && (
         <NumPad
-          label={type === 'cash-in' ? 'Cash In Amount' : 'Expense Amount'}
+          label={type === 'cash-in' ? t('cashInAmount') : t('cashExpenseAmount')}
           value={amount}
           onChange={setAmount}
           onClose={() => setShowNumPad(false)}
@@ -217,6 +218,9 @@ export default function CashPage() {
   const [toast, setToast] = useState<{ msg: string; ok: boolean } | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [pdfLoading, setPdfLoading] = useState(false)
+  const [detailOrder, setDetailOrder] = useState<Order | null>(null)
+  const [voiding, setVoiding] = useState(false)
+  const [printing, setPrinting] = useState(false)
 
   const fetchReport = useCallback(async (d: string) => {
     setIsLoading(true)
@@ -234,6 +238,54 @@ export default function CashPage() {
   function showToast(msg: string, ok = true) {
     setToast({ msg, ok })
     setTimeout(() => setToast(null), 3000)
+  }
+
+  // Void an order from the day's list (e.g. a mistaken/duplicate bill). Sets it
+  // to 'cancelled' so it drops out of the paid revenue; reversible only by re-entry.
+  async function voidOrder(o: Order) {
+    if (!confirm(t('cashConfirmVoid'))) return
+    setVoiding(true)
+    try {
+      const r = await fetch(`/api/orders/${o.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: 'cancelled' }),
+      })
+      if (!r.ok) { showToast(t('toastVoidFail'), false); return }
+      await fetchReport(date)
+      setDetailOrder(null)
+      showToast(t('toastOrderVoided'))
+    } catch {
+      showToast(t('toastVoidFail'), false)
+    } finally {
+      setVoiding(false)
+    }
+  }
+
+  // Reprint an order's receipt from the day's list (in case the original slip
+  // was lost) via the thermal printer — same path as checkout.
+  async function reprintOrder(o: Order) {
+    setPrinting(true)
+    try {
+      const data: ReceiptData = {
+        orderId:        o.id,
+        tableNo:        o.tableNo,
+        createdAt:      o.createdAt,
+        memberName:     o.memberName || undefined,
+        items:          o.items.map(i => ({ name: i.name, qty: i.qty, price: i.price })),
+        subtotal:       o.subtotal,
+        discountAmount: o.discount?.amount ?? 0,
+        total:          o.total,
+        vatIncluded:    Math.round(o.total * 7 / 107),
+        paymentMethod:  o.paymentMethod,
+        note:           o.note || undefined,
+      }
+      await printReceipt(data, loadBarSettings())
+    } catch (e) {
+      showToast(e instanceof Error ? e.message : t('toastPrintFailed'), false)
+    } finally {
+      setPrinting(false)
+    }
   }
 
   function shiftDate(days: number) {
@@ -375,12 +427,12 @@ export default function CashPage() {
 
               {/* Cash In */}
               <Section
-                title="📥 Cash In"
+                title={`📥 ${t('cashInLabel')}`}
                 total={summary.cashInTotal}
                 onAdd={() => setModal('cash-in')}
-                addLabel="+ Add Cash In"
+                addLabel={`+ ${t('cashAddCashIn')}`}
                 addColor="bg-blue-50 text-blue-600 hover:bg-blue-100 border border-blue-200"
-                empty="No cash in entries yet"
+                empty={t('cashNoCashIn')}
               >
                 {report.cashIns.map(e => (
                   <EntryRow
@@ -397,12 +449,12 @@ export default function CashPage() {
 
               {/* Expenses */}
               <Section
-                title="📤 Expenses"
+                title={`📤 ${t('cashExpenses')}`}
                 total={summary.expenseTotal}
                 onAdd={() => setModal('expense')}
-                addLabel="+ Add Expense"
+                addLabel={`+ ${t('cashAddExpense')}`}
                 addColor="bg-red-50 text-red-600 hover:bg-red-100 border border-red-200"
-                empty="No expenses yet"
+                empty={t('cashNoExpenses')}
               >
                 {report.expenses.map(e => {
                   const cat = catInfo(e.category)
@@ -428,7 +480,7 @@ export default function CashPage() {
               <div className="flex items-center justify-between">
                 <div>
                   <h3 className="font-bold text-sm text-stone-600 uppercase tracking-wider">📋 {t('cashOrders')}</h3>
-                  <p className="text-xs text-stone-400 mt-0.5">{orders.length} orders · {orders.filter(o => o.status === 'paid').length} paid</p>
+                  <p className="text-xs text-stone-400 mt-0.5">{orders.length} {t('cashOrdersCount')} · {orders.filter(o => o.status === 'paid').length} {t('cashOrdersPaid')}</p>
                 </div>
                 <span className="text-base font-black text-emerald-400">{baht(summary.orderRevenue)}</span>
               </div>
@@ -436,15 +488,15 @@ export default function CashPage() {
               {orders.length === 0 ? (
                 <div className="flex flex-col items-center justify-center py-12 text-stone-300">
                   <p className="text-4xl mb-2">🧾</p>
-                  <p className="text-sm">No orders for this date</p>
+                  <p className="text-sm">{t('cashNoOrders')}</p>
                 </div>
               ) : (
                 <div className="flex flex-col gap-2">
                   {orders.map(o => (
-                    <div key={o.id} className="bg-white border border-stone-100 rounded-xl px-4 py-3 flex items-start justify-between gap-3">
+                    <button key={o.id} onClick={() => setDetailOrder(o)} className="w-full text-left bg-white border border-stone-100 rounded-xl px-4 py-3 flex items-start justify-between gap-3 hover:border-amber-300 hover:bg-amber-50/40 transition active:scale-[0.99]">
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2 mb-1">
-                          <span className="text-xs font-bold text-amber-400">Table {o.tableNo}</span>
+                          <span className="text-xs font-bold text-amber-400">{t('cbTable')} {o.tableNo}</span>
                           <span className="text-xs text-stone-400 font-mono">#{o.id.slice(-6)}</span>
                           <span className={`text-xs px-1.5 py-0.5 rounded-full font-semibold ${
                             o.status === 'paid' ? 'bg-emerald-100 text-emerald-700' : 'bg-stone-100 text-stone-500'
@@ -463,7 +515,7 @@ export default function CashPage() {
                           {new Date(o.createdAt).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}
                         </p>
                       </div>
-                    </div>
+                    </button>
                   ))}
                 </div>
               )}
@@ -476,13 +528,83 @@ export default function CashPage() {
       {/* Opening Cash NumPad */}
       {showOpeningNumPad && (
         <NumPad
-          label="Opening Cash (ยอดเงินสดเปิดร้าน)"
+          label={t('cashOpeningCash')}
           value={openingVal}
           onChange={setOpeningVal}
           onClose={saveOpening}
           allowDecimal={false}
           suffix="฿"
         />
+      )}
+
+      {/* Order detail modal — tap a bill to view, reprint, or void it */}
+      {detailOrder && (
+        <div
+          className="fixed inset-0 z-40 bg-black/70 backdrop-blur-sm flex items-end sm:items-center justify-center"
+          onClick={() => setDetailOrder(null)}
+        >
+          <div
+            className="bg-white rounded-t-2xl sm:rounded-2xl shadow-2xl w-full max-w-lg p-5 pb-8 flex flex-col gap-4 max-h-[85vh] overflow-y-auto"
+            onClick={e => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between">
+              <h3 className="font-bold text-lg">🧾 {t('cashOrderDetail')}</h3>
+              <button onClick={() => setDetailOrder(null)} className="text-stone-400 hover:text-stone-800 text-xl leading-none">✕</button>
+            </div>
+
+            <div className="flex items-center flex-wrap gap-2 text-sm">
+              <span className="font-bold text-stone-800">{t('cbTable')} {detailOrder.tableNo}</span>
+              <span className="text-stone-400 font-mono">#{detailOrder.id.slice(-6)}</span>
+              <span className={`text-xs px-2 py-0.5 rounded-full font-semibold ${
+                detailOrder.status === 'paid' ? 'bg-emerald-100 text-emerald-700'
+                : detailOrder.status === 'cancelled' ? 'bg-red-100 text-red-600'
+                : 'bg-stone-100 text-stone-500'
+              }`}>{detailOrder.status === 'cancelled' ? t('cashVoided') : detailOrder.status}</span>
+              <span className="text-stone-400 text-xs ml-auto">
+                {new Date(detailOrder.createdAt).toLocaleString('en-GB', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}
+              </span>
+            </div>
+
+            <div className="border-t border-stone-100 pt-3 flex flex-col gap-1.5">
+              {detailOrder.items.map((i, idx) => (
+                <div key={idx} className="flex justify-between text-sm">
+                  <span className="text-stone-700">{i.name}{i.variantLabel ? ` (${i.variantLabel})` : ''} <span className="text-stone-400">×{i.qty}</span></span>
+                  <span className="text-stone-600 tabular-nums">{baht(i.price * i.qty)}</span>
+                </div>
+              ))}
+            </div>
+
+            <div className="border-t border-stone-100 pt-3 flex flex-col gap-1 text-sm">
+              <div className="flex justify-between text-stone-500"><span>{t('cbSubtotal')}</span><span className="tabular-nums">{baht(detailOrder.subtotal)}</span></div>
+              {detailOrder.discount && detailOrder.discount.amount > 0 && (
+                <div className="flex justify-between text-emerald-600"><span>{t('cbDiscount')}</span><span className="tabular-nums">-{baht(detailOrder.discount.amount)}</span></div>
+              )}
+              <div className="flex justify-between font-black text-stone-900 text-base"><span>{t('cbTotal')}</span><span className="tabular-nums">{baht(detailOrder.total)}</span></div>
+              {detailOrder.paymentMethod && (
+                <div className="flex justify-between text-stone-400 text-xs mt-0.5"><span>💳 {detailOrder.paymentMethod}</span></div>
+              )}
+            </div>
+
+            <div className="flex gap-2 pt-1">
+              <button
+                onClick={() => reprintOrder(detailOrder)}
+                disabled={printing}
+                className="flex-1 py-3 rounded-xl bg-stone-900 text-white font-bold text-sm transition active:scale-95 disabled:opacity-50"
+              >
+                🖨️ {printing ? t('cashPrinting') : t('cashPrintReceipt')}
+              </button>
+              {detailOrder.status !== 'cancelled' && (
+                <button
+                  onClick={() => voidOrder(detailOrder)}
+                  disabled={voiding}
+                  className="flex-1 py-3 rounded-xl border-2 border-red-200 text-red-600 font-bold text-sm hover:bg-red-50 transition active:scale-95 disabled:opacity-50"
+                >
+                  ✕ {t('cashVoid')}
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
       )}
 
       {/* Add Modal */}

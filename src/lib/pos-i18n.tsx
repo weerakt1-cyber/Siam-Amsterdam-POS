@@ -111,7 +111,7 @@ const DICT = {
   cashNoSession:   { en: 'No open drawer session', th: 'ยังไม่ได้เปิดลิ้นชัก' },
   cashToday:       { en: 'TODAY',             th: 'วันนี้' },
   cashGoToday:     { en: 'Go to Today',       th: 'ไปวันนี้' },
-  cashOpeningCash: { en: 'Opening Cash',      th: 'เงินสดยกมา' },
+  cashOpeningCash: { en: 'Opening Cash',      th: 'เงินสดเปิดร้าน' },
   cashOrderRevenue:{ en: 'Order Revenue',     th: 'รายได้จากออเดอร์' },
   cashInLabel:     { en: 'Cash In',           th: 'เงินเข้า' },
   cashExpenses:    { en: 'Expenses',          th: 'ค่าใช้จ่าย' },
@@ -572,6 +572,23 @@ const DICT = {
   usPinChanged:    { en: 'PIN changed ✓', th: 'เปลี่ยน PIN สำเร็จ ✓' },
   usDeleted:       { en: 'User deleted', th: 'ลบ User แล้ว' },
   usNamePh:        { en: 'Staff name', th: 'ชื่อพนักงาน' },
+
+  // ── Cash page (extra) ──
+  cashNoCashIn:    { en: 'No cash in entries yet', th: 'ยังไม่มีรายการเงินเข้า' },
+  cashNoExpenses:  { en: 'No expenses yet', th: 'ยังไม่มีค่าใช้จ่าย' },
+  cashNoOrders:    { en: 'No orders for this date', th: 'ไม่มีออเดอร์ในวันนี้' },
+  cashInAmount:    { en: 'Cash In Amount', th: 'จำนวนเงินเข้า' },
+  cashExpenseAmount:{ en: 'Expense Amount', th: 'จำนวนค่าใช้จ่าย' },
+  cashOrdersPaid:  { en: 'paid', th: 'ชำระแล้ว' },
+  cashOrdersCount: { en: 'orders', th: 'ออเดอร์' },
+  // Order detail modal
+  cashOrderDetail: { en: 'Order Details', th: 'รายละเอียดบิล' },
+  cashVoid:        { en: 'Void', th: 'ยกเลิกบิล' },
+  cashVoided:      { en: 'Voided', th: 'ยกเลิกแล้ว' },
+  cashConfirmVoid: { en: 'Void this order? This cannot be undone.', th: 'ยกเลิกบิลนี้? การกระทำนี้ย้อนกลับไม่ได้' },
+  cashPrintReceipt:{ en: 'Print Receipt', th: 'พิมพ์ใบเสร็จ' },
+  cashClose:       { en: 'Close', th: 'ปิด' },
+  cashPrinting:    { en: 'Printing…', th: 'กำลังพิมพ์…' },
 } as const
 
 export type PosStringKey = keyof typeof DICT
