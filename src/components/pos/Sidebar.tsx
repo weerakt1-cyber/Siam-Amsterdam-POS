@@ -11,27 +11,34 @@ import { usePosLang, type PosStringKey } from '@/lib/pos-i18n'
 const MANAGER_ROLES = new Set(['admin', 'manager'])
 
 const NAV: { href: string; icon: string; labelKey: PosStringKey; managerOnly?: boolean }[] = [
-  { href: '/pos',            icon: '🛍️',  labelKey: 'navPos'       },
-  { href: '/pos/floor',      icon: '🗺️',  labelKey: 'navFloor'     },
-  { href: '/pos/kitchen',    icon: '🍳',  labelKey: 'navKitchen'   },
-  { href: '/pos/delivery',   icon: '🛵',  labelKey: 'navDelivery'  },
-  { href: '/pos/inventory',  icon: '📦',  labelKey: 'navInventory' },
-  { href: '/pos/items',      icon: '🍽️',  labelKey: 'navItems'     },
-  { href: '/pos/members',    icon: '👥',  labelKey: 'navMembers'   },
-  { href: '/pos/cash',       icon: '💰',  labelKey: 'navCash'      },
-  { href: '/pos/coupons',    icon: '🎟️',  labelKey: 'navCoupons'   },
-  { href: '/pos/analytics',  icon: '📊',  labelKey: 'navAnalytics', managerOnly: true },
-  { href: '/pos/users',      icon: '👤',  labelKey: 'navUsers',     managerOnly: true },
-  { href: '/pos/settings',   icon: '⚙️',  labelKey: 'navSettings',  managerOnly: true },
+  { href: '/pos',            icon: '/nav-icons/pos.png',       labelKey: 'navPos'       },
+  { href: '/pos/floor',      icon: '/nav-icons/floor.png',     labelKey: 'navFloor'     },
+  { href: '/pos/kitchen',    icon: '/nav-icons/kitchen.png',   labelKey: 'navKitchen'   },
+  { href: '/pos/delivery',   icon: '/nav-icons/delivery.png',  labelKey: 'navDelivery'  },
+  { href: '/pos/inventory',  icon: '/nav-icons/inventory.png', labelKey: 'navInventory' },
+  { href: '/pos/items',      icon: '/nav-icons/items.png',     labelKey: 'navItems'     },
+  { href: '/pos/members',    icon: '/nav-icons/members.png',   labelKey: 'navMembers'   },
+  { href: '/pos/cash',       icon: '/nav-icons/cash.png',      labelKey: 'navCash'      },
+  { href: '/pos/coupons',    icon: '/nav-icons/coupons.png',   labelKey: 'navCoupons'   },
+  { href: '/pos/analytics',  icon: '/nav-icons/analytics.png', labelKey: 'navAnalytics', managerOnly: true },
+  { href: '/pos/users',      icon: '/nav-icons/users.png',     labelKey: 'navUsers',     managerOnly: true },
+  { href: '/pos/settings',   icon: '/nav-icons/settings.png',  labelKey: 'navSettings',  managerOnly: true },
 ]
 
 const BOTTOM_NAV: { href: string; icon: string; labelKey: PosStringKey; managerOnly?: boolean }[] = [
-  { href: '/pos',           icon: '🛍️', labelKey: 'navPos'      },
-  { href: '/pos/members',   icon: '👥', labelKey: 'navMembers'  },
-  { href: '/pos/cash',      icon: '💰', labelKey: 'navCash'     },
-  { href: '/pos/analytics', icon: '📊', labelKey: 'navStats',    managerOnly: true },
-  { href: '/pos/settings',  icon: '⚙️', labelKey: 'navSettings', managerOnly: true },
+  { href: '/pos',           icon: '/nav-icons/pos.png',       labelKey: 'navPos'      },
+  { href: '/pos/members',   icon: '/nav-icons/members.png',   labelKey: 'navMembers'  },
+  { href: '/pos/cash',      icon: '/nav-icons/cash.png',      labelKey: 'navCash'     },
+  { href: '/pos/analytics', icon: '/nav-icons/analytics.png', labelKey: 'navStats',    managerOnly: true },
+  { href: '/pos/settings',  icon: '/nav-icons/settings.png',  labelKey: 'navSettings', managerOnly: true },
 ]
+
+// The pack icons are solid black line-art on transparent backgrounds, so they need
+// recolouring to stay legible against each surface:
+//   • dark drawer / rail (stone-900)  → white   (invert)
+//   • amber active pill / white bottom nav → near-black (no invert)
+const ICON_LIGHT = 'invert(1) brightness(1.7)'                 // white-ish, for dark surfaces
+const ICON_DARK  = 'invert(0) brightness(0)'                   // black, for light surfaces
 
 export default function Sidebar() {
   const path = usePathname()
@@ -98,8 +105,20 @@ export default function Sidebar() {
 
         <div className="flex-1" />
 
-        <div className="w-9 h-9 rounded-xl flex items-center justify-center text-lg bg-amber-500/10 text-amber-400">
-          {NAV.find(item => isActive(item.href))?.icon ?? '•'}
+        <div className="w-9 h-9 rounded-xl flex items-center justify-center bg-amber-500/10">
+          {(() => {
+            const activeItem = NAV.find(item => isActive(item.href))
+            return activeItem ? (
+              <img
+                src={activeItem.icon}
+                alt=""
+                className="w-5 h-5 object-contain"
+                style={{ filter: ICON_LIGHT }}
+              />
+            ) : (
+              <span className="text-lg text-amber-400">•</span>
+            )
+          })()}
         </div>
 
         <button
@@ -156,7 +175,12 @@ export default function Sidebar() {
                     : 'text-stone-400 hover:text-stone-100 hover:bg-stone-800'
                 }`}
               >
-                <span className="text-xl leading-none">{item.icon}</span>
+                <img
+                  src={item.icon}
+                  alt=""
+                  className="w-6 h-6 object-contain shrink-0"
+                  style={{ filter: active ? ICON_DARK : ICON_LIGHT }}
+                />
                 <span className="font-bold text-sm leading-none">{t(item.labelKey)}</span>
               </Link>
             )
@@ -203,7 +227,12 @@ export default function Sidebar() {
               }`}
             >
               {active && <div className="absolute top-0 left-1/2 -translate-x-1/2 w-8 h-0.5 bg-stone-900 rounded-full" />}
-              <span className="text-[20px] leading-none">{item.icon}</span>
+              <img
+                src={item.icon}
+                alt=""
+                className="w-[22px] h-[22px] object-contain"
+                style={{ filter: ICON_DARK, opacity: active ? 1 : 0.5 }}
+              />
               <span className={`text-[9px] font-semibold leading-none mt-0.5 ${active ? 'text-stone-900' : 'text-stone-400'}`}>
                 {t(item.labelKey)}
               </span>
