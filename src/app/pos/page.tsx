@@ -15,6 +15,80 @@ import { usePosLang } from '@/lib/pos-i18n'
 
 const ALL_CHIP: CatEntry = { value: 'all', label: 'All', color: 'bg-gray-200 text-gray-700', icon: '🍽️' }
 
+// Custom POS-page icons (black line-art PNGs). Served from /public/pos-icons.
+const PI = {
+  table:       '/pos-icons/table.png',
+  hold:        '/pos-icons/hold-bill.png',
+  drawer:      '/pos-icons/open-drawer.png',
+  itemsAdd:    '/pos-icons/items-add.png',
+  member:      '/pos-icons/member.png',
+  openTickets: '/pos-icons/open-tickets.png',
+  printCheck:  '/pos-icons/print-check.png',
+  coupon:      '/pos-icons/coupon.png',
+  split:       '/pos-icons/split-bill.png',
+  search:      '/pos-icons/search.png',
+} as const
+
+// Recolour the black source art per surface: 'dark' → white (for dark buttons),
+// 'light' → black (for light buttons). Keeps every icon legible against its NAV/bg.
+function Ic({ src, on = 'light', className = 'w-4 h-4' }: { src: string; on?: 'light' | 'dark'; className?: string }) {
+  return (
+    <img
+      src={src}
+      alt=""
+      aria-hidden
+      className={`inline-block object-contain shrink-0 ${className}`}
+      style={{ filter: on === 'dark' ? 'brightness(0) invert(1)' : 'brightness(0)' }}
+    />
+  )
+}
+
+// Custom dropdown that can show a leading PNG icon — native <select>/<option>
+// can't render images, so the coupon + member pickers use this instead.
+function IconDropdown({
+  icon, placeholder, value, options, onPick,
+}: {
+  icon: string
+  placeholder: string
+  value: string                                   // label of current selection; '' = none
+  options: { value: string; label: string }[]
+  onPick: (value: string) => void
+}) {
+  const [open, setOpen] = useState(false)
+  return (
+    <div className="relative">
+      <button
+        type="button"
+        onClick={() => setOpen(o => !o)}
+        className="w-full flex items-center gap-2 bg-white border border-stone-200 rounded-xl px-3 py-2 text-sm text-stone-700 outline-none focus:border-stone-400 transition text-left"
+      >
+        <Ic src={icon} className="w-3.5 h-3.5 opacity-70" />
+        <span className={`flex-1 truncate ${value ? '' : 'text-stone-400'}`}>{value || placeholder}</span>
+        <span className={`text-[9px] text-stone-400 transition-transform ${open ? 'rotate-180' : ''}`}>▼</span>
+      </button>
+      {open && (
+        <>
+          <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
+          <div className="absolute left-0 right-0 bottom-full mb-1 z-50 bg-white rounded-xl shadow-xl border border-stone-200 overflow-hidden max-h-64 overflow-y-auto">
+            {options.map(o => (
+              <button
+                type="button"
+                key={o.value || '__none__'}
+                onClick={() => { onPick(o.value); setOpen(false) }}
+                className={`w-full text-left px-3 py-2 text-sm hover:bg-stone-50 transition truncate ${
+                  o.value === value ? 'bg-stone-50 font-semibold text-stone-900' : 'text-stone-700'
+                }`}
+              >
+                {o.label}
+              </button>
+            ))}
+          </div>
+        </>
+      )}
+    </div>
+  )
+}
+
 type CartItem = {
   menuId: string; name: string; qty: number; price: number
   variantLabel?: string
@@ -763,7 +837,6 @@ export default function POSPage() {
             <div className="flex-1 overflow-y-auto p-4 flex flex-col gap-2">
               {historyOrders.length === 0 ? (
                 <div className="py-12 text-center text-stone-300">
-                  <p className="text-4xl mb-3">📋</p>
                   <p>{showAllHistory ? t('posNoOrdersToday') : `${t('posNoOrdersForTable')} ${table} ${t('posTodaySuffix')}`}</p>
                 </div>
               ) : (
@@ -787,7 +860,7 @@ export default function POSPage() {
                       <p className="text-sm text-stone-500 mt-1 truncate">
                         {o.items.map((i) => `${i.name} ×${i.qty}`).join(', ')}
                       </p>
-                      {o.memberName && <p className="text-xs text-stone-400 mt-0.5">👤 {o.memberName}</p>}
+                      {o.memberName && <p className="flex items-center gap-1 text-xs text-stone-400 mt-0.5"><Ic src={PI.member} className="w-3 h-3 opacity-60" /> {o.memberName}</p>}
                     </div>
                     <div className="text-right shrink-0">
                       <p className={`font-bold ${o.status === 'cancelled' ? 'text-stone-300 line-through' : 'text-amber-600'}`}>
@@ -871,18 +944,18 @@ export default function POSPage() {
             {/* Ticket list */}
             <div className="flex-1 min-h-0 overflow-y-auto p-4 flex flex-col gap-3">
               {allOpenTableOrders.length === 0 ? (
-                <div className="py-12 text-center text-stone-300">
-                  <p className="text-4xl mb-3">🎫</p>
+                <div className="py-12 text-center text-stone-300 flex flex-col items-center">
+                  <Ic src={PI.openTickets} className="w-12 h-12 mb-3 opacity-25" />
                   <p className="text-sm">No open tickets for Table {table}</p>
                 </div>
               ) : (
                 allOpenTableOrders.map(o => {
                   const isMerged = mergedOrderIds.has(o.id)
                   const statusLabel =
-                    o.status === 'delivered' ? '✓ Served'
-                    : o.status === 'ready'    ? '⚡ Ready'
-                    : o.status === 'accepted' ? '👨‍🍳 In Progress'
-                    : '⏳ Pending'
+                    o.status === 'delivered' ? 'Served'
+                    : o.status === 'ready'    ? 'Ready'
+                    : o.status === 'accepted' ? 'In Progress'
+                    : 'Pending'
                   return (
                     <div
                       key={o.id}
@@ -899,12 +972,12 @@ export default function POSPage() {
                           <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full ${
                             o.source === 'qr' ? 'bg-teal-100 text-teal-700' : 'bg-blue-100 text-blue-700'
                           }`}>
-                            {o.source === 'qr' ? '📱 QR' : '🖥 POS'}
+                            {o.source === 'qr' ? 'QR' : 'POS'}
                           </span>
                           <span className="text-xs font-mono text-stone-400">#{o.id.slice(-6)}</span>
-                          <span className="text-[10px] font-semibold text-stone-500">🪑 {o.tableNo}</span>
+                          <span className="flex items-center gap-1 text-[10px] font-semibold text-stone-500"><Ic src={PI.table} className="w-3 h-3 opacity-70" /> {o.tableNo}</span>
                           {o.customerName && (
-                            <span className="text-xs font-semibold text-stone-700">👤 {o.customerName}</span>
+                            <span className="flex items-center gap-1 text-xs font-semibold text-stone-700"><Ic src={PI.member} className="w-3 h-3 opacity-70" /> {o.customerName}</span>
                           )}
                           <span className={`text-xs font-medium ${
                             o.status === 'delivered' ? 'text-emerald-600'
@@ -955,7 +1028,7 @@ export default function POSPage() {
                               onClick={() => setPayingTicket(o)}
                               className="flex-1 py-2 rounded-xl bg-stone-900 hover:bg-stone-800 active:scale-95 text-white font-bold text-sm transition"
                             >
-                              💳 Pay This Order
+                              Pay This Order
                             </button>
                             <button
                               onClick={() => mergeQrOrder(o)}
@@ -1015,7 +1088,6 @@ export default function POSPage() {
           const quote = getDailyQuote(lang)
           return (
             <div className="flex-1 min-w-0 flex items-center gap-2.5 rounded-xl bg-gradient-to-r from-amber-50 via-orange-50/60 to-transparent px-3 py-1.5">
-              <span className="text-2xl shrink-0 leading-none">{greet.emoji}</span>
               <div className="min-w-0 flex flex-col justify-center gap-0.5">
                 <p className="text-sm font-black text-stone-900 leading-tight truncate">
                   {greet.text}{' '}
@@ -1023,7 +1095,7 @@ export default function POSPage() {
                   {' '}!
                 </p>
                 <p className="text-xs font-semibold text-stone-600 italic leading-tight truncate">
-                  ✨ “{quote}”
+                  “{quote}”
                 </p>
               </div>
             </div>
@@ -1038,7 +1110,7 @@ export default function POSPage() {
               onClick={() => setTablePickerOpen(v => !v)}
               className="relative bg-stone-900 hover:bg-stone-800 active:scale-95 text-white transition text-sm font-bold px-3 py-2 rounded-xl flex items-center gap-1.5 shadow-sm"
             >
-              🪑 {table}
+              <Ic src={PI.table} on="dark" className="w-4 h-4" /> {table}
               <span className={`text-[9px] transition-transform ${tablePickerOpen ? 'rotate-180' : ''}`}>▼</span>
               {tables.some(t => t !== table && (carts[t] ?? []).length > 0) && (
                 <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-amber-500 rounded-full border-2 border-white" />
@@ -1048,7 +1120,7 @@ export default function POSPage() {
               <>
                 <div className="fixed inset-0 z-40" onClick={() => setTablePickerOpen(false)} />
                 <div className="absolute right-0 top-full mt-2 z-50 bg-white rounded-2xl shadow-2xl border border-stone-200 p-2 w-64">
-                  <p className="text-[10px] font-bold text-stone-400 uppercase tracking-widest mb-1.5 px-1.5">🪑 {t('selectTable')}</p>
+                  <p className="flex items-center gap-1 text-[10px] font-bold text-stone-400 uppercase tracking-widest mb-1.5 px-1.5"><Ic src={PI.table} className="w-3 h-3 opacity-60" /> {t('selectTable')}</p>
                   <div className="flex flex-col gap-1 max-h-80 overflow-y-auto">
                     {tables.map((tb) => {
                       const hasItems = (carts[tb] ?? []).length > 0
@@ -1079,13 +1151,13 @@ export default function POSPage() {
             disabled={!cart.some(c => !c.fromOrderId)}
             className="border-2 border-amber-400 bg-amber-50 hover:bg-amber-100 disabled:opacity-40 disabled:cursor-not-allowed active:scale-95 text-amber-600 transition text-sm font-bold px-3 py-2 rounded-xl flex items-center gap-1.5"
           >
-            🧊 <span className="hidden sm:inline">{t('holdBill')}</span>
+            <Ic src={PI.hold} className="w-4 h-4" /> <span className="hidden sm:inline">{t('holdBill')}</span>
           </button>
           <button
             onClick={openDrawer}
             className="bg-stone-100 hover:bg-stone-200 active:scale-95 text-stone-700 transition text-sm font-semibold px-3 py-2 rounded-xl flex items-center gap-1.5"
           >
-            💰 <span className="hidden sm:inline">{t('openDrawer')}</span>
+            <Ic src={PI.drawer} className="w-4 h-4" /> <span className="hidden sm:inline">{t('openDrawer')}</span>
           </button>
           <NotificationBell />
         </div>
@@ -1115,7 +1187,7 @@ export default function POSPage() {
               ))}
             </div>
             <div className="px-3 pb-2.5 relative">
-              <span className="absolute left-5 top-1/2 -translate-y-1/2 text-stone-300 text-sm pointer-events-none">🔍</span>
+              <Ic src={PI.search} className="w-3.5 h-3.5 absolute left-5 top-1/2 -translate-y-1/2 opacity-30 pointer-events-none" />
               <input
                 type="text"
                 value={search}
@@ -1149,7 +1221,7 @@ export default function POSPage() {
               </div>
             ) : filteredMenu.length === 0 ? (
               <div className="flex flex-col items-center justify-center h-32 text-stone-300 text-sm gap-2">
-                <span className="text-3xl">{search ? '🔍' : '🍽️'}</span>
+                {search && <Ic src={PI.search} className="w-8 h-8 opacity-25" />}
                 <p>{search ? `${t('noResultsFor')} "${search}"` : t('noItemsCategory')}</p>
               </div>
             ) : (
@@ -1239,7 +1311,7 @@ export default function POSPage() {
                     onClick={() => setShowOpenTickets(true)}
                     className="relative flex items-center gap-1 bg-amber-100 hover:bg-amber-200 text-amber-700 text-[10px] font-bold px-2 py-0.5 rounded-full transition active:scale-95"
                   >
-                    🎫 {pendingTableOrders.length} open
+                    <Ic src={PI.openTickets} className="w-3 h-3" /> {pendingTableOrders.length} open
                   </button>
                 )}
               </div>
@@ -1262,7 +1334,7 @@ export default function POSPage() {
           <div className="flex-1 overflow-y-auto px-4 py-3 flex flex-col gap-1">
             {cart.length === 0 ? (
               <div className="flex-1 flex flex-col items-center justify-center text-stone-300 py-10">
-                <p className="text-5xl mb-3">🛒</p>
+                <Ic src={PI.itemsAdd} className="w-14 h-14 mb-3 opacity-25" />
                 <p className="text-sm">Tap items to add</p>
               </div>
             ) : (
@@ -1287,7 +1359,7 @@ export default function POSPage() {
                       )}
                       {promoLine && (
                         <span className="inline-block text-[9px] bg-emerald-100 text-emerald-700 px-1.5 py-0.5 rounded font-bold mt-0.5">
-                          🎁 {promoLine.label}
+                          {promoLine.label}
                         </span>
                       )}
                     </div>
@@ -1357,8 +1429,8 @@ export default function POSPage() {
             <div className="flex flex-col gap-1">
               {appliedCoupon ? (
                 <div className="flex items-center gap-1.5 bg-emerald-50 border border-emerald-200 rounded-xl px-3 py-2">
-                  <span className="text-emerald-700 text-xs flex-1 font-bold">
-                    🎟 {appliedCoupon.code} · -{baht(couponDiscountAmount)}
+                  <span className="flex items-center gap-1 text-emerald-700 text-xs flex-1 font-bold">
+                    <Ic src={PI.coupon} className="w-3.5 h-3.5" /> {appliedCoupon.code} · -{baht(couponDiscountAmount)}
                     {appliedCoupon.type === 'percent' && (
                       <span className="text-emerald-500 ml-1">({appliedCoupon.value}%)</span>
                     )}
@@ -1369,22 +1441,16 @@ export default function POSPage() {
                   >✕</button>
                 </div>
               ) : (
-                <select
+                <IconDropdown
+                  icon={PI.coupon}
+                  placeholder={coupons.length > 0 ? t('selectCoupon') : t('noActiveCoupons')}
                   value=""
-                  onChange={e => {
-                    if (!e.target.value) return
-                    applyCoupon(e.target.value)
-                    e.target.value = ''
-                  }}
-                  className="w-full bg-white border border-stone-200 rounded-xl px-3 py-2 text-xs text-stone-700 outline-none focus:border-stone-400 transition appearance-none"
-                >
-                  <option value="">🎟 {coupons.length > 0 ? t('selectCoupon') : t('noActiveCoupons')}</option>
-                  {coupons.map(c => (
-                    <option key={c.id} value={c.code}>
-                      {c.code} — {c.name} ({c.type === 'percent' ? `${c.value}%` : `฿${c.value}`} off)
-                    </option>
-                  ))}
-                </select>
+                  options={coupons.map(c => ({
+                    value: c.code,
+                    label: `${c.code} — ${c.name} (${c.type === 'percent' ? `${c.value}%` : `฿${c.value}`} off)`,
+                  }))}
+                  onPick={code => applyCoupon(code)}
+                />
               )}
               {couponError && <p className="text-xs text-red-500 px-1">{couponError}</p>}
             </div>
@@ -1394,7 +1460,7 @@ export default function POSPage() {
               <div className="bg-emerald-50 border border-emerald-200 rounded-xl px-3 py-2 flex flex-col gap-0.5">
                 {promoResult.freebies.map(f => (
                   <span key={f.promoId} className="text-emerald-700 text-xs font-bold">
-                    🎁 {f.text}{f.qty > 1 ? ` ×${f.qty}` : ''} <span className="font-normal text-emerald-500">— free with this order</span>
+                    {f.text}{f.qty > 1 ? ` ×${f.qty}` : ''} <span className="font-normal text-emerald-500">— free with this order</span>
                   </span>
                 ))}
               </div>
@@ -1407,23 +1473,23 @@ export default function POSPage() {
             </div>
 
             {/* Member — select จาก DB */}
-            <select
+            <IconDropdown
+              icon={PI.member}
+              placeholder={t('noMember')}
               value={memberName}
-              onChange={e => { setMemberName(e.target.value); setPointsToRedeem(0) }}
-              className="w-full bg-white border border-stone-200 rounded-xl px-3 py-2 text-sm text-stone-700 outline-none focus:border-stone-400 transition appearance-none"
-            >
-              <option value="">👤 {t('noMember')}</option>
-              {members.map(m => (
-                <option key={m.id} value={m.name}>{m.name} {m.points > 0 ? `(${m.points} pts)` : ''}</option>
-              ))}
-            </select>
+              options={[
+                { value: '', label: t('noMember') },
+                ...members.map(m => ({ value: m.name, label: `${m.name} ${m.points > 0 ? `(${m.points} pts)` : ''}` })),
+              ]}
+              onPick={name => { setMemberName(name); setPointsToRedeem(0) }}
+            />
 
             {/* Points redemption — shown when member has points */}
             {selectedMember && memberAvailablePoints > 0 && (
               actualPointsDiscount > 0 ? (
                 <div className="flex items-center gap-1.5 bg-violet-50 border border-violet-200 rounded-xl px-3 py-2">
                   <span className="text-violet-700 text-xs font-bold flex-1">
-                    ⭐ Points redeemed · -{baht(actualPointsDiscount)}
+                    Points redeemed · -{baht(actualPointsDiscount)}
                   </span>
                   <button
                     onClick={() => setPointsToRedeem(0)}
@@ -1435,7 +1501,7 @@ export default function POSPage() {
                   onClick={() => setPointsToRedeem(Math.min(memberAvailablePoints, afterDiscount))}
                   className="w-full text-xs px-3 py-2 rounded-xl bg-violet-50 border border-violet-200 text-violet-700 font-semibold hover:bg-violet-100 transition active:scale-95 text-left"
                 >
-                  ⭐ Use {memberAvailablePoints} pts = -{baht(Math.min(memberAvailablePoints, afterDiscount))} discount
+                  Use {memberAvailablePoints} pts = -{baht(Math.min(memberAvailablePoints, afterDiscount))} discount
                 </button>
               )
             )}
@@ -1470,20 +1536,20 @@ export default function POSPage() {
                         disabled={cart.length === 0}
                         className="w-full flex items-center gap-2.5 px-4 py-3 text-sm font-semibold text-stone-700 hover:bg-stone-50 transition disabled:opacity-40 disabled:cursor-not-allowed"
                       >
-                        🧾 {t('printCheckBill')}
+                        <Ic src={PI.printCheck} className="w-4 h-4" /> {t('printCheckBill')}
                       </button>
                       <button
                         onClick={() => { setShowMoreActions(false); setShowSplitBill(true) }}
                         disabled={cart.length === 0}
                         className="w-full flex items-center gap-2.5 px-4 py-3 text-sm font-semibold text-stone-700 hover:bg-stone-50 transition border-t border-stone-100 disabled:opacity-40 disabled:cursor-not-allowed"
                       >
-                        ✂️ {t('splitBill')}
+                        <Ic src={PI.split} className="w-4 h-4" /> {t('splitBill')}
                       </button>
                       <button
                         onClick={() => { setShowMoreActions(false); setShowOpenTickets(true) }}
                         className="w-full flex items-center justify-between gap-2.5 px-4 py-3 text-sm font-semibold text-stone-700 hover:bg-stone-50 transition border-t border-stone-100"
                       >
-                        <span>🎫 {t('openTickets')}</span>
+                        <span className="flex items-center gap-2.5"><Ic src={PI.openTickets} className="w-4 h-4" /> {t('openTickets')}</span>
                         {pendingTableOrders.length > 0 && (
                           <span className="bg-red-500 text-white text-[10px] font-black min-w-[18px] h-[18px] rounded-full flex items-center justify-center px-1">
                             {pendingTableOrders.length}
@@ -1540,7 +1606,7 @@ export default function POSPage() {
       {/* Cash-drawer PIN */}
       {drawerPinOpen && (
         <NumPad
-          label={`🔒 ${t('posEnterDrawerPin')}`}
+          label={t('posEnterDrawerPin')}
           value={drawerPinVal}
           onChange={setDrawerPinVal}
           onClose={submitDrawerPin}
