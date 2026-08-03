@@ -7,7 +7,7 @@ import CheckoutModal from '@/components/pos/CheckoutModal'
 import NumPad from '@/components/pos/NumPad'
 import SplitBillModal from '@/components/pos/SplitBillModal'
 import NotificationBell from '@/components/pos/NotificationBell'
-import { loadBarSettings, DEFAULT_BAR_SETTINGS, printReceipt, type BarSettings } from '@/lib/printer'
+import { loadBarSettings, DEFAULT_BAR_SETTINGS, printReceipt, openCashDrawer, type BarSettings } from '@/lib/printer'
 import { type CatEntry, CATEGORIES_CHANGED_EVENT, loadAllCategories, fetchCategories } from '@/lib/categories'
 import { FLOOR_LAYOUT_CHANGED_EVENT, loadFloorTables } from '@/lib/floor'
 import { getThaiGreeting, getDailyQuote } from '@/lib/greeting'
@@ -49,7 +49,7 @@ function itemEffectiveTotal(c: CartItem): number {
 export default function POSPage() {
   // Table tabs mirror the Floor Plan layout (single source of truth in @/lib/floor),
   // so the tables you can ring up always match the room drawn on the floor plan.
-  const { t } = usePosLang()
+  const { t, lang } = usePosLang()
   const [tables, setTables] = useState<string[]>(() => loadFloorTables())
   const [table, setTable] = useState(() => loadFloorTables()[0] ?? 'T1')
   const [tablePickerOpen, setTablePickerOpen] = useState(false)
@@ -347,8 +347,17 @@ export default function POSPage() {
   }
 
   async function openDrawer() {
-    fetch('/api/drawer', { method: 'POST' }).catch(() => {})
-    showToast('Cash drawer opening...')
+    // The old /api/drawer path only works for a server-side LAN printer; on the
+    // tablet the till hangs off the Bluetooth thermal printer, so kick it the
+    // same way checkout does. A confirm() is a light guard against accidental
+    // taps opening the cash drawer.
+    if (!confirm(t('posOpenDrawerConfirm'))) return
+    try {
+      await openCashDrawer(loadBarSettings())
+      showToast(t('posDrawerOpened'))
+    } catch (e) {
+      showToast(e instanceof Error ? e.message : t('toastPrintFailed'), false)
+    }
   }
 
   const mergedOrderIds = new Set(cart.filter(c => c.fromOrderId).map(c => c.fromOrderId!))
@@ -420,7 +429,7 @@ export default function POSPage() {
         note:           freebieNote || undefined,
       }, cfg)
     } catch (e) {
-      alert(e instanceof Error ? e.message : 'พิมพ์ไม่สำเร็จ — ตรวจสอบการเชื่อมต่อเครื่องพิมพ์')
+      alert(e instanceof Error ? e.message : t('posPrintCheckConn'))
     }
   }
 
@@ -530,9 +539,9 @@ export default function POSPage() {
       }
       clearCart()
       await fetchOrders()
-      showToast('Bill held — sent to kitchen/bar ✓')
+      showToast(t('posBillHeld'))
     } catch {
-      showToast('Hold bill failed — network error', false)
+      showToast(t('posHoldBillNetFail'), false)
     }
   }
 
@@ -983,8 +992,8 @@ export default function POSPage() {
       <div className="flex items-center gap-2 px-3 py-2.5 bg-white border-b border-stone-200 shrink-0 shadow-sm">
         {/* Greeting + daily power quote (replaces the old table-tab strip) */}
         {(() => {
-          const greet = getThaiGreeting()
-          const quote = getDailyQuote()
+          const greet = getThaiGreeting(lang)
+          const quote = getDailyQuote(lang)
           return (
             <div className="flex-1 min-w-0 flex items-center gap-2.5 rounded-xl bg-gradient-to-r from-amber-50 via-orange-50/60 to-transparent px-3 py-1.5">
               <span className="text-2xl shrink-0 leading-none">{greet.emoji}</span>
@@ -1019,24 +1028,24 @@ export default function POSPage() {
             {tablePickerOpen && (
               <>
                 <div className="fixed inset-0 z-40" onClick={() => setTablePickerOpen(false)} />
-                <div className="absolute right-0 top-full mt-2 z-50 bg-white rounded-2xl shadow-2xl border border-stone-200 p-3 w-72">
-                  <p className="text-[10px] font-bold text-stone-400 uppercase tracking-widest mb-2">🪑 {t('selectTable')}</p>
-                  <div className="grid grid-cols-4 gap-1.5 max-h-72 overflow-y-auto">
-                    {tables.map((t) => {
-                      const hasItems = (carts[t] ?? []).length > 0
+                <div className="absolute right-0 top-full mt-2 z-50 bg-white rounded-2xl shadow-2xl border border-stone-200 p-2 w-64">
+                  <p className="text-[10px] font-bold text-stone-400 uppercase tracking-widest mb-1.5 px-1.5">🪑 {t('selectTable')}</p>
+                  <div className="flex flex-col gap-1 max-h-80 overflow-y-auto">
+                    {tables.map((tb) => {
+                      const hasItems = (carts[tb] ?? []).length > 0
                       return (
                         <button
-                          key={t}
-                          onClick={() => { setTable(t); setTablePickerOpen(false) }}
-                          className={`relative px-2 py-2.5 rounded-xl text-xs font-bold whitespace-nowrap transition active:scale-95 ${
-                            table === t
+                          key={tb}
+                          onClick={() => { setTable(tb); setTablePickerOpen(false) }}
+                          className={`flex items-center justify-between gap-2 w-full text-left px-3 py-2.5 rounded-xl text-sm font-bold transition active:scale-[0.98] ${
+                            table === tb
                               ? 'bg-stone-900 text-white shadow-sm'
-                              : 'bg-stone-100 text-stone-600 hover:bg-stone-200'
+                              : 'bg-stone-50 text-stone-700 hover:bg-stone-100'
                           }`}
                         >
-                          {t}
-                          {hasItems && t !== table && (
-                            <span className="absolute top-1 right-1 w-1.5 h-1.5 bg-amber-500 rounded-full" />
+                          <span className="truncate">{tb}</span>
+                          {hasItems && tb !== table && (
+                            <span className="w-2 h-2 bg-amber-500 rounded-full shrink-0" />
                           )}
                         </button>
                       )

@@ -589,6 +589,22 @@ const DICT = {
   cashPrintReceipt:{ en: 'Print Receipt', th: 'พิมพ์ใบเสร็จ' },
   cashClose:       { en: 'Close', th: 'ปิด' },
   cashPrinting:    { en: 'Printing…', th: 'กำลังพิมพ์…' },
+
+  // ── POS screen · drawer + print ──
+  posOpenDrawerConfirm:{ en: 'Open the cash drawer?', th: 'เปิดลิ้นชักเก็บเงิน?' },
+  posDrawerOpened:     { en: 'Cash drawer opened', th: 'เปิดลิ้นชักแล้ว' },
+  posPrintCheckConn:   { en: 'Print failed — check the printer connection', th: 'พิมพ์ไม่สำเร็จ — ตรวจสอบการเชื่อมต่อเครื่องพิมพ์' },
+
+  // ── Notification bell (alerts) ──
+  alertsTitle:      { en: 'Alerts', th: 'แจ้งเตือน' },
+  alertsTooltip:    { en: 'Notifications & alerts', th: 'การแจ้งเตือน' },
+  alertsToReview:   { en: 'to review', th: 'รอตรวจสอบ' },
+  alertsAllClear:   { en: 'All clear — no alerts', th: 'เคลียร์หมด — ไม่มีแจ้งเตือน' },
+  alertsHealthy:    { en: 'Stock, targets, and sales look healthy', th: 'สต๊อก เป้าหมาย และยอดขายปกติดี' },
+  alertsAutoRefresh:{ en: 'Auto-refreshes every 90s', th: 'รีเฟรชอัตโนมัติทุก 90 วินาที' },
+  alertsRefresh:    { en: 'Refresh', th: 'รีเฟรช' },
+  posBillHeld:      { en: 'Bill held — sent to kitchen/bar ✓', th: 'พักบิลแล้ว — ส่งไปครัว/บาร์ ✓' },
+  posHoldBillNetFail:{ en: 'Hold bill failed — network error', th: 'พักบิลไม่สำเร็จ — เครือข่ายผิดพลาด' },
 } as const
 
 export type PosStringKey = keyof typeof DICT

@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import type { Alert, AlertSeverity } from '@/lib/alerts'
 import { loadBarSettings } from '@/lib/printer'
 import { requestNotifyPermission, fireLocalNotification } from '@/lib/local-notify'
+import { usePosLang } from '@/lib/pos-i18n'
 
 const POLL_MS = 90_000
 const SEEN_KEY = 'pos_alerts_seen'
@@ -23,6 +24,7 @@ function saveSeen(ids: string[]) {
 }
 
 export default function NotificationBell() {
+  const { t } = usePosLang()
   const [alerts, setAlerts] = useState<Alert[]>([])
   const [open, setOpen]     = useState(false)
   const [seen, setSeen]     = useState<Set<string>>(new Set())
@@ -92,12 +94,12 @@ export default function NotificationBell() {
           pill style. Shown only on the POS page (not floating/global). */}
       <button
         onClick={toggle}
-        title="Notifications & alerts"
+        title={t('alertsTooltip')}
         className={`bg-stone-100 hover:bg-stone-200 active:scale-95 text-stone-700 transition text-sm font-semibold px-3 py-2 rounded-xl flex items-center gap-1.5 relative ${
           hasNew && hasUrgent ? 'ring-2 ring-red-300' : ''
         }`}
       >
-        🔔 <span className="hidden sm:inline">Alerts</span>
+        🔔 <span className="hidden sm:inline">{t('alertsTitle')}</span>
         {actionable.length > 0 && (
           <span className={`absolute -top-1.5 -right-1.5 min-w-[20px] h-[20px] rounded-full text-white text-[11px] font-black flex items-center justify-center px-1 shadow ${
             hasUrgent ? 'bg-red-500' : 'bg-sky-500'
@@ -118,9 +120,9 @@ export default function NotificationBell() {
             <div className="flex items-center justify-between px-4 py-3 border-b border-stone-100 shrink-0">
               <div className="flex items-center gap-2">
                 <span className="text-lg">🔔</span>
-                <h3 className="font-bold text-stone-900">Alerts</h3>
+                <h3 className="font-bold text-stone-900">{t('alertsTitle')}</h3>
                 {actionable.length > 0 && (
-                  <span className="text-xs font-bold text-stone-400">{actionable.length} to review</span>
+                  <span className="text-xs font-bold text-stone-400">{actionable.length} {t('alertsToReview')}</span>
                 )}
               </div>
               <button onClick={() => setOpen(false)} className="text-stone-400 hover:text-stone-700 text-xl leading-none w-7 h-7 flex items-center justify-center">×</button>
@@ -131,8 +133,8 @@ export default function NotificationBell() {
               {alerts.length === 0 ? (
                 <div className="flex flex-col items-center justify-center py-12 text-stone-300 gap-2">
                   <span className="text-4xl">✅</span>
-                  <p className="text-sm font-medium text-stone-400">All clear — no alerts</p>
-                  <p className="text-xs text-stone-300">Stock, targets, and sales look healthy</p>
+                  <p className="text-sm font-medium text-stone-400">{t('alertsAllClear')}</p>
+                  <p className="text-xs text-stone-300">{t('alertsHealthy')}</p>
                 </div>
               ) : (
                 <div className="flex flex-col divide-y divide-stone-50">
@@ -156,9 +158,9 @@ export default function NotificationBell() {
 
             {/* Footer */}
             <div className="px-4 py-2.5 border-t border-stone-100 bg-stone-50/60 shrink-0 flex items-center justify-between">
-              <span className="text-[10px] text-stone-400">Auto-refreshes every 90s</span>
+              <span className="text-[10px] text-stone-400">{t('alertsAutoRefresh')}</span>
               <button onClick={fetchAlerts} className="text-xs font-semibold text-stone-500 hover:text-stone-800 transition">
-                ↻ Refresh
+                ↻ {t('alertsRefresh')}
               </button>
             </div>
           </div>
