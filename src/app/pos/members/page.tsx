@@ -320,7 +320,7 @@ export default function MembersPage() {
                   key={s}
                   onClick={() => setSortBy(s)}
                   className={`flex-1 text-xs py-1 rounded-lg font-semibold transition ${
-                    sortBy === s ? 'bg-amber-500/20 text-amber-400' : 'text-gray-400 hover:text-gray-700'
+                    sortBy === s ? 'bg-stone-900 text-white' : 'bg-stone-100 text-stone-600 hover:bg-stone-200'
                   }`}
                 >
                   {s === 'name' ? tr('memSortAZ') : s === 'visits' ? tr('memSortVisits') : s === 'spend' ? tr('memSortSpend') : tr('memSortTier')}

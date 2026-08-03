@@ -53,6 +53,8 @@ export default function POSPage() {
   const [tables, setTables] = useState<string[]>(() => loadFloorTables())
   const [table, setTable] = useState(() => loadFloorTables()[0] ?? 'T1')
   const [tablePickerOpen, setTablePickerOpen] = useState(false)
+  const [drawerPinOpen, setDrawerPinOpen] = useState(false)
+  const [drawerPinVal, setDrawerPinVal] = useState('')
   const [category, setCategory] = useState('all')
   const [categories, setCategories] = useState<CatEntry[]>(() => loadAllCategories())
   const [menu, setMenu] = useState<MenuItem[]>([])
@@ -346,18 +348,35 @@ export default function POSPage() {
     }
   }
 
-  async function openDrawer() {
-    // The old /api/drawer path only works for a server-side LAN printer; on the
-    // tablet the till hangs off the Bluetooth thermal printer, so kick it the
-    // same way checkout does. A confirm() is a light guard against accidental
-    // taps opening the cash drawer.
-    if (!confirm(t('posOpenDrawerConfirm'))) return
+  // Kicks the cash drawer via the Bluetooth printer (same path as checkout —
+  // the old /api/drawer route only worked for a server-side LAN printer).
+  async function fireDrawer() {
     try {
       await openCashDrawer(loadBarSettings())
       showToast(t('posDrawerOpened'))
     } catch (e) {
       showToast(e instanceof Error ? e.message : t('toastPrintFailed'), false)
     }
+  }
+
+  function openDrawer() {
+    const cfg = loadBarSettings()
+    if (cfg.drawerPin) {
+      // A PIN is configured — require it via the NumPad before opening the till.
+      setDrawerPinVal('')
+      setDrawerPinOpen(true)
+      return
+    }
+    // No PIN set: a light confirm() guards against accidental taps.
+    if (!confirm(t('posOpenDrawerConfirm'))) return
+    fireDrawer()
+  }
+
+  function submitDrawerPin() {
+    setDrawerPinOpen(false)
+    if (!drawerPinVal) return   // dismissed / nothing entered — no error
+    if (drawerPinVal === loadBarSettings().drawerPin) fireDrawer()
+    else showToast(t('posWrongPin'), false)
   }
 
   const mergedOrderIds = new Set(cart.filter(c => c.fromOrderId).map(c => c.fromOrderId!))
@@ -1515,6 +1534,17 @@ export default function POSPage() {
           }}
           allowDecimal={false}
           suffix="%"
+        />
+      )}
+
+      {/* Cash-drawer PIN */}
+      {drawerPinOpen && (
+        <NumPad
+          label={`🔒 ${t('posEnterDrawerPin')}`}
+          value={drawerPinVal}
+          onChange={setDrawerPinVal}
+          onClose={submitDrawerPin}
+          allowDecimal={false}
         />
       )}
 

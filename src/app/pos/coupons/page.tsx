@@ -253,7 +253,7 @@ export default function CouponsPage() {
                   key={f}
                   onClick={() => setFilter(f)}
                   className={`text-xs px-2.5 py-1 rounded-full font-semibold transition capitalize ${
-                    filter === f ? 'bg-amber-500/25 text-amber-400' : 'text-gray-400 hover:text-gray-600'
+                    filter === f ? 'bg-stone-900 text-white' : 'bg-stone-100 text-stone-600 hover:bg-stone-200'
                   }`}
                 >
                   {label}

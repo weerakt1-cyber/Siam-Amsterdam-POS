@@ -605,6 +605,11 @@ const DICT = {
   alertsRefresh:    { en: 'Refresh', th: 'รีเฟรช' },
   posBillHeld:      { en: 'Bill held — sent to kitchen/bar ✓', th: 'พักบิลแล้ว — ส่งไปครัว/บาร์ ✓' },
   posHoldBillNetFail:{ en: 'Hold bill failed — network error', th: 'พักบิลไม่สำเร็จ — เครือข่ายผิดพลาด' },
+  posEnterDrawerPin: { en: 'Enter drawer PIN', th: 'ใส่รหัสเปิดลิ้นชัก' },
+  posWrongPin:       { en: 'Wrong PIN', th: 'รหัสไม่ถูกต้อง' },
+  invLow:            { en: 'Low', th: 'ใกล้หมด' },
+  setDrawerPin:      { en: 'Cash drawer PIN', th: 'รหัสเปิดลิ้นชัก' },
+  setDrawerPinDesc:  { en: 'Require this PIN to open the cash drawer. Leave blank for none.', th: 'ต้องใส่รหัสนี้ก่อนเปิดลิ้นชัก เว้นว่างไว้ = ไม่ต้องใช้รหัส' },
 } as const
 
 export type PosStringKey = keyof typeof DICT

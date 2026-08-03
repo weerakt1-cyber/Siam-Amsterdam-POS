@@ -28,6 +28,7 @@ export type BarSettings = {
   weeklyRevenueTarget?:   number
   monthlyRevenueTarget?:  number
   googleReviewUrl?:       string    // Google Maps review link printed on receipts; '' = omit the block
+  drawerPin?:             string    // 4-digit PIN required to open the cash drawer; '' = no PIN (confirm only)
 }
 
 export type PrinterDevice = {

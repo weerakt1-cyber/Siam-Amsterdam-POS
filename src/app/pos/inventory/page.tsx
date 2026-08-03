@@ -289,11 +289,11 @@ export default function InventoryPage() {
                 onClick={() => setCatFilter(c)}
                 className={`text-xs px-2.5 py-1 rounded-full font-semibold transition ${
                   catFilter === c
-                    ? c === 'low' ? 'bg-red-500/30 text-red-300' : 'bg-amber-500/25 text-amber-400'
-                    : 'text-gray-400 hover:text-gray-600'
+                    ? c === 'low' ? 'bg-red-500 text-white' : 'bg-stone-900 text-white'
+                    : 'bg-stone-100 text-stone-600 hover:bg-stone-200'
                 }`}
               >
-                {c === 'all' ? 'All' : c === 'low' ? `⚠ Low (${lowItems.length})` : CATEGORY_LABELS[c].split(' ')[1]}
+                {c === 'all' ? tr('all') : c === 'low' ? `⚠ ${tr('invLow')} (${lowItems.length})` : CATEGORY_LABELS[c].split(' ')[1]}
               </button>
             ))}
           </div>
