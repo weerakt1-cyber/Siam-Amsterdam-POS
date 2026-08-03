@@ -33,12 +33,31 @@ const BOTTOM_NAV: { href: string; icon: string; labelKey: PosStringKey; managerO
   { href: '/pos/settings',  icon: '/nav-icons/settings.png',  labelKey: 'navSettings', managerOnly: true },
 ]
 
-// The pack icons are solid black line-art on transparent backgrounds, so they need
-// recolouring to stay legible against each surface:
-//   • dark drawer / rail (stone-900)  → white   (invert)
-//   • amber active pill / white bottom nav → near-black (no invert)
-const ICON_LIGHT = 'invert(1) brightness(1.7)'                 // white-ish, for dark surfaces
-const ICON_DARK  = 'invert(0) brightness(0)'                   // black, for light surfaces
+// The pack icons are monochrome PNGs. We tint them via a CSS mask (a colour-filled
+// box clipped to the icon shape) so every icon matches the POS item-price yellow.
+// On the amber active pill the yellow would vanish, so active items use stone-900.
+const ICON_AMBER    = '#f59e0b'   // item-price yellow — default icon colour
+const ICON_ON_AMBER = '#1c1917'   // stone-900, for icons sitting on the amber active pill
+
+function NavIcon({ src, color, className = '' }: { src: string; color: string; className?: string }) {
+  return (
+    <span
+      aria-hidden
+      className={`inline-block shrink-0 ${className}`}
+      style={{
+        backgroundColor: color,
+        WebkitMaskImage: `url("${src}")`,
+        maskImage: `url("${src}")`,
+        WebkitMaskRepeat: 'no-repeat',
+        maskRepeat: 'no-repeat',
+        WebkitMaskPosition: 'center',
+        maskPosition: 'center',
+        WebkitMaskSize: 'contain',
+        maskSize: 'contain',
+      }}
+    />
+  )
+}
 
 export default function Sidebar() {
   const path = usePathname()
@@ -109,12 +128,7 @@ export default function Sidebar() {
           {(() => {
             const activeItem = NAV.find(item => isActive(item.href))
             return activeItem ? (
-              <img
-                src={activeItem.icon}
-                alt=""
-                className="w-5 h-5 object-contain"
-                style={{ filter: ICON_LIGHT }}
-              />
+              <NavIcon src={activeItem.icon} color={ICON_AMBER} className="w-5 h-5" />
             ) : (
               <span className="text-lg text-amber-400">•</span>
             )
@@ -175,12 +189,7 @@ export default function Sidebar() {
                     : 'text-stone-400 hover:text-stone-100 hover:bg-stone-800'
                 }`}
               >
-                <img
-                  src={item.icon}
-                  alt=""
-                  className="w-6 h-6 object-contain shrink-0"
-                  style={{ filter: active ? ICON_DARK : ICON_LIGHT }}
-                />
+                <NavIcon src={item.icon} color={active ? ICON_ON_AMBER : ICON_AMBER} className="w-6 h-6" />
                 <span className="font-bold text-sm leading-none">{t(item.labelKey)}</span>
               </Link>
             )
@@ -226,13 +235,9 @@ export default function Sidebar() {
                 active ? 'text-stone-900' : 'text-stone-400'
               }`}
             >
-              {active && <div className="absolute top-0 left-1/2 -translate-x-1/2 w-8 h-0.5 bg-stone-900 rounded-full" />}
-              <img
-                src={item.icon}
-                alt=""
-                className="w-[22px] h-[22px] object-contain"
-                style={{ filter: ICON_DARK, opacity: active ? 1 : 0.5 }}
-              />
+              {active && <div className="absolute top-0 left-1/2 -translate-x-1/2 w-8 h-0.5 bg-amber-500 rounded-full" />}
+              <NavIcon src={item.icon} color={ICON_AMBER} className={`w-[22px] h-[22px] ${active ? '' : 'opacity-45'}`} />
+              {/* label colour follows active state below */}
               <span className={`text-[9px] font-semibold leading-none mt-0.5 ${active ? 'text-stone-900' : 'text-stone-400'}`}>
                 {t(item.labelKey)}
               </span>

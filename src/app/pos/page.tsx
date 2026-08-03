@@ -29,16 +29,27 @@ const PI = {
   search:      '/pos-icons/search.png',
 } as const
 
-// Recolour the black source art per surface: 'dark' → white (for dark buttons),
-// 'light' → black (for light buttons). Keeps every icon legible against its NAV/bg.
-function Ic({ src, on = 'light', className = 'w-4 h-4' }: { src: string; on?: 'light' | 'dark'; className?: string }) {
+// Brand icon colour = the POS item-price yellow (Tailwind amber-500). The source
+// PNGs are monochrome, so we render them through a CSS mask: a box filled with
+// `color` clipped to the icon's shape. This tints every icon to the exact same
+// yellow on any surface. Pass `color` to override (e.g. dark on an amber pill).
+const ICON_AMBER = '#f59e0b'
+function Ic({ src, color = ICON_AMBER, className = 'w-4 h-4' }: { src: string; color?: string; className?: string }) {
   return (
-    <img
-      src={src}
-      alt=""
+    <span
       aria-hidden
-      className={`inline-block object-contain shrink-0 ${className}`}
-      style={{ filter: on === 'dark' ? 'brightness(0) invert(1)' : 'brightness(0)' }}
+      className={`inline-block shrink-0 ${className}`}
+      style={{
+        backgroundColor: color,
+        WebkitMaskImage: `url("${src}")`,
+        maskImage: `url("${src}")`,
+        WebkitMaskRepeat: 'no-repeat',
+        maskRepeat: 'no-repeat',
+        WebkitMaskPosition: 'center',
+        maskPosition: 'center',
+        WebkitMaskSize: 'contain',
+        maskSize: 'contain',
+      }}
     />
   )
 }
@@ -1110,7 +1121,7 @@ export default function POSPage() {
               onClick={() => setTablePickerOpen(v => !v)}
               className="relative bg-stone-900 hover:bg-stone-800 active:scale-95 text-white transition text-sm font-bold px-3 py-2 rounded-xl flex items-center gap-1.5 shadow-sm"
             >
-              <Ic src={PI.table} on="dark" className="w-4 h-4" /> {table}
+              <Ic src={PI.table} className="w-4 h-4" /> {table}
               <span className={`text-[9px] transition-transform ${tablePickerOpen ? 'rotate-180' : ''}`}>▼</span>
               {tables.some(t => t !== table && (carts[t] ?? []).length > 0) && (
                 <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-amber-500 rounded-full border-2 border-white" />

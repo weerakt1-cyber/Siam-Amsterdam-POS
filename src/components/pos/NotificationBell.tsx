@@ -99,7 +99,7 @@ export default function NotificationBell() {
           hasNew && hasUrgent ? 'ring-2 ring-red-300' : ''
         }`}
       >
-        <img src="/pos-icons/alert.png" alt="" aria-hidden className="inline-block w-4 h-4 object-contain shrink-0" style={{ filter: 'brightness(0)' }} /> <span className="hidden sm:inline">{t('alertsTitle')}</span>
+        <span aria-hidden className="inline-block w-4 h-4 shrink-0" style={{ backgroundColor: '#f59e0b', WebkitMaskImage: 'url("/pos-icons/alert.png")', maskImage: 'url("/pos-icons/alert.png")', WebkitMaskRepeat: 'no-repeat', maskRepeat: 'no-repeat', WebkitMaskPosition: 'center', maskPosition: 'center', WebkitMaskSize: 'contain', maskSize: 'contain' }} /> <span className="hidden sm:inline">{t('alertsTitle')}</span>
         {actionable.length > 0 && (
           <span className={`absolute -top-1.5 -right-1.5 min-w-[20px] h-[20px] rounded-full text-white text-[11px] font-black flex items-center justify-center px-1 shadow ${
             hasUrgent ? 'bg-red-500' : 'bg-sky-500'
@@ -119,7 +119,7 @@ export default function NotificationBell() {
             {/* Header */}
             <div className="flex items-center justify-between px-4 py-3 border-b border-stone-100 shrink-0">
               <div className="flex items-center gap-2">
-                <img src="/pos-icons/alert.png" alt="" aria-hidden className="w-5 h-5 object-contain" style={{ filter: 'brightness(0)' }} />
+                <span aria-hidden className="inline-block w-5 h-5 shrink-0" style={{ backgroundColor: '#f59e0b', WebkitMaskImage: 'url("/pos-icons/alert.png")', maskImage: 'url("/pos-icons/alert.png")', WebkitMaskRepeat: 'no-repeat', maskRepeat: 'no-repeat', WebkitMaskPosition: 'center', maskPosition: 'center', WebkitMaskSize: 'contain', maskSize: 'contain' }} />
                 <h3 className="font-bold text-stone-900">{t('alertsTitle')}</h3>
                 {actionable.length > 0 && (
                   <span className="text-xs font-bold text-stone-400">{actionable.length} {t('alertsToReview')}</span>
