@@ -12,6 +12,7 @@ import { type CatEntry, CATEGORIES_CHANGED_EVENT, loadAllCategories, fetchCatego
 import { FLOOR_LAYOUT_CHANGED_EVENT, loadFloorTables } from '@/lib/floor'
 import { getThaiGreeting, getDailyQuote } from '@/lib/greeting'
 import { usePosLang } from '@/lib/pos-i18n'
+import { useAuth } from '@/lib/pos-auth'
 
 const ALL_CHIP: CatEntry = { value: 'all', label: 'All', color: 'bg-gray-200 text-gray-700', icon: '🍽️' }
 
@@ -135,6 +136,7 @@ export default function POSPage() {
   // Table tabs mirror the Floor Plan layout (single source of truth in @/lib/floor),
   // so the tables you can ring up always match the room drawn on the floor plan.
   const { t, lang } = usePosLang()
+  const { user } = useAuth()
   const [tables, setTables] = useState<string[]>(() => loadFloorTables())
   const [table, setTable] = useState(() => loadFloorTables()[0] ?? 'T1')
   const [tablePickerOpen, setTablePickerOpen] = useState(false)
@@ -446,22 +448,38 @@ export default function POSPage() {
 
   function openDrawer() {
     const cfg = loadBarSettings()
-    if (cfg.drawerPin) {
-      // A PIN is configured — require it via the NumPad before opening the till.
+    // The drawer is gated by a PIN. Primary path: the active user's own login
+    // PIN (nothing extra to remember). A configured cfg.drawerPin also works as
+    // a shared master PIN. If neither a signed-in user nor a master PIN exists,
+    // fall back to a light confirm() so the till can still be opened.
+    if (user?.id || cfg.drawerPin) {
       setDrawerPinVal('')
       setDrawerPinOpen(true)
       return
     }
-    // No PIN set: a light confirm() guards against accidental taps.
     if (!confirm(t('posOpenDrawerConfirm'))) return
     fireDrawer()
   }
 
-  function submitDrawerPin() {
+  async function submitDrawerPin() {
+    const entered = drawerPinVal
     setDrawerPinOpen(false)
-    if (!drawerPinVal) return   // dismissed / nothing entered — no error
-    if (drawerPinVal === loadBarSettings().drawerPin) fireDrawer()
-    else showToast(t('posWrongPin'), false)
+    if (!entered) return   // dismissed / nothing entered — no error
+    // Master PIN configured in Settings opens it directly.
+    if (entered === loadBarSettings().drawerPin) { fireDrawer(); return }
+    // Otherwise verify against the current user's login PIN.
+    if (user?.id) {
+      try {
+        const r = await fetch('/api/users/verify-pin', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ id: user.id, pin: entered }),
+        })
+        const d = await r.json()
+        if (d.valid) { fireDrawer(); return }
+      } catch { /* fall through to error */ }
+    }
+    showToast(t('posWrongPin'), false)
   }
 
   const mergedOrderIds = new Set(cart.filter(c => c.fromOrderId).map(c => c.fromOrderId!))
@@ -1614,14 +1632,15 @@ export default function POSPage() {
         />
       )}
 
-      {/* Cash-drawer PIN */}
+      {/* Cash-drawer PIN — masked, verified against the user's login PIN */}
       {drawerPinOpen && (
         <NumPad
-          label={t('posEnterDrawerPin')}
+          label={`🔒 ${t('posEnterDrawerPin')}`}
           value={drawerPinVal}
           onChange={setDrawerPinVal}
           onClose={submitDrawerPin}
           allowDecimal={false}
+          mask
         />
       )}
 

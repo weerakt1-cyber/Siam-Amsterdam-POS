@@ -9,9 +9,10 @@ type Props = {
   onClose: () => void
   allowDecimal?: boolean
   suffix?: string
+  mask?: boolean   // show • instead of the digits (for PIN entry)
 }
 
-export default function NumPad({ label, value, onChange, onClose, allowDecimal = true, suffix }: Props) {
+export default function NumPad({ label, value, onChange, onClose, allowDecimal = true, suffix, mask = false }: Props) {
   const panelRef = useRef<HTMLDivElement>(null)
 
   // ป้องกัน scroll body ขณะ numpad เปิดอยู่
@@ -62,7 +63,7 @@ export default function NumPad({ label, value, onChange, onClose, allowDecimal =
           <div className="flex items-baseline justify-end gap-2">
             {suffix && <span className="text-lg text-white/40 font-bold">{suffix}</span>}
             <span className="text-4xl font-black text-white tracking-wide tabular-nums min-h-[3rem] inline-block">
-              {value || '0'}
+              {mask ? (value ? '•'.repeat(value.length) : '0') : (value || '0')}
             </span>
           </div>
         </div>

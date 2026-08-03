@@ -608,8 +608,8 @@ const DICT = {
   posEnterDrawerPin: { en: 'Enter drawer PIN', th: 'ใส่รหัสเปิดลิ้นชัก' },
   posWrongPin:       { en: 'Wrong PIN', th: 'รหัสไม่ถูกต้อง' },
   invLow:            { en: 'Low', th: 'ใกล้หมด' },
-  setDrawerPin:      { en: 'Cash drawer PIN', th: 'รหัสเปิดลิ้นชัก' },
-  setDrawerPinDesc:  { en: 'Require this PIN to open the cash drawer. Leave blank for none.', th: 'ต้องใส่รหัสนี้ก่อนเปิดลิ้นชัก เว้นว่างไว้ = ไม่ต้องใช้รหัส' },
+  setDrawerPin:      { en: 'Shared drawer PIN (optional)', th: 'รหัสเปิดลิ้นชักส่วนกลาง (ไม่บังคับ)' },
+  setDrawerPinDesc:  { en: 'Staff open the drawer with their own login PIN. Add an extra shared PIN here if you want one — otherwise leave it blank.', th: 'พนักงานเปิดลิ้นชักด้วยรหัส login ของตัวเองได้อยู่แล้ว จะตั้งรหัสส่วนกลางเพิ่มก็ได้ หรือเว้นว่างไว้' },
 } as const
 
 export type PosStringKey = keyof typeof DICT
