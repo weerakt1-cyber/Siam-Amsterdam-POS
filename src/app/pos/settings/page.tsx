@@ -15,6 +15,7 @@ import { useBluetooth, bluetoothManager } from '@/lib/bluetooth-manager'
 import { OwnerProfileBadge } from '@/components/pos/GoogleAuthGuard'
 import { AI_NAME, APP_VERSION } from '@/lib/ai-brand'
 import { usePosLang, POS_LANGS, type PosStringKey } from '@/lib/pos-i18n'
+import PosIcon from '@/components/pos/PosIcon'
 import {
   DELIVERY_CHANNELS, CHANNEL_KEYS,
   loadDeliverySettings, saveDeliverySettings, type DeliverySettings,
@@ -260,7 +261,7 @@ function DeliverySettingsSection() {
         <div className="flex flex-col gap-2">
           {CHANNEL_KEYS.map(key => (
             <label key={key} className="flex items-center gap-3">
-              <span className="text-gray-700 text-sm flex-1">{DELIVERY_CHANNELS[key].icon} {DELIVERY_CHANNELS[key].label}</span>
+              <span className="text-gray-700 text-sm flex-1">{DELIVERY_CHANNELS[key].label}</span>
               <input
                 value={rates[key]}
                 onChange={e => setRates(prev => ({ ...prev, [key]: e.target.value }))}
@@ -276,7 +277,7 @@ function DeliverySettingsSection() {
       {/* Grab partner API */}
       <div className="border-t border-gray-100 pt-3">
         <div className="flex items-center gap-2 mb-1">
-          <p className="text-xs font-bold text-gray-400 uppercase tracking-wide">🟢 {tr('dsGrabApi')}</p>
+          <p className="text-xs font-bold text-gray-400 uppercase tracking-wide">{tr('dsGrabApi')}</p>
           <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${grabConnected ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-400'}`}>
             {grabConnected ? tr('dsConfigured') : tr('dsNotConfigured')}
           </span>
@@ -344,12 +345,12 @@ function DeliverySettingsSection() {
 type TabKey = 'general' | 'printer' | 'qr' | 'notify' | 'payment' | 'integrations'
 
 const TABS: { key: TabKey; icon: string; labelKey: PosStringKey }[] = [
-  { key: 'general',      icon: '⚙️', labelKey: 'setTabGeneral' },
-  { key: 'printer',      icon: '🖨️', labelKey: 'setTabPrinter' },
-  { key: 'qr',           icon: '📱', labelKey: 'setTabQr' },
-  { key: 'notify',       icon: '🔔', labelKey: 'setTabNotify' },
-  { key: 'payment',      icon: '💳', labelKey: 'setTabPayment' },
-  { key: 'integrations', icon: '🔌', labelKey: 'setTabIntegrations' },
+  { key: 'general',      icon: '/pos-icons/settings.png',        labelKey: 'setTabGeneral' },
+  { key: 'printer',      icon: '/pos-icons/receipt-printer.png', labelKey: 'setTabPrinter' },
+  { key: 'qr',           icon: '/pos-icons/qr-ordering.png',     labelKey: 'setTabQr' },
+  { key: 'notify',       icon: '/pos-icons/alert.png',           labelKey: 'setTabNotify' },
+  { key: 'payment',      icon: '/pos-icons/credit-card.png',     labelKey: 'setTabPayment' },
+  { key: 'integrations', icon: '/pos-icons/integration.png',     labelKey: 'setTabIntegrations' },
 ]
 
 export default function SettingsPage() {
@@ -640,7 +641,7 @@ export default function SettingsPage() {
     try {
       const r    = await fetch('/api/telegram/daily', { method: 'POST' })
       const data = await r.json()
-      setTgDailyMsg(data.error ?? (r.ok ? `Sent! ${data.orders} orders · ฿${(data.revenue ?? 0).toLocaleString()} 🎉` : tr('toastFailedSend')))
+      setTgDailyMsg(data.error ?? (r.ok ? `Sent! ${data.orders} orders · ฿${(data.revenue ?? 0).toLocaleString()}` : tr('toastFailedSend')))
       setTgDaily(r.ok ? 'done' : 'error')
       setTimeout(() => setTgDaily('idle'), 6000)
     } catch (err) {
@@ -696,7 +697,7 @@ export default function SettingsPage() {
     try {
       const r    = await fetch('/api/line/daily', { method: 'POST' })
       const data = await r.json()
-      setLineDailyMsg(data.error ?? (r.ok ? `Sent! ${data.orders} orders · ฿${(data.revenue ?? 0).toLocaleString()} 🎉` : tr('toastFailedSend')))
+      setLineDailyMsg(data.error ?? (r.ok ? `Sent! ${data.orders} orders · ฿${(data.revenue ?? 0).toLocaleString()}` : tr('toastFailedSend')))
       setLineDaily(r.ok ? 'done' : 'error')
       setTimeout(() => setLineDaily('idle'), 6000)
     } catch (err) {
@@ -798,13 +799,11 @@ export default function SettingsPage() {
 
   const SYSTEM_CARDS = [
     {
-      icon: '🤖',
       title: 'AI Model',
       description: 'BAZE AI engine used for analytics and smart suggestions (powered by Claude).',
       badge: AI_NAME,
     },
     {
-      icon: '📱',
       title: 'QR Self-Order',
       description: 'Customer-facing order page URL. Print as QR code for each table.',
       badge: '/order/[tableNo]',
@@ -831,13 +830,13 @@ export default function SettingsPage() {
           <button
             key={tab.key}
             onClick={() => setActiveTab(tab.key)}
-            className={`px-4 py-3 text-sm font-semibold whitespace-nowrap border-b-2 transition ${
+            className={`px-4 py-3 text-sm font-semibold whitespace-nowrap border-b-2 transition inline-flex items-center gap-1.5 ${
               activeTab === tab.key
                 ? 'border-amber-500 text-gray-900'
                 : 'border-transparent text-gray-400 hover:text-gray-600'
             }`}
           >
-            {tab.icon} {tr(tab.labelKey)}
+            <PosIcon src={tab.icon} className="w-4 h-4" /> {tr(tab.labelKey)}
           </button>
         ))}
       </div>
@@ -846,7 +845,7 @@ export default function SettingsPage() {
 
         {/* ── Language ── */}
         {activeTab === 'general' && <section>
-          <SectionTitle>🌐 {tr('language')}</SectionTitle>
+          <SectionTitle><span className="inline-flex items-center gap-1.5"><PosIcon src="/pos-icons/language.png" className="w-4 h-4" /> {tr('language')}</span></SectionTitle>
           <div className="bg-white border border-gray-100 rounded-2xl p-5 shadow-sm flex items-center gap-4">
             <p className="text-sm text-gray-500 flex-1">{tr('languageDesc')}</p>
             <div className="flex gap-2 shrink-0">
@@ -902,7 +901,7 @@ export default function SettingsPage() {
                   </div>
                 </div>
 
-                <SettingInput label={tr('setBizName')}  value={cfg.barName}               onChange={v => updateCfg('barName', v)}         placeholder="🍹 Your Bar Name" />
+                <SettingInput label={tr('setBizName')}  value={cfg.barName}               onChange={v => updateCfg('barName', v)}         placeholder="Your Bar Name" />
                 <SettingInput label={tr('setAddress')}        value={cfg.address}               onChange={v => updateCfg('address', v)}         placeholder="Sukhumvit Soi 11, Bangkok" />
                 <SettingInput label={tr('setPhone')}          value={cfg.phone}                 onChange={v => updateCfg('phone', v)}           placeholder="02-xxx-xxxx" />
                 <SettingInput label={tr('setTaxId')}         value={cfg.taxId}                 onChange={v => updateCfg('taxId', v)}           placeholder="0-0000-00000-00-0" />
@@ -1064,7 +1063,7 @@ export default function SettingsPage() {
                                 <div className="mt-1 bg-amber-50 rounded px-1 py-0.5 flex justify-between text-[5px] font-bold text-amber-700">
                                   <span>TOTAL</span><span>฿280</span>
                                 </div>
-                                <div className="text-center text-[3.5px] text-gray-400 mt-0.5">Thank you · Come again 🙏</div>
+                                <div className="text-center text-[3.5px] text-gray-400 mt-0.5">Thank you · Come again</div>
                               </div>
                             )}
                             {t.id === 'minimal' && (
@@ -1144,11 +1143,12 @@ export default function SettingsPage() {
                       <button
                         key={type}
                         onClick={() => { updateCfg('printerConnectionType', type); setCfgSaved(false) }}
-                        className={`flex-1 py-2.5 rounded-xl text-sm font-bold transition active:scale-95 ${
+                        className={`flex-1 py-2.5 rounded-xl text-sm font-bold transition active:scale-95 inline-flex items-center justify-center gap-1.5 ${
                           active ? 'bg-stone-900 text-white shadow-sm' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
                         }`}
                       >
-                        {type === 'bluetooth' ? '🔵 Bluetooth' : '🌐 LAN / Wi-Fi'}
+                        <PosIcon src={type === 'bluetooth' ? '/pos-icons/bluetooth.png' : '/pos-icons/lan-wifi.png'} color={active ? '#ffffff' : undefined} className="w-4 h-4" />
+                        {type === 'bluetooth' ? 'Bluetooth' : 'LAN / Wi-Fi'}
                       </button>
                     )
                   })}
@@ -1158,7 +1158,7 @@ export default function SettingsPage() {
               {/* Cash-drawer PIN — leave blank for no PIN (confirm only) */}
               {cfg && (
                 <div className="mb-4">
-                  <label className="text-xs text-gray-500 mb-1 block">🔒 {tr('setDrawerPin')}</label>
+                  <label className="text-xs text-gray-500 mb-1 block">{tr('setDrawerPin')}</label>
                   <input
                     value={cfg.drawerPin ?? ''}
                     onChange={e => { updateCfg('drawerPin', e.target.value.replace(/\D/g, '').slice(0, 6)); setCfgSaved(false) }}
@@ -1175,7 +1175,7 @@ export default function SettingsPage() {
               {cfg && (cfg.printerConnectionType ?? 'bluetooth') === 'lan' && (
                 <div className="flex flex-col gap-3">
                   <div className="bg-sky-50 border border-sky-100 rounded-xl p-3 text-xs text-sky-700 leading-relaxed">
-                    <p className="font-semibold mb-0.5">🌐 LAN / Wi-Fi Mode</p>
+                    <p className="font-semibold mb-0.5">LAN / Wi-Fi Mode</p>
                     <p>ใช้ได้ทั้งบน Browser และ Android APK — ปริ้นเตอร์ต้องอยู่ใน Wi-Fi เดียวกัน</p>
                     <p className="mt-1 text-sky-500">Port มาตรฐาน ESC/POS: <strong>9100</strong> (Epson · Xprinter · Star · Citizen)</p>
                   </div>
@@ -1213,10 +1213,10 @@ export default function SettingsPage() {
                                                       'bg-sky-500 hover:bg-sky-600 text-white'
                       }`}
                     >
-                      {lanTestStatus === 'testing' ? '⏳ Testing...' :
+                      {lanTestStatus === 'testing' ? 'Testing...' :
                        lanTestStatus === 'ok'      ? '✓ Connected!' :
                        lanTestStatus === 'error'   ? '✗ Failed' :
-                                                     '🔌 Test Connection'}
+                                                     'Test Connection'}
                     </button>
                     {lanTestMsg && (
                       <p className={`text-xs ${lanTestStatus === 'error' ? 'text-red-500' : 'text-emerald-600'}`}>{lanTestMsg}</p>
@@ -1230,7 +1230,7 @@ export default function SettingsPage() {
                 <>
                   {!native && (
                     <div className="bg-blue-50 border border-blue-100 rounded-xl p-3 text-xs text-blue-700 leading-relaxed mb-4">
-                      <p className="font-semibold mb-0.5">ℹ️ Browser Mode</p>
+                      <p className="font-semibold mb-0.5">Browser Mode</p>
                       <p>Bluetooth SPP ใช้งานได้เฉพาะใน Android APK (Capacitor) เท่านั้น</p>
                       <p className="mt-1 text-blue-500">Build APK ด้วย <code className="font-mono bg-blue-100 px-1 rounded">npx cap run android</code></p>
                     </div>
@@ -1244,7 +1244,7 @@ export default function SettingsPage() {
                           {connected ? savedDevice?.name ?? tr('setConnected') : savedDevice ? savedDevice.name : tr('setNoPrinter')}
                         </p>
                         <p className="text-xs text-gray-400">
-                          {connected ? '🟢 ' + tr('setConnected') + ' · ' + (savedDevice?.address ?? '') : savedDevice ? '🔴 ' + tr('setSavedTapReconnect') : tr('setScanToPair')}
+                          {connected ? tr('setConnected') + ' · ' + (savedDevice?.address ?? '') : savedDevice ? tr('setSavedTapReconnect') : tr('setScanToPair')}
                         </p>
                       </div>
                     </div>
@@ -1269,7 +1269,7 @@ export default function SettingsPage() {
                       {!scanning ? (
                         <button onClick={handleStartScan} disabled={btBusy}
                           className={`py-2.5 rounded-xl text-sm font-bold transition active:scale-95 ${btBusy ? 'bg-gray-100 text-gray-400 cursor-not-allowed' : 'bg-blue-500 hover:bg-blue-600 text-white'}`}>
-                          🔍 Scan for Printers
+                          Scan for Printers
                         </button>
                       ) : (
                         <div className="flex items-center gap-3">
@@ -1308,19 +1308,19 @@ export default function SettingsPage() {
                 <div className="flex flex-col gap-2 mt-3">
                   <div className="flex gap-2">
                     <button onClick={handleTestPrint} disabled={btBusy}
-                      className={`flex-1 py-2.5 rounded-xl text-sm font-semibold transition active:scale-95 ${
+                      className={`flex-1 py-2.5 rounded-xl text-sm font-semibold transition active:scale-95 inline-flex items-center justify-center gap-1.5 ${
                         printStatus === 'done' ? 'bg-emerald-100 text-emerald-700 border border-emerald-200' :
                         btBusy               ? 'bg-gray-100 text-gray-400 cursor-not-allowed' :
                                                'bg-gray-100 hover:bg-gray-200 text-gray-700'}`}>
-                      {printStatus === 'printing' ? '⏳ Printing...' : printStatus === 'done' ? '✓ Printed!' : '🖨️ Test Print'}
+                      {printStatus === 'printing' ? 'Printing...' : printStatus === 'done' ? '✓ Printed!' : <><PosIcon src="/pos-icons/receipt-printer.png" className="w-4 h-4" /> Test Print</>}
                     </button>
                     <button onClick={handleTestDrawer} disabled={btBusy || drawerStatus === 'opening'}
-                      className={`flex-1 py-2.5 rounded-xl text-sm font-semibold transition active:scale-95 ${
+                      className={`flex-1 py-2.5 rounded-xl text-sm font-semibold transition active:scale-95 inline-flex items-center justify-center gap-1.5 ${
                         drawerStatus === 'done'    ? 'bg-emerald-100 text-emerald-700 border border-emerald-200' :
                         drawerStatus === 'error'   ? 'bg-red-50 text-red-500 border border-red-100' :
                         drawerStatus === 'opening' ? 'bg-gray-100 text-gray-400 cursor-not-allowed' :
                                                      'bg-amber-50 hover:bg-amber-100 text-amber-700 border border-amber-100'}`}>
-                      {drawerStatus === 'opening' ? '⏳ Opening...' : drawerStatus === 'done' ? '✓ Open!' : drawerStatus === 'error' ? '✗ Failed' : '💰 Test Drawer'}
+                      {drawerStatus === 'opening' ? 'Opening...' : drawerStatus === 'done' ? '✓ Open!' : drawerStatus === 'error' ? '✗ Failed' : <><PosIcon src="/pos-icons/test-drawer.png" className="w-4 h-4" /> Test Drawer</>}
                     </button>
                   </div>
                   {drawerStatus === 'error' && drawerError && (
@@ -1357,7 +1357,7 @@ export default function SettingsPage() {
           <div className="bg-white border border-gray-100 rounded-2xl p-5 flex flex-col gap-4 shadow-sm">
             <div className="flex items-center justify-between gap-3">
               <div className="flex items-center gap-3">
-                <span className="text-2xl">📊</span>
+                <PosIcon src="/pos-icons/export.png" className="w-7 h-7" />
                 <div>
                   <h3 className="font-bold text-gray-900">{tr('setAutoExport')}</h3>
                   <p className="text-xs text-gray-400 mt-0.5">Every order is appended to your spreadsheet automatically</p>
@@ -1377,7 +1377,7 @@ export default function SettingsPage() {
                 {sheetsSetup === 'loading' ? 'Setting up...' :
                  sheetsSetup === 'done'    ? '✓ Done!' :
                  sheetsSetup === 'error'   ? '✗ Failed' :
-                                            '⚙ Setup Headers'}
+                                            'Setup Headers'}
               </button>
             </div>
 
@@ -1427,7 +1427,7 @@ export default function SettingsPage() {
             {/* Status row */}
             <div className="flex items-center justify-between gap-3">
               <div className="flex items-center gap-3">
-                <span className="text-2xl">✈️</span>
+                <PosIcon src="/pos-icons/telegram.png" className="w-7 h-7" />
                 <div>
                   <h3 className="font-bold text-gray-900">Baze POS Bot</h3>
                   <p className="text-xs text-gray-400 mt-0.5">New order alerts + daily revenue summary</p>
@@ -1482,7 +1482,7 @@ export default function SettingsPage() {
                     {tgTest === 'loading' ? 'Sending...' :
                      tgTest === 'done'    ? '✓ Sent!' :
                      tgTest === 'error'   ? '✗ Failed' :
-                                            '✈️ Test Message'}
+                                            <span className="inline-flex items-center justify-center gap-1.5"><PosIcon src="/pos-icons/telegram.png" color="#ffffff" className="w-4 h-4" /> Test Message</span>}
                   </button>
                   <button
                     onClick={handleTgDaily}
@@ -1497,7 +1497,7 @@ export default function SettingsPage() {
                     {tgDaily === 'loading' ? 'Sending...' :
                      tgDaily === 'done'    ? '✓ Sent!' :
                      tgDaily === 'error'   ? '✗ Failed' :
-                                             '📊 Daily Summary'}
+                                             <span className="inline-flex items-center justify-center gap-1.5"><PosIcon src="/pos-icons/daily-summary.png" color="#000000" className="w-4 h-4" /> Daily Summary</span>}
                   </button>
                 </div>
                 {tgTestMsg && (
@@ -1528,7 +1528,7 @@ export default function SettingsPage() {
                                              'bg-amber-500 hover:bg-amber-400 text-black'
                   }`}
                 >
-                  {tgDetect === 'loading' ? 'Detecting...' : '🔍 Detect Chat ID'}
+                  {tgDetect === 'loading' ? 'Detecting...' : 'Detect Chat ID'}
                 </button>
                 {tgDetectResult && (
                   <div className="bg-white border border-emerald-200 rounded-xl px-4 py-3 flex flex-col gap-1">
@@ -1574,7 +1574,7 @@ export default function SettingsPage() {
             {/* Status row */}
             <div className="flex items-center justify-between gap-3">
               <div className="flex items-center gap-3">
-                <span className="text-2xl">💬</span>
+                <PosIcon src="/pos-icons/line.png" className="w-7 h-7" />
                 <div>
                   <h3 className="font-bold text-gray-900">{tr('setLineNotify')}</h3>
                   <p className="text-xs text-gray-400 mt-0.5">New order alerts + daily revenue summary</p>
@@ -1635,7 +1635,7 @@ export default function SettingsPage() {
                     {lineTest === 'loading' ? 'Sending...' :
                      lineTest === 'done'    ? '✓ Sent!' :
                      lineTest === 'error'   ? '✗ Failed' :
-                                              '💬 Test Message'}
+                                              <span className="inline-flex items-center justify-center gap-1.5"><PosIcon src="/pos-icons/line.png" color="#ffffff" className="w-4 h-4" /> Test Message</span>}
                   </button>
                   <button
                     onClick={handleLineDaily}
@@ -1650,7 +1650,7 @@ export default function SettingsPage() {
                     {lineDaily === 'loading' ? 'Sending...' :
                      lineDaily === 'done'    ? '✓ Sent!' :
                      lineDaily === 'error'   ? '✗ Failed' :
-                                               '📊 Daily Summary'}
+                                               <span className="inline-flex items-center justify-center gap-1.5"><PosIcon src="/pos-icons/daily-summary.png" color="#000000" className="w-4 h-4" /> Daily Summary</span>}
                   </button>
                 </div>
                 {lineTestMsg && (
@@ -1701,7 +1701,7 @@ export default function SettingsPage() {
                 />
                 {qrBaseUrl.includes('localhost') || qrBaseUrl.includes('127.0.0.1') ? (
                   <p className="text-[11px] text-amber-600 leading-relaxed">
-                    ⚠️ Base URL เป็น localhost — มือถือเครื่องอื่นสแกนแล้วจะเปิดไม่ได้ เพราะ &quot;localhost&quot; บนมือถือหมายถึงตัวมือถือเอง ไม่ใช่เครื่องนี้
+                    Base URL เป็น localhost — มือถือเครื่องอื่นสแกนแล้วจะเปิดไม่ได้ เพราะ &quot;localhost&quot; บนมือถือหมายถึงตัวมือถือเอง ไม่ใช่เครื่องนี้
                     ให้แก้เป็น IP เครื่องนี้ในวง LAN เดียวกัน (เช่น <code>http://192.168.1.50:3000</code>) หรือโดเมนจริงหลัง deploy
                   </p>
                 ) : (
@@ -1734,9 +1734,9 @@ export default function SettingsPage() {
                     )}
                     <button
                       onClick={loadFloorTables}
-                      className="text-[11px] font-semibold text-gray-400 hover:text-gray-600"
+                      className="inline-flex items-center gap-1 text-[11px] font-semibold text-gray-400 hover:text-gray-600"
                     >
-                      🔄 Refresh
+                      <PosIcon src="/pos-icons/refresh.png" className="w-3 h-3" /> Refresh
                     </button>
                   </div>
                 </div>
@@ -1769,7 +1769,7 @@ export default function SettingsPage() {
                   </div>
                 )}
                 <p className="text-[11px] text-gray-400">
-                  รายชื่อโต๊ะดึงมาจากผัง Floor Plan โดยตรง — เปลี่ยนชื่อ/เพิ่ม/ลบโต๊ะที่นั่น แล้วกด 🔄 Refresh
+                  รายชื่อโต๊ะดึงมาจากผัง Floor Plan โดยตรง — เปลี่ยนชื่อ/เพิ่ม/ลบโต๊ะที่นั่น แล้วกด Refresh
                 </p>
               </div>
 
@@ -1783,14 +1783,14 @@ export default function SettingsPage() {
                       : 'bg-amber-500 hover:bg-amber-400 text-black'
                   }`}
                 >
-                  {qrLoading ? '⏳ Generating...' : `⚡ Generate QR Codes (${selectedQrTables.size})`}
+                  {qrLoading ? 'Generating...' : <span className="inline-flex items-center justify-center gap-1.5"><PosIcon src="/pos-icons/generate-qr.png" color="#000000" className="w-4 h-4" /> Generate QR Codes ({selectedQrTables.size})</span>}
                 </button>
                 {qrImages.length > 0 && (
                   <button
                     onClick={printQRSheet}
                     className="px-4 py-2.5 rounded-xl text-sm font-bold bg-gray-900 hover:bg-gray-700 text-white transition active:scale-95"
                   >
-                    🖨️ Print All
+                    Print All
                   </button>
                 )}
               </div>
@@ -1805,9 +1805,9 @@ export default function SettingsPage() {
                     <p className="text-sm font-black text-gray-900">Table {tableNo}</p>
                     <button
                       onClick={() => downloadQR(tableNo, dataUrl)}
-                      className="w-full text-xs py-1.5 rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-600 font-semibold transition active:scale-95"
+                      className="w-full text-xs py-1.5 rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-600 font-semibold transition active:scale-95 inline-flex items-center justify-center gap-1"
                     >
-                      ↓ Download
+                      <PosIcon src="/pos-icons/export.png" className="w-3.5 h-3.5" /> Download
                     </button>
                   </div>
                 ))}
@@ -1815,8 +1815,8 @@ export default function SettingsPage() {
             )}
 
             {qrImages.length === 0 && (
-              <div className="border-2 border-dashed border-gray-100 rounded-2xl py-8 text-center text-gray-300">
-                <p className="text-3xl mb-2">📱</p>
+              <div className="border-2 border-dashed border-gray-100 rounded-2xl py-8 text-center text-gray-300 flex flex-col items-center">
+                <PosIcon src="/pos-icons/qr-ordering.png" className="w-10 h-10 mb-2 opacity-40" />
                 <p className="text-sm">{tr('setClickGenerate')}</p>
               </div>
             )}
@@ -1826,7 +1826,7 @@ export default function SettingsPage() {
         {/* ── Delivery (owner only — holds partner API secrets) ── */}
         {activeTab === 'integrations' && isAdmin && (
           <section>
-            <SectionTitle>🛵 {tr('setDelivery')}</SectionTitle>
+            <SectionTitle>{tr('setDelivery')}</SectionTitle>
             <DeliverySettingsSection />
           </section>
         )}
@@ -1837,8 +1837,7 @@ export default function SettingsPage() {
           <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
             {SYSTEM_CARDS.map((card) => (
               <div key={card.title} className="bg-white border border-gray-100 rounded-2xl p-5 flex flex-col gap-3 shadow-sm">
-                <div className="flex items-start justify-between gap-2">
-                  <span className="text-3xl">{card.icon}</span>
+                <div className="flex items-start justify-end gap-2">
                   {card.badge && (
                     <span className="text-[10px] font-mono bg-gray-100 text-gray-500 rounded-lg px-2 py-1 text-right leading-tight max-w-[140px]">
                       {card.badge}
