@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { useAuth } from '@/lib/pos-auth'
 import { type TableTile, DEFAULT_TILES, loadFloorTiles, saveFloorTiles } from '@/lib/floor'
 import { usePosLang } from '@/lib/pos-i18n'
+import PosIcon from '@/components/pos/PosIcon'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -291,9 +292,9 @@ export default function FloorPage() {
               <>
                 <button
                   onClick={resetLayout}
-                  className="text-xs text-red-500 hover:text-red-700 border border-red-200 hover:border-red-300 px-3 py-1.5 rounded-xl transition"
+                  className="inline-flex items-center gap-1 text-xs text-red-500 hover:text-red-700 border border-red-200 hover:border-red-300 px-3 py-1.5 rounded-xl transition"
                 >
-                  🔄 {t('floorResetDefault')}
+                  <PosIcon src="/pos-icons/reset.png" className="w-3.5 h-3.5" /> {t('floorResetDefault')}
                 </button>
                 <button
                   onClick={saveLayout}
@@ -307,13 +308,14 @@ export default function FloorPage() {
             )}
             <button
               onClick={() => { setEditMode(m => !m); setSelectedId(null); setAddError('') }}
-              className={`text-xs font-bold px-3 py-1.5 rounded-xl border transition active:scale-95 ${
+              className={`inline-flex items-center gap-1 text-xs font-bold px-3 py-1.5 rounded-xl border transition active:scale-95 ${
                 editMode
                   ? 'bg-amber-500 border-amber-400 text-white shadow-sm'
                   : 'bg-white border-stone-200 text-stone-600 hover:border-stone-400'
               }`}
             >
-              {editMode ? `✏️ ${t('floorEditing')}` : `✏️ ${t('edit')}`}
+              <PosIcon src="/pos-icons/edit.png" color={editMode ? '#ffffff' : undefined} className="w-3.5 h-3.5" />
+              {editMode ? t('floorEditing') : t('edit')}
             </button>
           </div>
         )}
