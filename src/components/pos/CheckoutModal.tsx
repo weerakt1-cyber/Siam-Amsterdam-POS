@@ -156,6 +156,38 @@ const PAY_LABEL_MAP: Record<string, string> = {
   credit_card: 'Credit Card', promptpay_qr: 'PromptPay QR', wechat_pay: 'WeChat/Alipay',
 }
 
+// Payment-step icons, served from /public/pos-icons. Rendered in the POS
+// item-price amber (#f59e0b) via a CSS mask, matching the rest of the app.
+const PAY_ICONS = {
+  cash:    '/pos-icons/cash.png',
+  card:    '/pos-icons/credit-card.png',
+  scan:    '/pos-icons/scan.png',
+  member:  '/pos-icons/member.png',
+  staff:   '/pos-icons/staff.png',
+  printBt: '/pos-icons/print-bt.png',
+  success: '/pos-icons/success.png',
+} as const
+const ICON_AMBER = '#f59e0b'
+function PIcon({ src, color = ICON_AMBER, className = 'w-5 h-5' }: { src: string; color?: string; className?: string }) {
+  return (
+    <span
+      aria-hidden
+      className={`inline-block shrink-0 ${className}`}
+      style={{
+        backgroundColor: color,
+        WebkitMaskImage: `url("${src}")`,
+        maskImage: `url("${src}")`,
+        WebkitMaskRepeat: 'no-repeat',
+        maskRepeat: 'no-repeat',
+        WebkitMaskPosition: 'center',
+        maskPosition: 'center',
+        WebkitMaskSize: 'contain',
+        maskSize: 'contain',
+      }}
+    />
+  )
+}
+
 // ─── Main Component ────────────────────────────────────────────────────────────
 
 export default function CheckoutModal({
@@ -291,12 +323,12 @@ export default function CheckoutModal({
 
   const isLan = (cfg?.printerConnectionType ?? 'bluetooth') === 'lan'
   const btLabel = (() => {
-    if (btStatus === 'connecting') return '🔵 Connecting...'
-    if (btStatus === 'printing')   return '⏳ Printing...'
-    if (btStatus === 'done')       return '✓ Printed!'
-    if (btStatus === 'error')      return isLan ? '⚠ Retry LAN Print' : '⚠ Retry Bluetooth'
-    if (btName)                    return isLan ? `🌐 Print (${btName})` : `📡 Print (${btName})`
-    return isLan ? '🌐 Print via LAN' : '📡 Print via Bluetooth'
+    if (btStatus === 'connecting') return 'Connecting...'
+    if (btStatus === 'printing')   return 'Printing...'
+    if (btStatus === 'done')       return 'Printed!'
+    if (btStatus === 'error')      return isLan ? 'Retry LAN Print' : 'Retry Bluetooth'
+    if (btName)                    return `Print (${btName})`
+    return isLan ? 'Print via LAN' : 'Print via Bluetooth'
   })()
 
   const btDisabled = btStatus === 'connecting' || btStatus === 'printing'
@@ -385,7 +417,7 @@ export default function CheckoutModal({
                   {memberName && (
                     <div className="flex flex-col gap-0.5">
                       <div className="flex items-center gap-2 flex-wrap">
-                        <span>👤 {tr('coMember')}: <span className="text-stone-600 font-medium">{memberName}</span></span>
+                        <span className="inline-flex items-center gap-1"><PIcon src={PAY_ICONS.member} className="w-3.5 h-3.5" /> {tr('coMember')}: <span className="text-stone-600 font-medium">{memberName}</span></span>
                         {memberTier && (() => {
                           const t = getTierByName(memberTier)
                           return (
@@ -408,8 +440,8 @@ export default function CheckoutModal({
                       })()}
                     </div>
                   )}
-                  {staffName && <span>🧑 {tr('coStaff')}: <span className="text-stone-600 font-medium">{staffName}</span></span>}
-                  {note      && <span>📝 <span className="text-stone-500">{note}</span></span>}
+                  {staffName && <span className="inline-flex items-center gap-1"><PIcon src={PAY_ICONS.staff} className="w-3.5 h-3.5" /> {tr('coStaff')}: <span className="text-stone-600 font-medium">{staffName}</span></span>}
+                  {note      && <span className="text-stone-500">{note}</span>}
                 </div>
               )}
             </div>
@@ -446,9 +478,9 @@ export default function CheckoutModal({
               {/* Payment method selector — row 1: local */}
               <div className="grid grid-cols-3 gap-2 mb-2">
                 {([
-                  { id: 'cash',      icon: '💵', label: tr('coCash')    },
-                  { id: 'card',      icon: '💳', label: tr('coEdcCard') },
-                  { id: 'promptpay', icon: '📱', label: tr('coQrPay')  },
+                  { id: 'cash',      icon: PAY_ICONS.cash, label: tr('coCash')    },
+                  { id: 'card',      icon: PAY_ICONS.card, label: tr('coEdcCard') },
+                  { id: 'promptpay', icon: PAY_ICONS.scan, label: tr('coQrPay')  },
                 ] as const).map((pm) => (
                   <button
                     key={pm.id}
@@ -459,7 +491,7 @@ export default function CheckoutModal({
                         : 'bg-white text-stone-500 border-stone-200 hover:border-stone-400 hover:text-stone-700'
                     }`}
                   >
-                    <span className="text-xl">{pm.icon}</span>
+                    <PIcon src={pm.icon} className="w-6 h-6" />
                     <span className={`text-[10px] font-bold uppercase tracking-wide ${payment === pm.id ? 'text-white' : 'text-stone-500'}`}>
                       {pm.label}
                     </span>
@@ -471,8 +503,8 @@ export default function CheckoutModal({
               <p className="text-[9px] font-bold text-stone-300 uppercase tracking-widest text-center mb-1.5">{tr('coOnlinePayment')}</p>
               <div className="grid grid-cols-2 gap-2 mb-4">
                 {([
-                  { id: 'credit_card'  as OmisePayType, icon: '💳', label: tr('coCreditCard'), accent: 'border-blue-400 bg-blue-50 text-blue-700'     },
-                  { id: 'promptpay_qr' as OmisePayType, icon: '📱', label: tr('coPromptPayQr'),         accent: 'border-violet-400 bg-violet-50 text-violet-700' },
+                  { id: 'credit_card'  as OmisePayType, icon: PAY_ICONS.card, label: tr('coCreditCard'), accent: 'border-blue-400 bg-blue-50 text-blue-700'     },
+                  { id: 'promptpay_qr' as OmisePayType, icon: PAY_ICONS.scan, label: tr('coPromptPayQr'),         accent: 'border-violet-400 bg-violet-50 text-violet-700' },
                 ]).map((pm) => (
                   <button
                     key={pm.id}
@@ -481,7 +513,7 @@ export default function CheckoutModal({
                       payment === pm.id ? pm.accent : 'bg-white text-stone-400 border-stone-200 hover:border-stone-300'
                     }`}
                   >
-                    <span className="text-xl">{pm.icon}</span>
+                    <PIcon src={pm.icon} className="w-6 h-6" />
                     <span className="text-[10px] font-bold uppercase tracking-wide leading-tight text-center">{pm.label}</span>
                   </button>
                 ))}
@@ -525,8 +557,8 @@ export default function CheckoutModal({
 
               {/* Card panel */}
               {payment === 'card' && (
-                <div className="bg-white border border-stone-100 rounded-xl p-5 text-center flex flex-col gap-2">
-                  <span className="text-5xl">💳</span>
+                <div className="bg-white border border-stone-100 rounded-xl p-5 text-center flex flex-col items-center gap-2">
+                  <PIcon src={PAY_ICONS.card} className="w-14 h-14" />
                   <p className="text-sm font-semibold text-stone-500">{tr('coCardTerminal')}</p>
                   <p className="text-2xl font-black text-stone-900">{baht(total)}</p>
                 </div>
@@ -552,7 +584,7 @@ export default function CheckoutModal({
                     </>
                   ) : (
                     <div className="py-6 text-center flex flex-col items-center gap-2">
-                      <span className="text-4xl">📱</span>
+                      <PIcon src={PAY_ICONS.scan} className="w-12 h-12" />
                       <p className="text-sm font-bold text-stone-900">{baht(total)}</p>
                       <p className="text-xs text-stone-400">ตั้งค่าเบอร์ PromptPay ใน Settings</p>
                     </div>
@@ -589,9 +621,7 @@ export default function CheckoutModal({
         {step === 3 && (
           <div className="flex flex-col items-center px-6 py-8 gap-4 overflow-y-auto">
 
-            <div className="w-20 h-20 rounded-full bg-emerald-100 border-2 border-emerald-300 flex items-center justify-center text-4xl">
-              ✅
-            </div>
+            <PIcon src={PAY_ICONS.success} className="w-24 h-24" />
 
             <div className="text-center">
               <p className="text-2xl font-black text-stone-900">Payment Complete!</p>
@@ -619,6 +649,7 @@ export default function CheckoutModal({
                 : 'bg-blue-50 border-blue-200 text-blue-700 hover:bg-blue-100 hover:border-blue-300'
                 }`}
               >
+                <PIcon src={PAY_ICONS.printBt} className="w-4 h-4" />
                 {btLabel}
               </button>
 
