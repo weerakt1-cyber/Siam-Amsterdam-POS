@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { loadBarSettings } from '@/lib/printer'
+import PosIcon from './PosIcon'
 
 declare global {
   interface Window {
@@ -30,10 +31,10 @@ type Props = {
   onClose: () => void
 }
 
-const META: Record<OmisePayType, { title: string; accent: string; badge: string }> = {
-  credit_card:  { title: '💳 Credit / Debit Card',   accent: 'bg-blue-600 hover:bg-blue-500',   badge: 'bg-blue-50 text-blue-700 border-blue-200' },
-  promptpay_qr: { title: '📱 PromptPay QR',           accent: 'bg-violet-600 hover:bg-violet-500', badge: 'bg-violet-50 text-violet-700 border-violet-200' },
-  wechat_pay:   { title: '🟢 WeChat Pay / Alipay',   accent: 'bg-green-600 hover:bg-green-500',  badge: 'bg-green-50 text-green-700 border-green-200' },
+const META: Record<OmisePayType, { title: string; icon: string; accent: string; badge: string }> = {
+  credit_card:  { title: 'Credit / Debit Card', icon: '/pos-icons/credit-card.png', accent: 'bg-blue-600 hover:bg-blue-500',   badge: 'bg-blue-50 text-blue-700 border-blue-200' },
+  promptpay_qr: { title: 'PromptPay QR',         icon: '/pos-icons/scan.png',        accent: 'bg-violet-600 hover:bg-violet-500', badge: 'bg-violet-50 text-violet-700 border-violet-200' },
+  wechat_pay:   { title: 'WeChat Pay / Alipay',  icon: '/pos-icons/scan.png',        accent: 'bg-green-600 hover:bg-green-500',  badge: 'bg-green-50 text-green-700 border-green-200' },
 }
 
 export default function OmisePaymentModal({ paymentType, total, onSuccess, onClose }: Props) {
@@ -184,7 +185,7 @@ export default function OmisePaymentModal({ paymentType, total, onSuccess, onClo
         {/* Header */}
         <div className="flex items-center justify-between px-5 py-4 border-b border-stone-100">
           <div>
-            <h2 className="font-bold text-stone-900 text-sm">{meta.title}</h2>
+            <h2 className="font-bold text-stone-900 text-sm flex items-center gap-1.5"><PosIcon src={meta.icon} className="w-4 h-4" /> {meta.title}</h2>
             <p className="text-xs text-stone-400 mt-0.5">Amount: {baht(total)}</p>
           </div>
           {!completing && step !== 'loading' && (
@@ -219,7 +220,7 @@ export default function OmisePaymentModal({ paymentType, total, onSuccess, onClo
           {/* ── Completing ── */}
           {completing && (
             <div className="py-8 text-center flex flex-col items-center gap-2">
-              <div className="w-14 h-14 rounded-full bg-emerald-100 flex items-center justify-center text-3xl">✅</div>
+              <PosIcon src="/pos-icons/success.png" className="w-16 h-16" />
               <p className="text-sm text-emerald-600 font-semibold">Payment verified!</p>
               <p className="text-xs text-stone-400 animate-pulse">Saving order...</p>
             </div>
@@ -249,7 +250,7 @@ export default function OmisePaymentModal({ paymentType, total, onSuccess, onClo
                     autoComplete="cc-number"
                     className="w-full bg-stone-50 border border-stone-200 rounded-xl px-3 py-2.5 text-sm font-mono tracking-widest outline-none focus:border-stone-400 transition placeholder-stone-300"
                   />
-                  <span className="absolute right-3 top-1/2 -translate-y-1/2 text-lg">💳</span>
+                  <PosIcon src="/pos-icons/credit-card.png" className="w-5 h-5 absolute right-3 top-1/2 -translate-y-1/2" />
                 </div>
                 <div className="grid grid-cols-2 gap-2">
                   <input

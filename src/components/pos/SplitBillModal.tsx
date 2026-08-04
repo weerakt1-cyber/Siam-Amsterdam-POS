@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import PosIcon from './PosIcon'
 
 type SplitPayMethod = 'cash' | 'card' | 'promptpay'
 
@@ -17,9 +18,9 @@ function baht(n: number) {
 }
 
 const PAY_OPTIONS: { id: SplitPayMethod; icon: string; label: string }[] = [
-  { id: 'cash', icon: '💵', label: 'Cash' },
-  { id: 'card', icon: '💳', label: 'Card' },
-  { id: 'promptpay', icon: '📱', label: 'QR Pay' },
+  { id: 'cash', icon: '/pos-icons/cash.png', label: 'Cash' },
+  { id: 'card', icon: '/pos-icons/credit-card.png', label: 'Card' },
+  { id: 'promptpay', icon: '/pos-icons/scan.png', label: 'QR Pay' },
 ]
 
 export default function SplitBillModal({ table, total, onConfirm, onClose, onComplete }: Props) {
@@ -53,7 +54,7 @@ export default function SplitBillModal({ table, total, onConfirm, onClose, onCom
     return (
       <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
         <div className="bg-white rounded-2xl w-full max-w-sm p-8 text-center flex flex-col items-center gap-5 shadow-2xl">
-          <div className="w-20 h-20 rounded-full bg-emerald-100 border-2 border-emerald-300 flex items-center justify-center text-4xl">✅</div>
+          <PosIcon src="/pos-icons/success.png" className="w-24 h-24" />
           <div>
             <p className="text-2xl font-black text-stone-900">All Splits Paid!</p>
             <p className="text-stone-400 mt-1 text-sm">{splits} people · {baht(total)} total</p>
@@ -72,7 +73,7 @@ export default function SplitBillModal({ table, total, onConfirm, onClose, onCom
 
         <div className="flex items-center justify-between px-5 py-4 border-b border-stone-200 bg-white">
           <div>
-            <h2 className="font-bold text-stone-900">✂️ Split Bill</h2>
+            <h2 className="font-bold text-stone-900 flex items-center gap-1.5"><PosIcon src="/pos-icons/split-bill.png" className="w-4 h-4" /> Split Bill</h2>
             <p className="text-xs text-stone-400 mt-0.5">Table {table} · {baht(total)}</p>
           </div>
           {!started && (
@@ -147,7 +148,7 @@ export default function SplitBillModal({ table, total, onConfirm, onClose, onCom
                         : 'bg-white text-stone-500 border-stone-200 hover:border-stone-400'
                     }`}
                   >
-                    <span className="text-xl">{pm.icon}</span>
+                    <PosIcon src={pm.icon} className="w-6 h-6" />
                     <span className="text-xs font-bold">{pm.label}</span>
                   </button>
                 ))}
