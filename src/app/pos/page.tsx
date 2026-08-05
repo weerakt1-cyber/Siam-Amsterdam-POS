@@ -5,6 +5,7 @@ import type { MenuItem, Order, Promotion } from '@/lib/types'
 import { applyPromotions } from '@/lib/promotions'
 import CheckoutModal from '@/components/pos/CheckoutModal'
 import NumPad from '@/components/pos/NumPad'
+import PinPad from '@/components/pos/PinPad'
 import SplitBillModal from '@/components/pos/SplitBillModal'
 import NotificationBell from '@/components/pos/NotificationBell'
 import { loadBarSettings, DEFAULT_BAR_SETTINGS, printReceipt, openCashDrawer, type BarSettings } from '@/lib/printer'
@@ -141,7 +142,6 @@ export default function POSPage() {
   const [table, setTable] = useState(() => loadFloorTables()[0] ?? 'T1')
   const [tablePickerOpen, setTablePickerOpen] = useState(false)
   const [drawerPinOpen, setDrawerPinOpen] = useState(false)
-  const [drawerPinVal, setDrawerPinVal] = useState('')
   const [category, setCategory] = useState('all')
   const [categories, setCategories] = useState<CatEntry[]>(() => loadAllCategories())
   const [menu, setMenu] = useState<MenuItem[]>([])
@@ -447,39 +447,27 @@ export default function POSPage() {
   }
 
   function openDrawer() {
-    const cfg = loadBarSettings()
-    // The drawer is gated by a PIN. Primary path: the active user's own login
-    // PIN (nothing extra to remember). A configured cfg.drawerPin also works as
-    // a shared master PIN. If neither a signed-in user nor a master PIN exists,
-    // fall back to a light confirm() so the till can still be opened.
-    if (user?.id || cfg.drawerPin) {
-      setDrawerPinVal('')
-      setDrawerPinOpen(true)
-      return
-    }
+    // Gated by the active user's own login PIN (nothing extra to remember).
+    // If there's no signed-in user, fall back to a light confirm().
+    if (user?.id) { setDrawerPinOpen(true); return }
     if (!confirm(t('posOpenDrawerConfirm'))) return
     fireDrawer()
   }
 
-  async function submitDrawerPin() {
-    const entered = drawerPinVal
-    setDrawerPinOpen(false)
-    if (!entered) return   // dismissed / nothing entered — no error
-    // Master PIN configured in Settings opens it directly.
-    if (entered === loadBarSettings().drawerPin) { fireDrawer(); return }
-    // Otherwise verify against the current user's login PIN.
-    if (user?.id) {
-      try {
-        const r = await fetch('/api/users/verify-pin', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ id: user.id, pin: entered }),
-        })
-        const d = await r.json()
-        if (d.valid) { fireDrawer(); return }
-      } catch { /* fall through to error */ }
-    }
-    showToast(t('posWrongPin'), false)
+  // Verify an entered PIN against the current user's login PIN; on success open
+  // the till and close the pad. Returns false so PinPad flashes on a wrong PIN.
+  async function verifyDrawerPin(entered: string): Promise<boolean> {
+    if (!user?.id) return false
+    try {
+      const r = await fetch('/api/users/verify-pin', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: user.id, pin: entered }),
+      })
+      const d = await r.json()
+      if (d.valid) { setDrawerPinOpen(false); fireDrawer(); return true }
+    } catch { /* fall through */ }
+    return false
   }
 
   const mergedOrderIds = new Set(cart.filter(c => c.fromOrderId).map(c => c.fromOrderId!))
@@ -1632,15 +1620,12 @@ export default function POSPage() {
         />
       )}
 
-      {/* Cash-drawer PIN — masked, verified against the user's login PIN */}
+      {/* Cash-drawer PIN — full-screen pad, verified against the user's login PIN */}
       {drawerPinOpen && (
-        <NumPad
-          label={`🔒 ${t('posEnterDrawerPin')}`}
-          value={drawerPinVal}
-          onChange={setDrawerPinVal}
-          onClose={submitDrawerPin}
-          allowDecimal={false}
-          mask
+        <PinPad
+          heading={`🔒 ${t('posEnterDrawerPin')}`}
+          onClose={() => setDrawerPinOpen(false)}
+          onVerify={verifyDrawerPin}
         />
       )}
 

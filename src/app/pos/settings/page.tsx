@@ -1155,22 +1155,6 @@ export default function SettingsPage() {
                 </div>
               )}
 
-              {/* Cash-drawer PIN — leave blank for no PIN (confirm only) */}
-              {cfg && (
-                <div className="mb-4">
-                  <label className="text-xs text-gray-500 mb-1 block">{tr('setDrawerPin')}</label>
-                  <input
-                    value={cfg.drawerPin ?? ''}
-                    onChange={e => { updateCfg('drawerPin', e.target.value.replace(/\D/g, '').slice(0, 6)); setCfgSaved(false) }}
-                    inputMode="numeric"
-                    placeholder="—"
-                    maxLength={6}
-                    className="w-32 bg-white border border-gray-200 rounded-xl px-3 py-2 text-sm font-mono tracking-widest text-gray-900 placeholder:text-gray-300 focus:outline-none focus:border-amber-400 transition"
-                  />
-                  <p className="text-[11px] text-gray-400 mt-1">{tr('setDrawerPinDesc')}</p>
-                </div>
-              )}
-
               {/* ── LAN section ── */}
               {cfg && (cfg.printerConnectionType ?? 'bluetooth') === 'lan' && (
                 <div className="flex flex-col gap-3">
