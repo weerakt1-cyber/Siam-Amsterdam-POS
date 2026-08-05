@@ -11,11 +11,11 @@ const ROLE_LABELS: Record<string, string> = {
 
 function PinDots({ count, error }: { count: number; error?: boolean }) {
   return (
-    <div className="flex justify-center gap-4 py-4">
+    <div className="flex justify-center gap-4 py-3">
       {Array(4).fill(0).map((_, i) => (
         <div
           key={i}
-          className={`w-5 h-5 rounded-full transition-all duration-100 ${
+          className={`w-6 h-6 rounded-full transition-all duration-100 ${
             error     ? 'bg-red-500 scale-110' :
             i < count ? 'bg-amber-500 scale-110' : 'bg-stone-200'
           }`}
@@ -89,10 +89,10 @@ export default function UserSwitcher({
     // Settings, Users), so it needs the same weight/security feel as the real
     // /auth login page, not a small dismissible-looking modal.
     <div
-      className="fixed inset-0 bg-[#FAF8F4] z-[100] flex items-center justify-center p-6"
+      className="fixed inset-0 bg-[#FAF8F4] z-[100] flex items-center justify-center p-3 sm:p-4"
       onPointerDown={isLock ? undefined : onClose}
     >
-      <div className="bg-white rounded-3xl shadow-2xl w-full max-w-2xl overflow-hidden" onPointerDown={e => e.stopPropagation()}>
+      <div className="bg-white rounded-3xl shadow-2xl w-full max-w-2xl max-h-[96vh] overflow-y-auto" onPointerDown={e => e.stopPropagation()}>
         {step === 'pick' ? (
           <>
             <div className="flex items-center justify-between px-8 py-6 border-b border-stone-100">
@@ -143,7 +143,7 @@ export default function UserSwitcher({
           </>
         ) : (
           <>
-            <div className="flex items-center justify-between px-8 py-6 border-b border-stone-100">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-stone-100">
               <button onPointerDown={() => { setStep('pick'); setPin('') }} className="text-stone-400 hover:text-stone-700 text-base">← Back</button>
               <div className="flex items-center gap-3">
                 <div className="w-9 h-9 rounded-full flex items-center justify-center text-base font-bold text-white" style={{ background: picked?.color }}>
@@ -157,12 +157,12 @@ export default function UserSwitcher({
                 <button onPointerDown={onClose} className="text-stone-400 hover:text-stone-700 text-2xl leading-none">✕</button>
               )}
             </div>
-            <div className="px-8 pb-10 pt-4">
+            <div className="px-5 sm:px-8 pb-6 pt-3">
               <p className="text-sm text-stone-400 text-center mb-1">
                 {isLock ? '🔒 Enter PIN to unlock' : 'Enter 4-digit PIN'}
               </p>
               <PinDots count={pin.length} error={error} />
-              <div className="grid grid-cols-3 gap-4 mt-3 max-w-md mx-auto">
+              <div className="grid grid-cols-3 gap-2.5 sm:gap-3 mt-2 w-full max-w-xl mx-auto">
                 {KEYS.map((k, i) => (
                   <button
                     key={i}
@@ -171,7 +171,7 @@ export default function UserSwitcher({
                       else if (k && pin.length < 4) setPin(p => p + k)
                     }}
                     disabled={checking}
-                    className={`aspect-square rounded-2xl text-3xl font-semibold transition-all active:scale-95 disabled:opacity-50 ${
+                    className={`h-14 sm:h-16 rounded-2xl text-3xl font-semibold transition-all active:scale-95 disabled:opacity-50 ${
                       k === '' ? 'invisible' :
                       k === '⌫' ? 'bg-stone-100 text-stone-500 hover:bg-stone-200' :
                       'bg-stone-50 text-stone-900 border border-stone-200 hover:bg-stone-100 hover:border-stone-400'
@@ -181,7 +181,7 @@ export default function UserSwitcher({
                   </button>
                 ))}
               </div>
-              {error && <p className="text-sm text-red-500 text-center mt-4 animate-pulse">Incorrect PIN</p>}
+              {error && <p className="text-sm text-red-500 text-center mt-3 animate-pulse">Incorrect PIN</p>}
             </div>
           </>
         )}
