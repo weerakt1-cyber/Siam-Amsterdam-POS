@@ -92,7 +92,7 @@ export default function UserSwitcher({
       className="fixed inset-0 bg-[#FAF8F4] z-[100] flex items-center justify-center p-3 sm:p-4"
       onPointerDown={isLock ? undefined : onClose}
     >
-      <div className="bg-white rounded-3xl shadow-2xl w-full max-w-2xl max-h-[96vh] overflow-y-auto" onPointerDown={e => e.stopPropagation()}>
+      <div className="bg-white rounded-3xl shadow-2xl w-full max-w-3xl max-h-[96vh] overflow-y-auto" onPointerDown={e => e.stopPropagation()}>
         {step === 'pick' ? (
           <>
             <div className="flex items-center justify-between px-8 py-6 border-b border-stone-100">
@@ -162,7 +162,7 @@ export default function UserSwitcher({
                 {isLock ? '🔒 Enter PIN to unlock' : 'Enter 4-digit PIN'}
               </p>
               <PinDots count={pin.length} error={error} />
-              <div className="grid grid-cols-3 gap-2.5 sm:gap-3 mt-2 w-full max-w-xl mx-auto">
+              <div className="grid grid-cols-3 gap-3 sm:gap-4 mt-2 w-full max-w-2xl mx-auto">
                 {KEYS.map((k, i) => (
                   <button
                     key={i}
@@ -171,7 +171,7 @@ export default function UserSwitcher({
                       else if (k && pin.length < 4) setPin(p => p + k)
                     }}
                     disabled={checking}
-                    className={`h-14 sm:h-16 rounded-2xl text-3xl font-semibold transition-all active:scale-95 disabled:opacity-50 ${
+                    className={`h-20 sm:h-24 rounded-2xl text-4xl font-semibold transition-all active:scale-95 disabled:opacity-50 ${
                       k === '' ? 'invisible' :
                       k === '⌫' ? 'bg-stone-100 text-stone-500 hover:bg-stone-200' :
                       'bg-stone-50 text-stone-900 border border-stone-200 hover:bg-stone-100 hover:border-stone-400'
