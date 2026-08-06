@@ -249,7 +249,7 @@ export default function AIChatPanel() {
         }`}
         title={AI_NAME}
       >
-        {open ? '✕' : <img src="/baze-ai.png" alt={AI_NAME} className="w-full h-full object-cover" />}
+        {open ? '✕' : <img src="/baze-ai.png" alt={AI_NAME} className="w-full h-full object-contain p-1" />}
       </button>
 
       {/* ── Chat panel ── */}
@@ -265,7 +265,7 @@ export default function AIChatPanel() {
         >
           {/* Header */}
           <div className="flex items-center gap-2.5 px-4 py-3 bg-stone-900 text-white shrink-0">
-            <img src="/baze-ai.png" alt="" className="w-7 h-7 rounded-lg object-cover shrink-0" />
+            <img src="/baze-ai.png" alt="" className="w-8 h-8 object-contain shrink-0" />
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2">
                 <p className="text-sm font-bold leading-none">{AI_NAME}</p>
@@ -458,7 +458,7 @@ export default function AIChatPanel() {
           ) : (
             /* ── Teaser (AI Add-On not enabled) ── */
             <div className="flex-1 overflow-y-auto flex flex-col items-center justify-center gap-4 p-5 text-center">
-              <img src="/baze-ai.png" alt={AI_NAME} className="w-24 h-24 rounded-3xl object-cover shadow-lg shadow-amber-200/40" />
+              <img src="/baze-ai.png" alt={AI_NAME} className="w-28 h-28 object-contain" />
               <div>
                 <p className="text-base font-black text-stone-900">ปลดล็อก {AI_NAME}</p>
                 <p className="text-xs text-stone-500 mt-1 leading-relaxed">
