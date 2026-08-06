@@ -5,6 +5,7 @@ import type { Member, Order } from '@/lib/types'
 import NumPad from '@/components/pos/NumPad'
 import { getTier, getPointsToNextTier, TIERS } from '@/lib/loyalty'
 import { usePosLang } from '@/lib/pos-i18n'
+import { SkeletonList } from '@/components/pos/Skeleton'
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -112,14 +113,19 @@ export default function MembersPage() {
   const [numPadTarget, setNumPadTarget] = useState<'points' | 'addPoints' | null>(null)
   const [addPointsVal, setAddPointsVal] = useState('')
   const [sortBy, setSortBy] = useState<'name' | 'visits' | 'spend' | 'tier'>('name')
+  const [loading, setLoading] = useState(true)
 
   const fetchAll = useCallback(async () => {
-    const [mr, or] = await Promise.all([
-      fetch('/api/members').then((r) => r.json()),
-      fetch('/api/orders').then((r) => r.json()),
-    ])
-    setMembers(mr.members ?? [])
-    setOrders(or.orders ?? [])
+    try {
+      const [mr, or] = await Promise.all([
+        fetch('/api/members').then((r) => r.json()),
+        fetch('/api/orders').then((r) => r.json()),
+      ])
+      setMembers(mr.members ?? [])
+      setOrders(or.orders ?? [])
+    } finally {
+      setLoading(false)
+    }
   }, [])
 
   useEffect(() => { fetchAll() }, [fetchAll])
@@ -331,7 +337,9 @@ export default function MembersPage() {
 
           {/* List */}
           <div className="flex-1 overflow-y-auto">
-            {sorted.length === 0 ? (
+            {loading ? (
+              <div className="p-3"><SkeletonList rows={7} /></div>
+            ) : sorted.length === 0 ? (
               <div className="flex flex-col items-center justify-center h-32 text-gray-300 text-sm">
                 <p className="text-3xl mb-2">👤</p>
                 <p>{search ? tr('memNoResults') : tr('memNoMembers')}</p>

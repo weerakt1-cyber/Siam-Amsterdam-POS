@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import type { InventoryItem, StockAdjustment, AdjustReason } from '@/lib/types'
 import NumPad from '@/components/pos/NumPad'
 import { usePosLang, type PosLang } from '@/lib/pos-i18n'
+import { SkeletonList } from '@/components/pos/Skeleton'
 import {
   type InvCat, loadInvCategories, fetchInvCategories, persistInvCategories,
   INV_CATEGORIES_CHANGED_EVENT,
@@ -101,6 +102,7 @@ const REASON_LABELS: Record<AdjustReason, { label: string; color: string }> = {
 export default function InventoryPage() {
   const { t: tr, lang } = usePosLang()
   const [items, setItems] = useState<InventoryItem[]>([])
+  const [loading, setLoading] = useState(true)
   const [adjustments, setAdjustments] = useState<StockAdjustment[]>([])
   const [search, setSearch] = useState('')
   const [catFilter, setCatFilter] = useState<string>('all')
@@ -153,8 +155,12 @@ export default function InventoryPage() {
   const [showLog, setShowLog] = useState(false)
 
   const fetchAll = useCallback(async () => {
-    const r = await fetch('/api/inventory').then(res => res.json())
-    setItems(r.items ?? [])
+    try {
+      const r = await fetch('/api/inventory').then(res => res.json())
+      setItems(r.items ?? [])
+    } finally {
+      setLoading(false)
+    }
   }, [])
 
   const fetchAdjustments = useCallback(async (id: string) => {
@@ -354,7 +360,9 @@ export default function InventoryPage() {
 
           {/* List */}
           <div className="flex-1 overflow-y-auto">
-            {filtered.length === 0 ? (
+            {loading ? (
+              <div className="p-3"><SkeletonList rows={7} avatar={false} /></div>
+            ) : filtered.length === 0 ? (
               <div className="flex flex-col items-center justify-center h-24 text-gray-300 text-sm">
                 <p>{search ? 'No results' : 'No items'}</p>
               </div>
