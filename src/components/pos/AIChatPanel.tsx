@@ -75,10 +75,10 @@ function TypingTeaser({ prompts }: { prompts: string[] }) {
   }, [text, phase, idx, prompts])
 
   return (
-    <span className="text-sm text-stone-800 font-medium">
+    <div className="text-sm text-stone-800 font-medium leading-relaxed break-words">
       {text}
-      <span className="inline-block w-[2px] h-[1em] align-middle bg-amber-500 ml-0.5 animate-pulse" />
-    </span>
+      <span className="inline-block w-[2px] h-[1.05em] align-[-0.15em] bg-amber-500 ml-0.5 animate-pulse" />
+    </div>
   )
 }
 
@@ -468,7 +468,7 @@ export default function AIChatPanel() {
               </div>
 
               {/* Live typing preview — feels like AI is about to answer */}
-              <div className="w-full bg-stone-50 border border-stone-200 rounded-2xl px-4 py-3 text-left min-h-[68px]">
+              <div className="w-full bg-stone-50 border border-stone-200 rounded-2xl px-4 py-3.5 text-left min-h-[92px]">
                 <p className="text-[10px] text-stone-400 mb-1.5 flex items-center gap-1">
                   <span className="text-amber-500">💬</span> ลองถาม {AI_NAME}:
                 </p>
