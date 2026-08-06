@@ -244,12 +244,12 @@ export default function AIChatPanel() {
       {/* ── Floating button ── */}
       <button
         onPointerDown={() => (open ? handleClose() : setOpen(true))}
-        className={`fixed bottom-20 right-4 sm:bottom-6 sm:right-5 z-[60] w-14 h-14 rounded-full shadow-xl flex items-center justify-center text-2xl transition-all active:scale-95 select-none ${
-          open ? 'bg-stone-800 text-white' : 'bg-amber-500 hover:bg-amber-400 text-white'
+        className={`fixed bottom-20 right-4 sm:bottom-6 sm:right-5 z-[60] w-14 h-14 rounded-full shadow-xl flex items-center justify-center text-2xl transition-all active:scale-95 select-none overflow-hidden ${
+          open ? 'bg-stone-800 text-white' : 'bg-black ring-1 ring-amber-500/40 hover:ring-amber-400'
         }`}
         title={AI_NAME}
       >
-        {open ? '✕' : '🤖'}
+        {open ? '✕' : <img src="/baze-ai.png" alt={AI_NAME} className="w-full h-full object-cover" />}
       </button>
 
       {/* ── Chat panel ── */}
@@ -265,7 +265,7 @@ export default function AIChatPanel() {
         >
           {/* Header */}
           <div className="flex items-center gap-2.5 px-4 py-3 bg-stone-900 text-white shrink-0">
-            <span className="text-xl">🤖</span>
+            <img src="/baze-ai.png" alt="" className="w-7 h-7 rounded-lg object-cover shrink-0" />
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2">
                 <p className="text-sm font-bold leading-none">{AI_NAME}</p>
@@ -458,7 +458,7 @@ export default function AIChatPanel() {
           ) : (
             /* ── Teaser (AI Add-On not enabled) ── */
             <div className="flex-1 overflow-y-auto flex flex-col items-center justify-center gap-4 p-5 text-center">
-              <div className="text-4xl">🤖✨</div>
+              <img src="/baze-ai.png" alt={AI_NAME} className="w-24 h-24 rounded-3xl object-cover shadow-lg shadow-amber-200/40" />
               <div>
                 <p className="text-base font-black text-stone-900">ปลดล็อก {AI_NAME}</p>
                 <p className="text-xs text-stone-500 mt-1 leading-relaxed">
