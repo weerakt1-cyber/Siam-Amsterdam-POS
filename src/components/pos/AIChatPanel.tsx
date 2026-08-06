@@ -19,27 +19,21 @@ type AttachedFile = {
   size: number
 }
 
-// ─── Plan config ──────────────────────────────────────────────────────────────
+// ─── AI Add-On access ─────────────────────────────────────────────────────────
+// BAZE AI is a paid Add-On — NOT gated behind any Free/Pro/Max tier. It is OFF
+// by default: a venue that hasn't bought the add-on sees a teaser (a live
+// "typing" preview of what AI can answer) instead of the chat, to entice them
+// to enable it. Turn it ON for a paying venue by setting NEXT_PUBLIC_AI_ADDON=true.
+const AI_ENABLED = process.env.NEXT_PUBLIC_AI_ADDON === 'true'
 
-const PLAN = (process.env.NEXT_PUBLIC_POS_PLAN ?? 'starter') as 'starter' | 'pro' | 'enterprise'
-
-const PLAN_LABEL: Record<string, string> = {
-  starter:    'Starter',
-  pro:        'Pro',
-  enterprise: 'Enterprise',
-}
-
-const PLAN_MONTHS: Record<string, number> = {
-  starter:    18,
-  pro:        60,
-  enterprise: 9999,
-}
-
-const PLAN_COLOR: Record<string, string> = {
-  starter:    'bg-stone-700 text-stone-300',
-  pro:        'bg-blue-900 text-blue-300',
-  enterprise: 'bg-amber-900 text-amber-300',
-}
+// Real, high-value questions BAZE AI can answer — used for the teaser typewriter.
+const TEASER_PROMPTS = [
+  'เมนูไหนทำกำไรดีที่สุดเดือนนี้?',
+  'ควรสั่งวัตถุดิบอะไรเพิ่มก่อนของหมด?',
+  'ยอดขายเทียบเดือนที่แล้วเป็นยังไง?',
+  'ช่วงเวลาไหนของวันขายดีที่สุด?',
+  'ลูกค้าประจำคนไหนหายไปนาน?',
+]
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -56,6 +50,36 @@ function fmtSize(bytes: number) {
   if (bytes < 1024) return `${bytes} B`
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
+}
+
+// Typewriter that cycles through TEASER_PROMPTS — makes the locked panel feel
+// alive (as if AI is about to answer) to entice enabling the add-on.
+function TypingTeaser({ prompts }: { prompts: string[] }) {
+  const [idx, setIdx]     = useState(0)
+  const [text, setText]   = useState('')
+  const [phase, setPhase] = useState<'typing' | 'pause' | 'deleting'>('typing')
+
+  useEffect(() => {
+    const full = prompts[idx] ?? ''
+    let timer: ReturnType<typeof setTimeout>
+    if (phase === 'typing') {
+      if (text.length < full.length) timer = setTimeout(() => setText(full.slice(0, text.length + 1)), 55)
+      else timer = setTimeout(() => setPhase('pause'), 1500)
+    } else if (phase === 'pause') {
+      timer = setTimeout(() => setPhase('deleting'), 1000)
+    } else {
+      if (text.length > 0) timer = setTimeout(() => setText(full.slice(0, text.length - 1)), 25)
+      else { setPhase('typing'); setIdx(i => (i + 1) % prompts.length) }
+    }
+    return () => clearTimeout(timer)
+  }, [text, phase, idx, prompts])
+
+  return (
+    <span className="text-sm text-stone-800 font-medium">
+      {text}
+      <span className="inline-block w-[2px] h-[1em] align-middle bg-amber-500 ml-0.5 animate-pulse" />
+    </span>
+  )
 }
 
 // ─── Component ────────────────────────────────────────────────────────────────
@@ -140,7 +164,7 @@ export default function AIChatPanel() {
     try {
       const body: Record<string, unknown> = {
         messages: next.map(m => ({ role: m.role, content: m.content })),
-        plan:     PLAN,
+        plan:     'enterprise', // AI Add-On = full, unlimited data access (no tiers)
       }
       if (fileToSend) {
         body.file = { name: fileToSend.name, ext: fileToSend.ext, content: fileToSend.content }
@@ -215,8 +239,6 @@ export default function AIChatPanel() {
     setOpen(false)
   }
 
-  const maxMonths = PLAN_MONTHS[PLAN]
-
   return (
     <>
       {/* ── Floating button ── */}
@@ -247,12 +269,12 @@ export default function AIChatPanel() {
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2">
                 <p className="text-sm font-bold leading-none">{AI_NAME}</p>
-                <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full leading-none ${PLAN_COLOR[PLAN]}`}>
-                  {PLAN_LABEL[PLAN]}
+                <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full leading-none bg-amber-900 text-amber-300">
+                  {AI_ENABLED ? 'Add-On' : 'ล็อกอยู่'}
                 </span>
               </div>
               <p className="text-[10px] text-stone-400 mt-0.5 leading-none">
-                Powered by Claude · {maxMonths >= 9999 ? 'ไม่จำกัดเดือน' : `ข้อมูลย้อนหลัง ${maxMonths} เดือน`}
+                Powered by Claude
               </p>
             </div>
             {msgs.length > 0 && (
@@ -265,6 +287,8 @@ export default function AIChatPanel() {
             )}
           </div>
 
+          {AI_ENABLED ? (
+          <>
           {/* Messages */}
           <div className="flex-1 overflow-y-auto p-3 space-y-3 min-h-0">
             {msgs.length === 0 ? (
@@ -299,7 +323,7 @@ export default function AIChatPanel() {
                   <span className="text-2xl">📂</span>
                   <div>
                     <p className="text-xs font-semibold text-stone-700 group-hover:text-amber-700">นำเข้าข้อมูลเก่า</p>
-                    <p className="text-[10px] text-stone-400 mt-0.5">CSV, Excel, JSON · ข้อมูลย้อนหลัง {maxMonths >= 9999 ? 'ไม่จำกัด' : `${maxMonths} เดือน`} ({PLAN_LABEL[PLAN]})</p>
+                    <p className="text-[10px] text-stone-400 mt-0.5">CSV, Excel, JSON · ข้อมูลย้อนหลังไม่จำกัด</p>
                   </div>
                 </button>
               </div>
@@ -430,6 +454,36 @@ export default function AIChatPanel() {
               }
             </button>
           </form>
+          </>
+          ) : (
+            /* ── Teaser (AI Add-On not enabled) ── */
+            <div className="flex-1 overflow-y-auto flex flex-col items-center justify-center gap-4 p-5 text-center">
+              <div className="text-4xl">🤖✨</div>
+              <div>
+                <p className="text-base font-black text-stone-900">ปลดล็อก {AI_NAME}</p>
+                <p className="text-xs text-stone-500 mt-1 leading-relaxed">
+                  ผู้ช่วยอัจฉริยะประจำร้าน — ถามเป็นภาษาคนได้เลย<br />
+                  สรุปยอดขาย · แนะนำสต๊อก · วิเคราะห์ลูกค้า
+                </p>
+              </div>
+
+              {/* Live typing preview — feels like AI is about to answer */}
+              <div className="w-full bg-stone-50 border border-stone-200 rounded-2xl px-4 py-3 text-left min-h-[68px]">
+                <p className="text-[10px] text-stone-400 mb-1.5 flex items-center gap-1">
+                  <span className="text-amber-500">💬</span> ลองถาม {AI_NAME}:
+                </p>
+                <TypingTeaser prompts={TEASER_PROMPTS} />
+              </div>
+
+              <button
+                onPointerDown={() => alert('สนใจเปิดใช้ AI Add-On? ติดต่อทีมงาน Baze POS ได้เลย')}
+                className="w-full py-3 rounded-2xl bg-amber-500 hover:bg-amber-400 active:scale-95 text-white font-bold text-sm transition shadow-lg shadow-amber-200/60"
+              >
+                ✨ เปิดใช้ AI Add-On
+              </button>
+              <p className="text-[10px] text-stone-400">เสริมพลัง POS ด้วย AI · เพิ่มเป็น Add-On แยกต่างหาก</p>
+            </div>
+          )}
         </div>
       )}
     </>
