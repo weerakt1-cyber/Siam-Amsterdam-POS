@@ -164,7 +164,11 @@ export type DailyReport = {
 
 // ─── Inventory ───────────────────────────────────────────────────────────────
 
-export type InventoryCategory = 'spirits' | 'beer' | 'mixer' | 'food' | 'supplies' | 'other'
+// Stock categories are now user-managed (add/delete on the Inventory page,
+// stored in app_config via /api/inventory-categories), so the category is a
+// free string. The old fixed set (spirits/beer/mixer/food/supplies/other)
+// remains the built-in default.
+export type InventoryCategory = string
 
 export type InventoryItem = {
   id: string

@@ -1,9 +1,13 @@
 ﻿'use client'
 
-import { useState, useEffect, useCallback } from 'react'
-import type { InventoryItem, StockAdjustment, InventoryCategory, AdjustReason } from '@/lib/types'
+import { useState, useEffect, useCallback, useRef } from 'react'
+import type { InventoryItem, StockAdjustment, AdjustReason } from '@/lib/types'
 import NumPad from '@/components/pos/NumPad'
-import { usePosLang } from '@/lib/pos-i18n'
+import { usePosLang, type PosLang } from '@/lib/pos-i18n'
+import {
+  type InvCat, loadInvCategories, fetchInvCategories, persistInvCategories,
+  INV_CATEGORIES_CHANGED_EVENT,
+} from '@/lib/inventory-categories'
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -28,23 +32,29 @@ const STATUS_BAR: Record<string, string> = {
   good: 'bg-emerald-500',
 }
 
-const CATEGORY_LABELS: Record<InventoryCategory, string> = {
-  spirits:  '🥃 Spirits',
-  beer:     '🍺 Beer',
-  mixer:    '🧃 Mixers',
-  food:     '🍗 Food',
-  supplies: '📦 Supplies',
-  other:    '🔖 Other',
+// Stock units, translated to the configured POS language (value stays the
+// English key so existing data + CSV export are unchanged).
+const UNIT_LABELS: Record<string, { en: string; th: string }> = {
+  bottle:  { en: 'Bottle',  th: 'ขวด' },
+  can:     { en: 'Can',     th: 'กระป๋อง' },
+  pcs:     { en: 'Pcs',     th: 'ชิ้น' },
+  kg:      { en: 'Kg',      th: 'กก.' },
+  liter:   { en: 'Liter',   th: 'ลิตร' },
+  portion: { en: 'Portion', th: 'ที่' },
+  bag:     { en: 'Bag',     th: 'ถุง' },
+  box:     { en: 'Box',     th: 'กล่อง' },
 }
-
-const CATEGORIES: InventoryCategory[] = ['spirits', 'beer', 'mixer', 'food', 'supplies', 'other']
+const UNITS = Object.keys(UNIT_LABELS)
+function unitLabel(unit: string, lang: PosLang): string {
+  return UNIT_LABELS[unit]?.[lang] ?? unit
+}
 
 function baht(n: number) {
   return '฿' + new Intl.NumberFormat('en').format(Math.round(n))
 }
 
 function emptyForm() {
-  return { name: '', unit: 'bottle', category: 'spirits' as InventoryCategory, currentStock: '0', lowStockThreshold: '5', costPerUnit: '', notes: '' }
+  return { name: '', unit: 'bottle', category: '', currentStock: '0', lowStockThreshold: '5', costPerUnit: '', notes: '' }
 }
 
 function exportCSV(items: InventoryItem[]) {
@@ -89,11 +99,49 @@ const REASON_LABELS: Record<AdjustReason, { label: string; color: string }> = {
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
 export default function InventoryPage() {
-  const { t: tr } = usePosLang()
+  const { t: tr, lang } = usePosLang()
   const [items, setItems] = useState<InventoryItem[]>([])
   const [adjustments, setAdjustments] = useState<StockAdjustment[]>([])
   const [search, setSearch] = useState('')
-  const [catFilter, setCatFilter] = useState<InventoryCategory | 'all' | 'low'>('all')
+  const [catFilter, setCatFilter] = useState<string>('all')
+
+  // User-managed stock categories (add/delete), shared via /api/inventory-categories.
+  const [categories, setCategories] = useState<InvCat[]>(() => loadInvCategories())
+  const [showCatManager, setShowCatManager] = useState(false)
+  const [newCatName, setNewCatName] = useState('')
+  const catLabel = useCallback(
+    (val: string) => categories.find(c => c.value === val)?.label ?? val,
+    [categories],
+  )
+
+  // Fetch the authoritative list on mount + live-refresh on same-device edits.
+  const skipNextPersistRef = useRef(true)
+  useEffect(() => {
+    fetchInvCategories().then(list => { skipNextPersistRef.current = true; setCategories(list) })
+    const refresh = () => { skipNextPersistRef.current = true; setCategories(loadInvCategories()) }
+    window.addEventListener(INV_CATEGORIES_CHANGED_EVENT, refresh)
+    return () => window.removeEventListener(INV_CATEGORIES_CHANGED_EVENT, refresh)
+  }, [])
+
+  // Persist whenever the list changes (skipping the mount + fetch-resolved values).
+  useEffect(() => {
+    if (skipNextPersistRef.current) { skipNextPersistRef.current = false; return }
+    persistInvCategories(categories)
+  }, [categories])
+
+  function addCategory() {
+    const label = newCatName.trim()
+    const value = label.toLowerCase().replace(/\s+/g, '_')
+    if (!label) return
+    setCategories(prev => (prev.some(c => c.value === value) ? prev : [...prev, { value, label }]))
+    setNewCatName('')
+  }
+
+  function removeCategory(value: string) {
+    const count = items.filter(i => i.category === value).length
+    if (count > 0 && !confirm(`${count} item${count !== 1 ? 's' : ''} use this category. Delete it anyway? (items keep their tag but it won't show as a filter chip.)`)) return
+    setCategories(prev => prev.filter(c => c.value !== value))
+  }
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [isCreating, setIsCreating] = useState(false)
   const [form, setForm] = useState(emptyForm())
@@ -142,7 +190,7 @@ export default function InventoryPage() {
   function startCreate() {
     setSelectedId(null)
     setIsCreating(true)
-    setForm(emptyForm())
+    setForm({ ...emptyForm(), category: categories[0]?.value ?? '' })
   }
 
   async function handleSave() {
@@ -195,7 +243,7 @@ export default function InventoryPage() {
     })
     const data = await r.json()
     if (!r.ok) return showToast(data.error, false)
-    showToast(`${delta > 0 ? '+' : ''}${delta} ${selected?.unit ?? ''}`)
+    showToast(`${delta > 0 ? '+' : ''}${delta} ${selected ? unitLabel(selected.unit, lang) : ''}`)
     setAdjustNote('')
     await fetchAll()
     setAdjustments(data.adjustments ?? [])
@@ -258,7 +306,7 @@ export default function InventoryPage() {
                 onClick={() => selectItem(i)}
                 className={`text-xs rounded-full px-3 py-1 border font-semibold whitespace-nowrap transition hover:opacity-80 ${STATUS_COLOR[stockStatus(i)]}`}
               >
-                {i.name} ({i.currentStock} {i.unit})
+                {i.name} ({i.currentStock} {unitLabel(i.unit, lang)})
               </button>
             ))}
           </div>
@@ -282,8 +330,8 @@ export default function InventoryPage() {
           </div>
 
           {/* Category filter */}
-          <div className="px-3 pb-2 border-b border-gray-200 flex flex-wrap gap-1 pt-2">
-            {(['all', 'low', ...CATEGORIES] as const).map(c => (
+          <div className="px-3 pb-2 border-b border-gray-200 flex flex-wrap items-center gap-1 pt-2">
+            {['all', 'low', ...categories.map(c => c.value)].map(c => (
               <button
                 key={c}
                 onClick={() => setCatFilter(c)}
@@ -293,9 +341,15 @@ export default function InventoryPage() {
                     : 'bg-stone-100 text-stone-600 hover:bg-stone-200'
                 }`}
               >
-                {c === 'all' ? tr('all') : c === 'low' ? `⚠ ${tr('invLow')} (${lowItems.length})` : CATEGORY_LABELS[c].split(' ')[1]}
+                {c === 'all' ? tr('all') : c === 'low' ? `${tr('invLow')} (${lowItems.length})` : catLabel(c)}
               </button>
             ))}
+            <button
+              onClick={() => setShowCatManager(true)}
+              className="text-xs px-2.5 py-1 rounded-full font-semibold border border-dashed border-gray-300 text-gray-400 hover:text-gray-700 hover:border-gray-400 transition"
+            >
+              + {tr('invManageCats')}
+            </button>
           </div>
 
           {/* List */}
@@ -318,11 +372,11 @@ export default function InventoryPage() {
                     <div className="flex items-center justify-between mb-1">
                       <span className="font-semibold text-sm truncate pr-2">{item.name}</span>
                       <span className={`text-xs font-bold px-2 py-0.5 rounded-full border shrink-0 ${STATUS_COLOR[st]}`}>
-                        {item.currentStock}{' '}{item.unit}
+                        {item.currentStock}{' '}{unitLabel(item.unit, lang)}
                       </span>
                     </div>
                     <StockBar item={item} />
-                    <p className="text-xs text-gray-400 mt-1">{CATEGORY_LABELS[item.category]} · min {item.lowStockThreshold}</p>
+                    <p className="text-xs text-gray-400 mt-1">{catLabel(item.category)} · min {item.lowStockThreshold}</p>
                   </button>
                 )
               })
@@ -346,7 +400,7 @@ export default function InventoryPage() {
                 <h2 className="text-xl font-bold">{isCreating ? 'New Item' : selected?.name}</h2>
                 {!isCreating && selected && (
                   <p className="text-sm text-gray-500 mt-0.5">
-                    {CATEGORY_LABELS[selected.category]} · {selected.unit}
+                    {catLabel(selected.category)} · {unitLabel(selected.unit, lang)}
                     {selected.costPerUnit ? ` · ${baht(selected.costPerUnit)}/unit` : ''}
                   </p>
                 )}
@@ -366,7 +420,7 @@ export default function InventoryPage() {
                 <div className="grid grid-cols-3 gap-3">
                   <div className={`col-span-1 rounded-2xl border p-4 text-center ${STATUS_COLOR[st]}`}>
                     <p className="text-3xl font-black">{selected.currentStock}</p>
-                    <p className="text-xs mt-1 opacity-70">{selected.unit} on hand</p>
+                    <p className="text-xs mt-1 opacity-70">{unitLabel(selected.unit, lang)} on hand</p>
                   </div>
                   <div className="bg-white border border-gray-200 rounded-2xl p-4 text-center">
                     <p className="text-3xl font-black text-gray-600">{selected.lowStockThreshold}</p>
@@ -479,17 +533,18 @@ export default function InventoryPage() {
                   <label className="text-xs text-gray-500 mb-1 block">{tr('fInvUnit')}</label>
                   <select value={form.unit} onChange={e => setForm(f => ({ ...f, unit: e.target.value }))}
                     className="w-full bg-gray-100 border border-gray-200 rounded-xl px-3 py-2.5 text-sm text-gray-900 outline-none focus:border-amber-500/60 transition">
-                    {['bottle', 'can', 'pcs', 'kg', 'liter', 'portion', 'bag', 'box'].map(u => (
-                      <option key={u} value={u}>{u}</option>
+                    {UNITS.map(u => (
+                      <option key={u} value={u}>{unitLabel(u, lang)}</option>
                     ))}
                   </select>
                 </div>
                 <div>
                   <label className="text-xs text-gray-500 mb-1 block">{tr('fInvCategory')}</label>
-                  <select value={form.category} onChange={e => setForm(f => ({ ...f, category: e.target.value as InventoryCategory }))}
+                  <select value={form.category} onChange={e => setForm(f => ({ ...f, category: e.target.value }))}
                     className="w-full bg-gray-100 border border-gray-200 rounded-xl px-3 py-2.5 text-sm text-gray-900 outline-none focus:border-amber-500/60 transition">
-                    {CATEGORIES.map(c => (
-                      <option key={c} value={c}>{CATEGORY_LABELS[c]}</option>
+                    {categories.length === 0 && <option value="">—</option>}
+                    {categories.map(c => (
+                      <option key={c.value} value={c.value}>{c.label}</option>
                     ))}
                   </select>
                 </div>
@@ -556,21 +611,65 @@ export default function InventoryPage() {
         )}
       </div>
 
+      {/* Category Manager — add / delete stock categories (like Items Categories) */}
+      {showCatManager && (
+        <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4" onClick={() => setShowCatManager(false)}>
+          <div className="bg-white rounded-2xl w-full max-w-sm shadow-2xl overflow-hidden flex flex-col" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
+              <h2 className="font-bold text-gray-900">{tr('invManageCats')}</h2>
+              <button onClick={() => setShowCatManager(false)} className="text-gray-400 hover:text-gray-700 text-xl leading-none">✕</button>
+            </div>
+            <div className="p-5 flex flex-col gap-3 max-h-[60vh] overflow-y-auto">
+              {categories.length === 0 ? (
+                <p className="text-sm text-gray-400 text-center py-4">{tr('invNoCats')}</p>
+              ) : (
+                <div className="flex flex-col gap-1.5">
+                  {categories.map(c => (
+                    <div key={c.value} className="flex items-center justify-between bg-gray-50 border border-gray-100 rounded-xl px-3 py-2">
+                      <span className="text-sm font-semibold text-gray-700">{c.label}</span>
+                      <button onClick={() => removeCategory(c.value)} className="text-gray-300 hover:text-red-500 text-lg leading-none px-1" title="Delete">✕</button>
+                    </div>
+                  ))}
+                </div>
+              )}
+              <div className="flex gap-2 pt-1">
+                <input
+                  value={newCatName}
+                  onChange={e => setNewCatName(e.target.value)}
+                  onKeyDown={e => { if (e.key === 'Enter') addCategory() }}
+                  placeholder={tr('invNewCatPh')}
+                  className="flex-1 bg-gray-100 border border-gray-200 rounded-xl px-3 py-2 text-sm text-gray-900 outline-none focus:border-amber-500/60 transition"
+                />
+                <button onClick={addCategory} disabled={!newCatName.trim()}
+                  className="px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-black font-bold text-sm transition active:scale-95 disabled:opacity-40">
+                  {tr('invAddCat')}
+                </button>
+              </div>
+            </div>
+            <div className="px-5 py-3 border-t border-gray-100">
+              <button onClick={() => setShowCatManager(false)} className="w-full py-2.5 rounded-xl bg-stone-900 text-white font-bold text-sm transition active:scale-95">
+                {tr('invDone')}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* NumPads */}
       {numPadTarget === 'add' && (
-        <NumPad label={`Restock ${selected?.name ?? ''}`} value={numPadVal} onChange={setNumPadVal} allowDecimal={false} suffix={selected?.unit ?? ''}
+        <NumPad label={`Restock ${selected?.name ?? ''}`} value={numPadVal} onChange={setNumPadVal} allowDecimal={false} suffix={selected ? unitLabel(selected.unit, lang) : ''}
           onClose={() => { setNumPadTarget(null); const n = parseInt(numPadVal); if (n > 0) doAdjust(+n, 'restock') }} />
       )}
       {numPadTarget === 'remove' && (
-        <NumPad label={`Remove ${selected?.name ?? ''}`} value={numPadVal} onChange={setNumPadVal} allowDecimal={false} suffix={selected?.unit ?? ''}
+        <NumPad label={`Remove ${selected?.name ?? ''}`} value={numPadVal} onChange={setNumPadVal} allowDecimal={false} suffix={selected ? unitLabel(selected.unit, lang) : ''}
           onClose={() => { setNumPadTarget(null); const n = parseInt(numPadVal); if (n > 0) doAdjust(-n, 'manual') }} />
       )}
       {numPadTarget === 'stock' && (
-        <NumPad label="Current Stock" value={numPadVal} onChange={v => { setNumPadVal(v); setForm(f => ({ ...f, currentStock: v })) }} allowDecimal={false} suffix={form.unit}
+        <NumPad label="Current Stock" value={numPadVal} onChange={v => { setNumPadVal(v); setForm(f => ({ ...f, currentStock: v })) }} allowDecimal={false} suffix={unitLabel(form.unit, lang)}
           onClose={() => setNumPadTarget(null)} />
       )}
       {numPadTarget === 'threshold' && (
-        <NumPad label="Alert Threshold" value={numPadVal} onChange={v => { setNumPadVal(v); setForm(f => ({ ...f, lowStockThreshold: v })) }} allowDecimal={false} suffix={form.unit}
+        <NumPad label="Alert Threshold" value={numPadVal} onChange={v => { setNumPadVal(v); setForm(f => ({ ...f, lowStockThreshold: v })) }} allowDecimal={false} suffix={unitLabel(form.unit, lang)}
           onClose={() => setNumPadTarget(null)} />
       )}
       {numPadTarget === 'cost' && (

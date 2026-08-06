@@ -186,6 +186,12 @@ const DICT = {
   invExportCSV:      { en: 'Export CSV',      th: 'ส่งออก CSV' },
   invAddItem:        { en: 'Add Item',        th: 'เพิ่มสินค้า' },
   invLowStockLabel:  { en: 'Low stock:',      th: 'ใกล้หมด:' },
+  invManageCats:     { en: 'Manage categories', th: 'จัดการหมวดหมู่' },
+  invCategories:     { en: 'Categories',      th: 'หมวดหมู่' },
+  invNewCatPh:       { en: 'New category name', th: 'ชื่อหมวดหมู่ใหม่' },
+  invAddCat:         { en: 'Add',             th: 'เพิ่ม' },
+  invNoCats:         { en: 'No categories yet — add one below.', th: 'ยังไม่มีหมวดหมู่ — เพิ่มด้านล่าง' },
+  invDone:           { en: 'Done',            th: 'เสร็จสิ้น' },
 
   // ── Common: export / add generic ──
   exportCSV:  { en: 'Export CSV', th: 'ส่งออก CSV' },
