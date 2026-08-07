@@ -7,6 +7,7 @@ import { useAuth } from '@/lib/pos-auth'
 import { type CatEntry, loadAllCategories, fetchCategories, persistCategories } from '@/lib/categories'
 import { AI_NAME } from '@/lib/ai-brand'
 import { usePosLang } from '@/lib/pos-i18n'
+import { SkeletonList } from '@/components/pos/Skeleton'
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -271,6 +272,7 @@ export default function ItemsPage() {
 
   const [tab, setTab] = useState<Tab>('items')
   const [items, setItems] = useState<MenuItem[]>([])
+  const [itemsLoading, setItemsLoading] = useState(true)
   const [filterCat, setFilterCat] = useState<string>('all')
 
   // All categories — one fully editable, reorderable, deletable list. Canonical
@@ -351,10 +353,14 @@ export default function ItemsPage() {
   const [applyingId, setApplyingId]       = useState<string | null>(null)
 
   const fetchMenu = useCallback(async () => {
-    const r = await fetch('/api/menu')
-    if (r.ok) {
-      const d = await r.json()
-      setItems(d.menu ?? [])
+    try {
+      const r = await fetch('/api/menu')
+      if (r.ok) {
+        const d = await r.json()
+        setItems(d.menu ?? [])
+      }
+    } finally {
+      setItemsLoading(false)
     }
   }, [])
 
@@ -746,7 +752,9 @@ export default function ItemsPage() {
 
             {/* Item list */}
             <div className="flex-1 overflow-y-auto">
-              {filtered.length === 0 ? (
+              {itemsLoading ? (
+                <div className="p-3"><SkeletonList rows={7} /></div>
+              ) : filtered.length === 0 ? (
                 <div className="text-center text-gray-300 text-sm py-10">No items found</div>
               ) : (
                 filtered.map((item) => {

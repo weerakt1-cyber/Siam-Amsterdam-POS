@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import type { UserRole } from '@/lib/types'
 import { usePosLang } from '@/lib/pos-i18n'
+import { SkeletonList } from '@/components/pos/Skeleton'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -681,9 +682,7 @@ export default function UsersPage() {
             {/* Staff list */}
             <div className="flex-1 overflow-y-auto pb-2">
               {loading ? (
-                Array(4).fill(0).map((_, i) => (
-                  <div key={i} className="mx-3 my-1 h-14 bg-gray-100 rounded-xl animate-pulse" />
-                ))
+                <div className="p-3"><SkeletonList rows={5} /></div>
               ) : users.length === 0 ? (
                 <p className="text-center text-gray-400 text-sm mt-8">ยังไม่มี User</p>
               ) : (
