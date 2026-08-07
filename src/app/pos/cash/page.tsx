@@ -6,6 +6,7 @@ import NumPad from '@/components/pos/NumPad'
 import { generateDailyReportPDF } from '@/lib/pdf-report'
 import { usePosLang } from '@/lib/pos-i18n'
 import { printReceipt, loadBarSettings, type ReceiptData } from '@/lib/printer'
+import { Skeleton, SkeletonList } from '@/components/pos/Skeleton'
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -418,7 +419,18 @@ export default function CashPage() {
       {/* Body */}
       <div className="flex-1 overflow-y-auto">
         {isLoading ? (
-          <div className="flex items-center justify-center h-32 text-stone-400">{t('loading')}</div>
+          <div className="p-5 grid grid-cols-2 gap-5 max-w-4xl">
+            <div className="flex flex-col gap-3">
+              <Skeleton className="h-6 w-32" />
+              <SkeletonList rows={4} avatar={false} />
+              <Skeleton className="h-6 w-32 mt-2" />
+              <SkeletonList rows={3} avatar={false} />
+            </div>
+            <div className="flex flex-col gap-3">
+              <Skeleton className="h-6 w-24" />
+              <SkeletonList rows={6} avatar={false} />
+            </div>
+          </div>
         ) : (
           <div className="p-5 grid grid-cols-2 gap-5 max-w-4xl">
 

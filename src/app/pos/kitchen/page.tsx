@@ -244,8 +244,18 @@ export default function KitchenPage() {
 
   if (loading) {
     return (
-      <div className="flex-1 bg-gray-950 flex items-center justify-center">
-        <div className="text-4xl animate-pulse">🍳</div>
+      <div className="flex-1 bg-gray-950 text-white flex flex-col overflow-hidden">
+        <div className="flex items-center gap-3 px-4 py-3 border-b border-white/10 shrink-0">
+          <div className="h-6 w-40 bg-white/10 rounded-lg animate-pulse" />
+        </div>
+        <div className="flex-1 grid grid-cols-2 md:grid-cols-3 gap-3 p-4">
+          {[0, 1, 2].map(col => (
+            <div key={col} className="flex flex-col gap-3">
+              <div className="h-7 w-28 bg-white/10 rounded-lg animate-pulse" />
+              {[0, 1, 2].map(i => <div key={i} className="h-24 bg-white/5 rounded-2xl animate-pulse" />)}
+            </div>
+          ))}
+        </div>
       </div>
     )
   }

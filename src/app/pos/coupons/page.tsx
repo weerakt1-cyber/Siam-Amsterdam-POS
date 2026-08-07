@@ -5,6 +5,7 @@ import type { Coupon, CouponUse, CouponType } from '@/lib/types'
 import NumPad from '@/components/pos/NumPad'
 import PromotionsManager from '@/components/pos/PromotionsManager'
 import { usePosLang } from '@/lib/pos-i18n'
+import { SkeletonList } from '@/components/pos/Skeleton'
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -59,6 +60,7 @@ export default function CouponsPage() {
   const { t } = usePosLang()
   const [tab, setTab] = useState<'coupons' | 'promotions'>('coupons')
   const [coupons, setCoupons] = useState<Coupon[]>([])
+  const [loading, setLoading] = useState(true)
   const [uses, setUses] = useState<CouponUse[]>([])
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [isCreating, setIsCreating] = useState(false)
@@ -75,8 +77,12 @@ export default function CouponsPage() {
   const [testResult, setTestResult] = useState<{ ok: boolean; msg: string } | null>(null)
 
   const fetchAll = useCallback(async () => {
-    const r = await fetch('/api/coupons').then(res => res.json())
-    setCoupons(r.coupons ?? [])
+    try {
+      const r = await fetch('/api/coupons').then(res => res.json())
+      setCoupons(r.coupons ?? [])
+    } finally {
+      setLoading(false)
+    }
   }, [])
 
   useEffect(() => { fetchAll() }, [fetchAll])
@@ -263,7 +269,9 @@ export default function CouponsPage() {
           </div>
 
           <div className="flex-1 overflow-y-auto">
-            {filtered.length === 0 ? (
+            {loading ? (
+              <div className="p-3"><SkeletonList rows={6} avatar={false} /></div>
+            ) : filtered.length === 0 ? (
               <div className="flex flex-col items-center justify-center h-24 text-gray-300 text-sm">
                 <p>{t('cpNoCoupons')}</p>
               </div>
