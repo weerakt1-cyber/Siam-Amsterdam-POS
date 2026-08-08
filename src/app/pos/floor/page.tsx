@@ -4,6 +4,7 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { useAuth } from '@/lib/pos-auth'
 import { type TableTile, DEFAULT_TILES, loadFloorTiles, saveFloorTiles } from '@/lib/floor'
+import { pushFloorTiles } from '@/lib/settings-sync'
 import { usePosLang } from '@/lib/pos-i18n'
 import PosIcon from '@/components/pos/PosIcon'
 
@@ -168,7 +169,8 @@ export default function FloorPage() {
   // ── Layout persistence ──────────────────────────────────────────────────────
 
   function saveLayout() {
-    saveFloorTiles(tiles)
+    saveFloorTiles(tiles)        // local cache (synchronous)
+    pushFloorTiles(tiles)        // persist server-side so tables survive reinstall/new device
     setSaved(true)
     setTimeout(() => setSaved(false), 2000)
   }
@@ -177,6 +179,7 @@ export default function FloorPage() {
     if (!confirm('รีเซ็ตผังโต๊ะเป็นค่าเริ่มต้น?\nการเปลี่ยนแปลงทั้งหมดจะหายไป')) return
     setTiles(DEFAULT_TILES)
     saveFloorTiles(DEFAULT_TILES)
+    pushFloorTiles(DEFAULT_TILES)
     setSelectedId(null)
   }
 

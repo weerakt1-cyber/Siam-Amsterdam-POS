@@ -11,6 +11,7 @@ import {
   printReceipt, openCashDrawer, isNativePlatform,
   type BarSettings, type PrinterDevice, type ReceiptTemplate,
 } from '@/lib/printer'
+import { pushBarSettings } from '@/lib/settings-sync'
 import { useBluetooth, bluetoothManager } from '@/lib/bluetooth-manager'
 import { OwnerProfileBadge } from '@/components/pos/GoogleAuthGuard'
 import { AI_NAME, APP_VERSION } from '@/lib/ai-brand'
@@ -414,7 +415,14 @@ export default function SettingsPage() {
     if ((cfg0.printerConnectionType ?? 'bluetooth') === 'bluetooth') {
       bluetoothManager.autoConnectOnStartup().catch(() => {})
     }
-    return () => { bluetoothManager.stopScan() }
+    // If the server hydration lands after this page has mounted, re-read the
+    // freshly-cached settings so the form shows the persisted values.
+    const onHydrated = () => setCfg(loadBarSettings())
+    window.addEventListener('pos-settings-changed', onHydrated)
+    return () => {
+      bluetoothManager.stopScan()
+      window.removeEventListener('pos-settings-changed', onHydrated)
+    }
   }, [])
 
   // Keep the "Saved" device label in sync whenever the manager connects.
@@ -475,7 +483,8 @@ export default function SettingsPage() {
 
   function saveCfg() {
     if (!cfg) return
-    saveBarSettings(cfg)
+    saveBarSettings(cfg)   // local cache (synchronous)
+    pushBarSettings(cfg)   // persist server-side so a reinstall/new device keeps it
     setCfgSaved(true)
     window.dispatchEvent(new CustomEvent('pos-settings-changed'))
     setTimeout(() => setCfgSaved(false), 2500)
