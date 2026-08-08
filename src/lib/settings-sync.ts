@@ -45,21 +45,33 @@ export async function hydrateSettingsFromServer(): Promise<void> {
   }
 }
 
-// Write-through helpers. Fire-and-forget: localStorage is already updated by the
-// caller, so a failed sync just means the server misses this edit until the next
-// save — it never blocks the UI. Requires admin/manager (enforced server-side).
-export function pushBarSettings(s: BarSettings): void {
-  void authedFetch('/api/settings', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ barSettings: s }),
-  }).catch(() => { /* offline — retried on next save */ })
+// Write-through helpers. localStorage is already updated by the caller, so the
+// UI never blocks on these. They resolve to `true` only when the server actually
+// persisted the change — so the caller can warn instead of showing a false
+// "Saved" if the write is rejected (e.g. 401/403 when the session isn't an
+// admin, or the server is misconfigured). Requires admin/manager server-side.
+async function pushSettings(payload: Record<string, unknown>): Promise<boolean> {
+  try {
+    const r = await authedFetch('/api/settings', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    })
+    if (!r.ok) {
+      console.error(`[settings] server rejected save: HTTP ${r.status}`)
+      return false
+    }
+    return true
+  } catch (err) {
+    console.error('[settings] save request failed', err)
+    return false   // offline — cache stands; next save retries
+  }
 }
 
-export function pushFloorTiles(tiles: TableTile[]): void {
-  void authedFetch('/api/settings', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ floorTiles: tiles }),
-  }).catch(() => { /* offline — retried on next save */ })
+export function pushBarSettings(s: BarSettings): Promise<boolean> {
+  return pushSettings({ barSettings: s })
+}
+
+export function pushFloorTiles(tiles: TableTile[]): Promise<boolean> {
+  return pushSettings({ floorTiles: tiles })
 }

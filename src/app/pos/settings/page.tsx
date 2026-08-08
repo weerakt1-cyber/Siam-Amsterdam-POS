@@ -484,10 +484,15 @@ export default function SettingsPage() {
   function saveCfg() {
     if (!cfg) return
     saveBarSettings(cfg)   // local cache (synchronous)
-    pushBarSettings(cfg)   // persist server-side so a reinstall/new device keeps it
     setCfgSaved(true)
     window.dispatchEvent(new CustomEvent('pos-settings-changed'))
     setTimeout(() => setCfgSaved(false), 2500)
+    // Persist server-side so a reinstall/new device keeps it. Warn if the server
+    // rejected the write (e.g. not signed in as admin) instead of silently
+    // leaving it device-only.
+    pushBarSettings(cfg).then(ok => {
+      if (!ok) alert(tr('saveServerFailed'))
+    })
   }
 
   function handleLogoUpload(e: React.ChangeEvent<HTMLInputElement>) {

@@ -170,16 +170,18 @@ export default function FloorPage() {
 
   function saveLayout() {
     saveFloorTiles(tiles)        // local cache (synchronous)
-    pushFloorTiles(tiles)        // persist server-side so tables survive reinstall/new device
     setSaved(true)
     setTimeout(() => setSaved(false), 2000)
+    // Persist server-side so tables survive reinstall/new device; warn if the
+    // server rejected it instead of silently leaving it device-only.
+    pushFloorTiles(tiles).then(ok => { if (!ok) alert(t('saveServerFailed')) })
   }
 
   function resetLayout() {
     if (!confirm('รีเซ็ตผังโต๊ะเป็นค่าเริ่มต้น?\nการเปลี่ยนแปลงทั้งหมดจะหายไป')) return
     setTiles(DEFAULT_TILES)
     saveFloorTiles(DEFAULT_TILES)
-    pushFloorTiles(DEFAULT_TILES)
+    pushFloorTiles(DEFAULT_TILES).then(ok => { if (!ok) alert(t('saveServerFailed')) })
     setSelectedId(null)
   }
 
