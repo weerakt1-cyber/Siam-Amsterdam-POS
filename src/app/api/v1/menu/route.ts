@@ -8,6 +8,7 @@ export async function GET(req: NextRequest) {
   const key = await validateApiKey(req)
   if (!key) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  const menu = await getMenu()
+  // External key is scoped to its own store.
+  const menu = await getMenu(key.store_id ?? undefined)
   return NextResponse.json({ menu: menu.filter(m => m.available) })
 }

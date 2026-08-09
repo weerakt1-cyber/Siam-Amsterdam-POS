@@ -183,10 +183,33 @@ function mapCategory(row: Record<string, unknown>): CatEntry {
   }
 }
 
-export async function getCategories(): Promise<CatEntry[]> {
+// ─── Store context (multi-tenant) ───────────────────────────────────────────
+// Tenant-scoped queries take a storeId. Callers that can't yet resolve one
+// (public customer order page, internal cross-calls during single-tenant
+// operation) may omit it, and it falls back to the ONE existing store. As soon
+// as a 2nd store is created this returns null and requireStoreId() throws —
+// fail-safe: a forgotten filter can never silently serve another store's data.
+let _soleStore: { id: string | null; at: number } | null = null
+export async function getSoleStoreId(): Promise<string | null> {
+  if (_soleStore && Date.now() - _soleStore.at < 30_000) return _soleStore.id
+  const { data, error } = await supabase.from('stores').select('id').limit(2)
+  const id = (!error && data && data.length === 1) ? (data[0].id as string) : null
+  _soleStore = { id, at: Date.now() }
+  return id
+}
+
+async function requireStoreId(storeId?: string): Promise<string> {
+  const sid = storeId ?? (await getSoleStoreId())
+  if (!sid) throw new Error('storeId is required (multiple stores exist — resolve the caller\'s store)')
+  return sid
+}
+
+export async function getCategories(storeId?: string): Promise<CatEntry[]> {
+  const sid = await requireStoreId(storeId)
   const { data, error } = await supabase
     .from('categories')
     .select('*')
+    .eq('store_id', sid)
     .order('sort_order', { ascending: true })
   if (error) throw error
   return (data ?? []).map(mapCategory)
@@ -216,12 +239,15 @@ export async function setConfig(key: string, value: string): Promise<void> {
 
 // Full-replace semantics — matches how the Categories manager already mutates
 // the whole array client-side (add/delete/reorder), so persisting is one shot.
-export async function saveCategories(cats: CatEntry[]): Promise<CatEntry[]> {
-  const { error: delErr } = await supabase.from('categories').delete().neq('value', '__none__')
+export async function saveCategories(cats: CatEntry[], storeId?: string): Promise<CatEntry[]> {
+  const sid = await requireStoreId(storeId)
+  // Scope the wipe to THIS store — a global delete would erase other stores'
+  // categories on every save.
+  const { error: delErr } = await supabase.from('categories').delete().eq('store_id', sid)
   if (delErr) throw delErr
   if (cats.length === 0) return []
   const rows = cats.map((c, i) => ({
-    value: c.value, label: c.label, color: c.color, icon: c.icon ?? null, sort_order: i,
+    value: c.value, label: c.label, color: c.color, icon: c.icon ?? null, sort_order: i, store_id: sid,
   }))
   const { data, error } = await supabase.from('categories').insert(rows).select()
   if (error) throw error
@@ -232,21 +258,25 @@ export async function saveCategories(cats: CatEntry[]): Promise<CatEntry[]> {
 
 // ─── Menu ─────────────────────────────────────────────────────────────────────
 
-export async function getMenu(): Promise<MenuItem[]> {
+export async function getMenu(storeId?: string): Promise<MenuItem[]> {
+  const sid = await requireStoreId(storeId)
   const { data, error } = await supabase
     .from('menu_items')
     .select('*')
+    .eq('store_id', sid)
     .order('sort_order', { ascending: true })
     .order('name', { ascending: true })
   if (error) throw error
   return (data ?? []).map(mapMenuItem)
 }
 
-export async function createMenuItem(data: Omit<MenuItem, 'id'>): Promise<MenuItem> {
+export async function createMenuItem(data: Omit<MenuItem, 'id'>, storeId?: string): Promise<MenuItem> {
+  const sid = await requireStoreId(storeId)
   const { data: row, error } = await supabase
     .from('menu_items')
     .insert({
       id:          crypto.randomUUID(),
+      store_id:    sid,
       name:        data.name,
       name_th:     data.nameTh,
       price:       data.price,
@@ -267,7 +297,8 @@ export async function createMenuItem(data: Omit<MenuItem, 'id'>): Promise<MenuIt
   return mapMenuItem(row)
 }
 
-export async function updateMenuItem(id: string, data: Partial<Omit<MenuItem, 'id'>>): Promise<MenuItem | null> {
+export async function updateMenuItem(id: string, data: Partial<Omit<MenuItem, 'id'>>, storeId?: string): Promise<MenuItem | null> {
+  const sid = await requireStoreId(storeId)
   const update: Record<string, unknown> = {}
   if (data.name        !== undefined) update.name        = data.name
   if (data.nameTh      !== undefined) update.name_th     = data.nameTh
@@ -288,15 +319,21 @@ export async function updateMenuItem(id: string, data: Partial<Omit<MenuItem, 'i
     .from('menu_items')
     .update(update)
     .eq('id', id)
+    .eq('store_id', sid)   // can't edit another store's item
     .select()
     .single()
   if (error) return null
   return mapMenuItem(row)
 }
 
-export async function deleteMenuItem(id: string): Promise<boolean> {
-  const { error } = await supabase.from('menu_items').delete().eq('id', id)
-  return !error
+export async function deleteMenuItem(id: string, storeId?: string): Promise<boolean> {
+  const sid = await requireStoreId(storeId)
+  const { error, count } = await supabase
+    .from('menu_items')
+    .delete({ count: 'exact' })
+    .eq('id', id)
+    .eq('store_id', sid)   // can't delete another store's item
+  return !error && (count ?? 0) > 0
 }
 
 // ─── Orders ───────────────────────────────────────────────────────────────────

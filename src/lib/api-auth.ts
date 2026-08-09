@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabase } from './supabase'
+import { getSoleStoreId } from './store'
 
 // ─── Session role guard (for owner/manager-only endpoints) ────────────────────
 // The browser Supabase session lives in localStorage, so callers must send their
@@ -7,7 +8,7 @@ import { supabase } from './supabase'
 // and look up the caller's role in `profiles` — the tamper-proof source of truth
 // (the PIN staff-switcher role is client-only and cannot be trusted here).
 
-export type SessionProfile = { id: string; role: string; name: string }
+export type SessionProfile = { id: string; role: string; name: string; store_id: string | null }
 
 export async function getSessionProfile(req: NextRequest): Promise<SessionProfile | null> {
   const authz = req.headers.get('authorization') ?? ''
@@ -19,12 +20,30 @@ export async function getSessionProfile(req: NextRequest): Promise<SessionProfil
 
   const { data: profile } = await supabase
     .from('profiles')
-    .select('id, name, role')
+    .select('id, name, role, store_id')
     .eq('id', userData.user.id)
     .maybeSingle()
 
   if (!profile?.role) return null
-  return { id: profile.id as string, role: profile.role as string, name: profile.name as string }
+  return {
+    id:       profile.id as string,
+    role:     profile.role as string,
+    name:     profile.name as string,
+    store_id: (profile.store_id as string | null) ?? null,
+  }
+}
+
+/**
+ * Resolve which store a request belongs to, for tenant-scoped queries:
+ *   1. an authenticated staff session → that user's store, else
+ *   2. the sole existing store (single-tenant convenience for public/customer
+ *      and internal flows). Returns null once a 2nd store exists and the caller
+ *      isn't authenticated — callers must then treat it as a 400/401.
+ */
+export async function resolveStoreId(req: NextRequest): Promise<string | null> {
+  const profile = await getSessionProfile(req)
+  if (profile?.store_id) return profile.store_id
+  return await getSoleStoreId()
 }
 
 /**
@@ -60,6 +79,7 @@ export type ApiKeyRecord = {
   id: string
   label: string
   active: boolean
+  store_id: string | null
 }
 
 /**
@@ -74,7 +94,7 @@ export async function validateApiKey(req: NextRequest): Promise<ApiKeyRecord | n
 
   const { data, error } = await supabase
     .from('api_keys')
-    .select('id, label, active')
+    .select('id, label, active, store_id')
     .eq('key_hash', hash)
     .eq('active', true)
     .single()

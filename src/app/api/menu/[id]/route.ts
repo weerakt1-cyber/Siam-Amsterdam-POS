@@ -2,11 +2,14 @@ export const dynamic = "force-dynamic"
 
 import { NextRequest, NextResponse } from 'next/server'
 import { updateMenuItem, deleteMenuItem } from '@/lib/store'
+import { resolveStoreId } from '@/lib/api-auth'
 import type { MenuCategory } from '@/lib/types'
 
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const { id } = await params
+    const storeId = await resolveStoreId(req)
+    if (!storeId) return NextResponse.json({ error: 'Store context required' }, { status: 400 })
     const body = await req.json()
 
     const updated = await updateMenuItem(id, {
@@ -23,7 +26,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       ...(body.image       !== undefined && { image:       body.image || undefined }),
       ...(body.sortOrder   !== undefined && { sortOrder:   Number(body.sortOrder) }),
       ...(body.variants    !== undefined && { variants:    body.variants }),
-    })
+    }, storeId)
 
     if (!updated) return NextResponse.json({ error: 'Item not found' }, { status: 404 })
     return NextResponse.json({ item: updated })
@@ -32,9 +35,11 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   }
 }
 
-export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+export async function DELETE(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
-  const ok = await deleteMenuItem(id)
+  const storeId = await resolveStoreId(req)
+  if (!storeId) return NextResponse.json({ error: 'Store context required' }, { status: 400 })
+  const ok = await deleteMenuItem(id, storeId)
   if (!ok) return NextResponse.json({ error: 'Item not found' }, { status: 404 })
   return NextResponse.json({ ok: true })
 }

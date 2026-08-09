@@ -2,15 +2,21 @@
 
 import { NextRequest, NextResponse } from 'next/server'
 import { getMenu, createMenuItem, getCategories } from '@/lib/store'
+import { resolveStoreId } from '@/lib/api-auth'
 import type { MenuCategory } from '@/lib/types'
 
-export async function GET() {
-  const menu = await getMenu()
+export async function GET(req: NextRequest) {
+  const storeId = await resolveStoreId(req)
+  if (!storeId) return NextResponse.json({ error: 'Store context required' }, { status: 400 })
+  const menu = await getMenu(storeId)
   return NextResponse.json({ menu })
 }
 
 export async function POST(req: NextRequest) {
   try {
+    const storeId = await resolveStoreId(req)
+    if (!storeId) return NextResponse.json({ error: 'Store context required' }, { status: 400 })
+
     const body = await req.json()
     const { name, nameTh, price, category } = body
 
@@ -22,7 +28,7 @@ export async function POST(req: NextRequest) {
     // user-editable category list (Items → Categories), not a fixed enum, since
     // staff can add their own categories beyond the built-in defaults.
     if (category) {
-      const validCategories = (await getCategories()).map(c => c.value)
+      const validCategories = (await getCategories(storeId)).map(c => c.value)
       if (!validCategories.includes(category)) {
         return NextResponse.json(
           { error: `category must be one of: ${validCategories.join(', ')}` },
@@ -45,7 +51,7 @@ export async function POST(req: NextRequest) {
       image:       body.image ? String(body.image) : undefined,
       sortOrder:   body.sortOrder != null ? Number(body.sortOrder) : undefined,
       variants:    Array.isArray(body.variants) ? body.variants : [],
-    })
+    }, storeId)
 
     return NextResponse.json({ item }, { status: 201 })
   } catch {
