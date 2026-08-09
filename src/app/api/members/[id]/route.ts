@@ -2,12 +2,15 @@ export const dynamic = "force-dynamic"
 
 import { NextRequest, NextResponse } from 'next/server'
 import { getMember, updateMember, deleteMember } from '@/lib/store'
+import { resolveStoreId } from '@/lib/api-auth'
 import { getTier } from '@/lib/loyalty'
 import { sendTierUpgrade } from '@/lib/telegram'
 
-export async function GET(_: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
-  const member = await getMember(id)
+  const storeId = await resolveStoreId(req)
+  if (!storeId) return NextResponse.json({ error: 'Store context required' }, { status: 400 })
+  const member = await getMember(id, storeId)
   if (!member) return NextResponse.json({ error: 'Not found' }, { status: 404 })
   return NextResponse.json({ member })
 }
@@ -15,8 +18,10 @@ export async function GET(_: NextRequest, { params }: { params: Promise<{ id: st
 export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
   try {
+    const storeId = await resolveStoreId(req)
+    if (!storeId) return NextResponse.json({ error: 'Store context required' }, { status: 400 })
     const body = await req.json()
-    const updated = await updateMember(id, body)
+    const updated = await updateMember(id, body, storeId)
     if (!updated) return NextResponse.json({ error: 'Not found' }, { status: 404 })
     return NextResponse.json({ member: updated })
   } catch {
@@ -28,13 +33,15 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
   try {
+    const storeId = await resolveStoreId(req)
+    if (!storeId) return NextResponse.json({ error: 'Store context required' }, { status: 400 })
     const body = await req.json()
     const { pointsDelta } = body as { pointsDelta?: number }
     if (typeof pointsDelta !== 'number') {
       return NextResponse.json({ error: 'pointsDelta (number) is required' }, { status: 400 })
     }
 
-    const member = await getMember(id)
+    const member = await getMember(id, storeId)
     if (!member) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
     const prevTier      = member.tier
@@ -48,7 +55,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       points:         newPoints,
       lifetimePoints: newLifetime,
       tier:           newTier,
-    })
+    }, storeId)
     if (!updated) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
     if (newTier !== prevTier) {
@@ -61,9 +68,11 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   }
 }
 
-export async function DELETE(_: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+export async function DELETE(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
-  const ok = await deleteMember(id)
+  const storeId = await resolveStoreId(req)
+  if (!storeId) return NextResponse.json({ error: 'Store context required' }, { status: 400 })
+  const ok = await deleteMember(id, storeId)
   if (!ok) return NextResponse.json({ error: 'Not found' }, { status: 404 })
   return NextResponse.json({ ok: true })
 }

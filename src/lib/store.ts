@@ -480,27 +480,32 @@ export async function getOrdersByDate(date: string, storeId?: string): Promise<O
 
 // ─── Members ─────────────────────────────────────────────────────────────────
 
-export async function getMembers(): Promise<Member[]> {
+export async function getMembers(storeId?: string): Promise<Member[]> {
+  const sid = await requireStoreId(storeId)
   const { data, error } = await supabase
     .from('members')
     .select('*')
+    .eq('store_id', sid)
     .order('name', { ascending: true })
   if (error) throw error
   return (data ?? []).map(mapMember)
 }
 
-export async function getMember(id: string): Promise<Member | undefined> {
-  const { data, error } = await supabase.from('members').select('*').eq('id', id).single()
+export async function getMember(id: string, storeId?: string): Promise<Member | undefined> {
+  const sid = await requireStoreId(storeId)
+  const { data, error } = await supabase.from('members').select('*').eq('id', id).eq('store_id', sid).single()
   if (error || !data) return undefined
   return mapMember(data)
 }
 
-export async function createMember(data: Omit<Member, 'id' | 'createdAt' | 'updatedAt'>): Promise<Member> {
+export async function createMember(data: Omit<Member, 'id' | 'createdAt' | 'updatedAt'>, storeId?: string): Promise<Member> {
+  const sid = await requireStoreId(storeId)
   const ts = now()
   const { data: row, error } = await supabase
     .from('members')
     .insert({
       id:            crypto.randomUUID(),
+      store_id:      sid,
       name:          data.name,
       phone:         data.phone ?? null,
       contact:       data.contact ?? null,
@@ -520,7 +525,8 @@ export async function createMember(data: Omit<Member, 'id' | 'createdAt' | 'upda
   return mapMember(row)
 }
 
-export async function updateMember(id: string, data: Partial<Omit<Member, 'id' | 'createdAt'>>): Promise<Member | null> {
+export async function updateMember(id: string, data: Partial<Omit<Member, 'id' | 'createdAt'>>, storeId?: string): Promise<Member | null> {
+  const sid = await requireStoreId(storeId)
   const update: Record<string, unknown> = { updated_at: now() }
   if (data.name         !== undefined) update.name          = data.name
   if (data.phone        !== undefined) update.phone         = data.phone ?? null
@@ -534,14 +540,16 @@ export async function updateMember(id: string, data: Partial<Omit<Member, 'id' |
   if (data.stampsEarned   !== undefined) update.stamps_earned   = data.stampsEarned
 
   const { data: row, error } = await supabase
-    .from('members').update(update).eq('id', id).select().single()
+    .from('members').update(update).eq('id', id).eq('store_id', sid).select().single()
   if (error || !row) return null
   return mapMember(row)
 }
 
-export async function deleteMember(id: string): Promise<boolean> {
-  const { error } = await supabase.from('members').delete().eq('id', id)
-  return !error
+export async function deleteMember(id: string, storeId?: string): Promise<boolean> {
+  const sid = await requireStoreId(storeId)
+  const { error, count } = await supabase
+    .from('members').delete({ count: 'exact' }).eq('id', id).eq('store_id', sid)
+  return !error && (count ?? 0) > 0
 }
 
 // ─── Inventory ───────────────────────────────────────────────────────────────
