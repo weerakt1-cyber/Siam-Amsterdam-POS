@@ -972,8 +972,9 @@ export type { CouponType }
 
 export type PosUserPublic = Omit<PosUser, 'pin'>
 
-export async function getStaff(): Promise<PosUserPublic[]> {
-  const { data, error } = await supabase.from('staff').select('*').order('name', { ascending: true })
+export async function getStaff(storeId?: string): Promise<PosUserPublic[]> {
+  const sid = await requireStoreId(storeId)
+  const { data, error } = await supabase.from('staff').select('*').eq('store_id', sid).order('name', { ascending: true })
   if (error) throw error
   return (data ?? []).map(row => {
     const { pin: _p, ...pub } = mapStaff(row)
@@ -981,18 +982,21 @@ export async function getStaff(): Promise<PosUserPublic[]> {
   })
 }
 
-export async function getStaffMember(id: string): Promise<PosUser | undefined> {
-  const { data, error } = await supabase.from('staff').select('*').eq('id', id).single()
+export async function getStaffMember(id: string, storeId?: string): Promise<PosUser | undefined> {
+  const sid = await requireStoreId(storeId)
+  const { data, error } = await supabase.from('staff').select('*').eq('id', id).eq('store_id', sid).single()
   if (error || !data) return undefined
   return mapStaff(data)
 }
 
-export async function createStaffMember(data: Omit<PosUser, 'id' | 'createdAt' | 'updatedAt'>): Promise<PosUserPublic> {
+export async function createStaffMember(data: Omit<PosUser, 'id' | 'createdAt' | 'updatedAt'>, storeId?: string): Promise<PosUserPublic> {
+  const sid = await requireStoreId(storeId)
   const ts = now()
   const { data: row, error } = await supabase
     .from('staff')
     .insert({
       id:         crypto.randomUUID(),
+      store_id:   sid,
       name:       data.name,
       role:       data.role,
       pin:        await bcrypt.hash(data.pin, 10),
@@ -1007,7 +1011,8 @@ export async function createStaffMember(data: Omit<PosUser, 'id' | 'createdAt' |
   return pub
 }
 
-export async function updateStaffMember(id: string, data: Partial<Omit<PosUser, 'id' | 'createdAt'>>): Promise<PosUserPublic | null> {
+export async function updateStaffMember(id: string, data: Partial<Omit<PosUser, 'id' | 'createdAt'>>, storeId?: string): Promise<PosUserPublic | null> {
+  const sid = await requireStoreId(storeId)
   const update: Record<string, unknown> = { updated_at: now() }
   if (data.name  !== undefined) update.name  = data.name
   if (data.role  !== undefined) update.role  = data.role
@@ -1015,19 +1020,20 @@ export async function updateStaffMember(id: string, data: Partial<Omit<PosUser, 
   if (data.color !== undefined) update.color = data.color
 
   const { data: row, error } = await supabase
-    .from('staff').update(update).eq('id', id).select().single()
+    .from('staff').update(update).eq('id', id).eq('store_id', sid).select().single()
   if (error || !row) return null
   const { pin: _p, ...pub } = mapStaff(row)
   return pub
 }
 
-export async function deleteStaffMember(id: string): Promise<boolean> {
-  const { error } = await supabase.from('staff').delete().eq('id', id)
-  return !error
+export async function deleteStaffMember(id: string, storeId?: string): Promise<boolean> {
+  const sid = await requireStoreId(storeId)
+  const { error, count } = await supabase.from('staff').delete({ count: 'exact' }).eq('id', id).eq('store_id', sid)
+  return !error && (count ?? 0) > 0
 }
 
-export async function verifyStaffPin(id: string, pin: string): Promise<boolean> {
-  const user = await getStaffMember(id)
+export async function verifyStaffPin(id: string, pin: string, storeId?: string): Promise<boolean> {
+  const user = await getStaffMember(id, storeId)
   if (!user) return false
   // Support bcrypt hashes and legacy plaintext PINs
   if (user.pin.startsWith('$2')) return await bcrypt.compare(pin, user.pin)

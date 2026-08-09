@@ -2,10 +2,13 @@ export const dynamic = "force-dynamic"
 
 import { NextRequest, NextResponse } from 'next/server'
 import { getStaffMember, updateStaffMember, deleteStaffMember } from '@/lib/store'
+import { resolveStoreId } from '@/lib/api-auth'
 
-export async function GET(_: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
-  const user = await getStaffMember(id)
+  const storeId = await resolveStoreId(req)
+  if (!storeId) return NextResponse.json({ error: 'Store context required' }, { status: 400 })
+  const user = await getStaffMember(id, storeId)
   if (!user) return NextResponse.json({ error: 'Not found' }, { status: 404 })
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const { pin: _pin, ...pub } = user
@@ -15,12 +18,14 @@ export async function GET(_: NextRequest, { params }: { params: Promise<{ id: st
 export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
   try {
+    const storeId = await resolveStoreId(req)
+    if (!storeId) return NextResponse.json({ error: 'Store context required' }, { status: 400 })
     const body = await req.json()
     if (body.pin !== undefined && !/^\d{4}$/.test(String(body.pin))) {
       return NextResponse.json({ error: 'PIN must be exactly 4 digits' }, { status: 400 })
     }
     if (body.pin) body.pin = String(body.pin)
-    const updated = await updateStaffMember(id, body)
+    const updated = await updateStaffMember(id, body, storeId)
     if (!updated) return NextResponse.json({ error: 'Not found' }, { status: 404 })
     return NextResponse.json({ user: updated })
   } catch {
@@ -28,9 +33,11 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
   }
 }
 
-export async function DELETE(_: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+export async function DELETE(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
-  const ok = await deleteStaffMember(id)
+  const storeId = await resolveStoreId(req)
+  if (!storeId) return NextResponse.json({ error: 'Store context required' }, { status: 400 })
+  const ok = await deleteStaffMember(id, storeId)
   if (!ok) return NextResponse.json({ error: 'Not found' }, { status: 404 })
   return NextResponse.json({ ok: true })
 }
