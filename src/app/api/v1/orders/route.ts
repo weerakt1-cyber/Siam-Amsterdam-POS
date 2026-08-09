@@ -20,6 +20,7 @@ export async function GET(req: NextRequest) {
   let query = supabase
     .from('orders')
     .select('*, order_items(*)', { count: 'exact' })
+    .eq('store_id', key.store_id)   // external key is scoped to its own store
     .order('created_at', { ascending: false })
     .range(offset, offset + PAGE_SIZE - 1)
 

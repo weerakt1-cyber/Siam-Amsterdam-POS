@@ -2,6 +2,7 @@
 
 import { NextRequest, NextResponse } from 'next/server'
 import { getOrders, getMenu, createOrder, recordCouponUse } from '@/lib/store'
+import { resolveStoreId } from '@/lib/api-auth'
 import { appendOrderToSheet } from '@/lib/sheets'
 import { sendOrderAlert } from '@/lib/telegram'
 import { sendLineOrderAlert } from '@/lib/line'
@@ -10,13 +11,18 @@ import { fireWebhook } from '@/lib/webhooks'
 import { isDeliveryChannel, DELIVERY_CHANNELS } from '@/lib/delivery'
 import type { OrderItem } from '@/lib/types'
 
-export async function GET() {
-  const orders = await getOrders()
+export async function GET(req: NextRequest) {
+  const storeId = await resolveStoreId(req)
+  if (!storeId) return NextResponse.json({ error: 'Store context required' }, { status: 400 })
+  const orders = await getOrders(storeId)
   return NextResponse.json({ orders })
 }
 
 export async function POST(req: NextRequest) {
   try {
+    const storeId = await resolveStoreId(req)
+    if (!storeId) return NextResponse.json({ error: 'Store context required' }, { status: 400 })
+
     const body = await req.json()
     const { tableNo, items, note, source, paymentMethod, discount, memberName, customerName, couponId, couponOrderTotal, couponMemberName, hold, orderType, channel, platformCode, commissionRate } = body
 
@@ -31,7 +37,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'tableNo and items are required' }, { status: 400 })
     }
 
-    const menu = await getMenu()
+    const menu = await getMenu(storeId)
 
     // B-05: Validate required variants are provided
     for (const item of items as (Partial<OrderItem> & { menuId: string; variantLabel?: string })[]) {
@@ -70,7 +76,7 @@ export async function POST(req: NextRequest) {
       channel:       isDelivery ? channel : undefined,
       platformCode:  isDelivery && platformCode ? String(platformCode) : undefined,
       commissionRate: isDelivery && Number.isFinite(Number(commissionRate)) ? Number(commissionRate) : undefined,
-    })
+    }, storeId)
 
     // B-04: Atomic coupon recording â€” record in the same request as order creation
     if (couponId) {

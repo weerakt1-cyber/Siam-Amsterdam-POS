@@ -11,7 +11,7 @@ export async function GET(req: NextRequest) {
   const { searchParams } = req.nextUrl
   const date = searchParams.get('date') ?? new Date().toISOString().slice(0, 10)
 
-  const orders = await getOrdersByDate(date)
+  const orders = await getOrdersByDate(date, key.store_id ?? undefined)
   const paid   = orders.filter(o => o.status === 'paid')
 
   const revenue     = paid.reduce((s, o) => s + o.total, 0)

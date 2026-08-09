@@ -338,31 +338,37 @@ export async function deleteMenuItem(id: string, storeId?: string): Promise<bool
 
 // ─── Orders ───────────────────────────────────────────────────────────────────
 
-export async function getOrders(): Promise<Order[]> {
+export async function getOrders(storeId?: string): Promise<Order[]> {
+  const sid = await requireStoreId(storeId)
   const { data, error } = await supabase
     .from('orders')
     .select('*, order_items(*)')
+    .eq('store_id', sid)
     .order('created_at', { ascending: false })
   if (error) throw error
   return (data ?? []).map(mapOrder)
 }
 
-export async function getOrder(id: string): Promise<Order | undefined> {
+export async function getOrder(id: string, storeId?: string): Promise<Order | undefined> {
+  const sid = await requireStoreId(storeId)
   const { data, error } = await supabase
     .from('orders')
     .select('*, order_items(*)')
     .eq('id', id)
+    .eq('store_id', sid)   // can't read another store's order by id
     .single()
   if (error || !data) return undefined
   return mapOrder(data)
 }
 
 // Webhook idempotency lookup — has this platform order already been ingested?
-export async function getOrderByPlatformOrderId(platformOrderId: string): Promise<Order | undefined> {
+export async function getOrderByPlatformOrderId(platformOrderId: string, storeId?: string): Promise<Order | undefined> {
+  const sid = await requireStoreId(storeId)
   const { data, error } = await supabase
     .from('orders')
     .select('*, order_items(*)')
     .eq('platform_order_id', platformOrderId)
+    .eq('store_id', sid)
     .maybeSingle()
   if (error || !data) return undefined
   return mapOrder(data)
@@ -383,7 +389,8 @@ export async function createOrder(data: {
   platformCode?: string
   platformOrderId?: string
   commissionRate?: number
-}): Promise<Order> {
+}, storeId?: string): Promise<Order> {
+  const sid = await requireStoreId(storeId)
   const subtotal = data.items.reduce((s, i) => s + i.price * i.qty, 0)
   const total    = Math.max(0, subtotal - (data.discount?.amount ?? 0))
   const id       = makeId('ord')
@@ -395,6 +402,7 @@ export async function createOrder(data: {
 
   const { error: orderErr } = await supabase.from('orders').insert({
     id,
+    store_id:       sid,
     table_no:       data.tableNo,
     note:           data.note ?? '',
     status,
@@ -419,6 +427,7 @@ export async function createOrder(data: {
     const { error: itemsErr } = await supabase.from('order_items').insert(
       data.items.map(item => ({
         order_id:      id,
+        store_id:      sid,
         menu_id:       item.menuId,
         name:          item.name,
         name_th:       item.nameTh ?? '',
@@ -443,21 +452,25 @@ export async function createOrder(data: {
   }
 }
 
-export async function updateOrderStatus(id: string, status: OrderStatus, paymentMethod?: string): Promise<Order | null> {
+export async function updateOrderStatus(id: string, status: OrderStatus, paymentMethod?: string, storeId?: string): Promise<Order | null> {
+  const sid = await requireStoreId(storeId)
   const update: Record<string, unknown> = { status, updated_at: now() }
   if (paymentMethod) update.payment_method = paymentMethod
   const { error } = await supabase
     .from('orders')
     .update(update)
     .eq('id', id)
+    .eq('store_id', sid)   // can't change another store's order
   if (error) return null
-  return (await getOrder(id)) ?? null
+  return (await getOrder(id, sid)) ?? null
 }
 
-export async function getOrdersByDate(date: string): Promise<Order[]> {
+export async function getOrdersByDate(date: string, storeId?: string): Promise<Order[]> {
+  const sid = await requireStoreId(storeId)
   const { data, error } = await supabase
     .from('orders')
     .select('*, order_items(*)')
+    .eq('store_id', sid)
     .gte('created_at', `${date}T00:00:00`)
     .lt('created_at', `${date}T23:59:59.999`)
     .order('created_at', { ascending: false })

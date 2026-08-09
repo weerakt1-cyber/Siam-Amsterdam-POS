@@ -2,14 +2,17 @@ export const dynamic = "force-dynamic"
 
 import { NextRequest, NextResponse } from 'next/server'
 import { getOrder } from '@/lib/store'
+import { resolveStoreId } from '@/lib/api-auth'
 
 function baht(n: number) {
   return '฿' + new Intl.NumberFormat('en').format(Math.round(n))
 }
 
-export async function GET(_: NextRequest, { params }: { params: Promise<{ orderId: string }> }) {
+export async function GET(req: NextRequest, { params }: { params: Promise<{ orderId: string }> }) {
   const { orderId } = await params
-  const order = await getOrder(orderId)
+  const storeId = await resolveStoreId(req)
+  if (!storeId) return NextResponse.json({ error: 'Store context required' }, { status: 400 })
+  const order = await getOrder(orderId, storeId)
   if (!order) return NextResponse.json({ error: 'Order not found' }, { status: 404 })
 
   const now = new Date(order.createdAt)
