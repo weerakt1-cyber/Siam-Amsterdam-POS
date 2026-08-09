@@ -34,14 +34,22 @@ do $$
 declare
   t      text;
   store1 uuid := '00000000-0000-0000-0000-000000000001';
+  -- Only tables that actually exist in the live DB. (menu_ingredients from
+  -- migration 005 was never created in production, so it's omitted; the
+  -- to_regclass guard below also skips anything absent, just in case.)
   tbls   text[] := array[
     'orders','order_items','menu_items','categories','members',
     'inventory_items','stock_adjustments','daily_reports','coupons','coupon_uses',
-    'promotions','pos_users','staff','menu_ingredients','api_keys',
+    'promotions','pos_users','staff','api_keys',
     'webhook_configs','app_config','profiles'
   ];
 begin
   foreach t in array tbls loop
+    -- 0. skip tables that don't exist (keeps this migration robust/idempotent)
+    if to_regclass('public.' || t) is null then
+      raise notice 'skipping missing table %', t;
+      continue;
+    end if;
     -- 1. add nullable column (no-op if already there)
     execute format('alter table %I add column if not exists store_id uuid', t);
     -- 2. backfill existing rows to Store #1
