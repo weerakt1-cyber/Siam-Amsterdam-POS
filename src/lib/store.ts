@@ -554,10 +554,12 @@ export async function deleteMember(id: string, storeId?: string): Promise<boolea
 
 // ─── Inventory ───────────────────────────────────────────────────────────────
 
-export async function getInventory(): Promise<InventoryItem[]> {
+export async function getInventory(storeId?: string): Promise<InventoryItem[]> {
+  const sid = await requireStoreId(storeId)
   const { data, error } = await supabase
     .from('inventory_items')
     .select('*')
+    .eq('store_id', sid)
     .order('name', { ascending: true })
   if (error) throw error
   const items = (data ?? []).map(mapInventoryItem)
@@ -570,18 +572,21 @@ export async function getInventory(): Promise<InventoryItem[]> {
   })
 }
 
-export async function getInventoryItem(id: string): Promise<InventoryItem | undefined> {
-  const { data, error } = await supabase.from('inventory_items').select('*').eq('id', id).single()
+export async function getInventoryItem(id: string, storeId?: string): Promise<InventoryItem | undefined> {
+  const sid = await requireStoreId(storeId)
+  const { data, error } = await supabase.from('inventory_items').select('*').eq('id', id).eq('store_id', sid).single()
   if (error || !data) return undefined
   return mapInventoryItem(data)
 }
 
-export async function createInventoryItem(data: Omit<InventoryItem, 'id' | 'createdAt' | 'updatedAt'>): Promise<InventoryItem> {
+export async function createInventoryItem(data: Omit<InventoryItem, 'id' | 'createdAt' | 'updatedAt'>, storeId?: string): Promise<InventoryItem> {
+  const sid = await requireStoreId(storeId)
   const ts = now()
   const { data: row, error } = await supabase
     .from('inventory_items')
     .insert({
       id:                  crypto.randomUUID(),
+      store_id:            sid,
       name:                data.name,
       unit:                data.unit,
       category:            data.category,
@@ -598,7 +603,8 @@ export async function createInventoryItem(data: Omit<InventoryItem, 'id' | 'crea
   return mapInventoryItem(row)
 }
 
-export async function updateInventoryItem(id: string, data: Partial<Omit<InventoryItem, 'id' | 'createdAt'>>): Promise<InventoryItem | null> {
+export async function updateInventoryItem(id: string, data: Partial<Omit<InventoryItem, 'id' | 'createdAt'>>, storeId?: string): Promise<InventoryItem | null> {
+  const sid = await requireStoreId(storeId)
   const update: Record<string, unknown> = { updated_at: now() }
   if (data.name               !== undefined) update.name                = data.name
   if (data.unit               !== undefined) update.unit                = data.unit
@@ -609,26 +615,30 @@ export async function updateInventoryItem(id: string, data: Partial<Omit<Invento
   if (data.notes              !== undefined) update.notes               = data.notes ?? null
 
   const { data: row, error } = await supabase
-    .from('inventory_items').update(update).eq('id', id).select().single()
+    .from('inventory_items').update(update).eq('id', id).eq('store_id', sid).select().single()
   if (error || !row) return null
   return mapInventoryItem(row)
 }
 
-export async function deleteInventoryItem(id: string): Promise<boolean> {
-  const { error } = await supabase.from('inventory_items').delete().eq('id', id)
-  return !error
+export async function deleteInventoryItem(id: string, storeId?: string): Promise<boolean> {
+  const sid = await requireStoreId(storeId)
+  const { error, count } = await supabase
+    .from('inventory_items').delete({ count: 'exact' }).eq('id', id).eq('store_id', sid)
+  return !error && (count ?? 0) > 0
 }
 
 // บันทึกการปรับสต็อก + อัปเดตยอดคงเหลือ
-export async function adjustStock(itemId: string, delta: number, reason: AdjustReason, note?: string): Promise<InventoryItem | null> {
-  const item = await getInventoryItem(itemId)
+export async function adjustStock(itemId: string, delta: number, reason: AdjustReason, note?: string, storeId?: string): Promise<InventoryItem | null> {
+  const sid = await requireStoreId(storeId)
+  const item = await getInventoryItem(itemId, sid)
   if (!item) return null
 
   const newStock = Math.max(0, item.currentStock + delta)
-  await updateInventoryItem(itemId, { currentStock: newStock })
+  await updateInventoryItem(itemId, { currentStock: newStock }, sid)
 
   await supabase.from('stock_adjustments').insert({
     id:         makeId('adj'),
+    store_id:   sid,
     item_id:    itemId,
     delta,
     reason,
@@ -636,11 +646,12 @@ export async function adjustStock(itemId: string, delta: number, reason: AdjustR
     created_at: now(),
   })
 
-  return (await getInventoryItem(itemId)) ?? null
+  return (await getInventoryItem(itemId, sid)) ?? null
 }
 
-export async function getAdjustments(itemId?: string): Promise<StockAdjustment[]> {
-  let q = supabase.from('stock_adjustments').select('*').order('created_at', { ascending: false }).limit(50)
+export async function getAdjustments(itemId?: string, storeId?: string): Promise<StockAdjustment[]> {
+  const sid = await requireStoreId(storeId)
+  let q = supabase.from('stock_adjustments').select('*').eq('store_id', sid).order('created_at', { ascending: false }).limit(50)
   if (itemId) q = q.eq('item_id', itemId).limit(20)
   const { data, error } = await q
   if (error) throw error

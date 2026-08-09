@@ -75,6 +75,7 @@ async function deductStockForOrder(orderId: string, storeId: string) {
         -(ing.quantityPerServing * item.qty),
         'usage',
         `Order ${orderId} — ${item.name} x${item.qty}`,
+        storeId,
       )
     }
   }
