@@ -2,19 +2,22 @@
 
 import { NextRequest, NextResponse } from 'next/server'
 import { validateCoupon, recordCouponUse } from '@/lib/store'
+import { resolveStoreId } from '@/lib/api-auth'
 
 export async function POST(req: NextRequest) {
   try {
+    const storeId = await resolveStoreId(req)
+    if (!storeId) return NextResponse.json({ error: 'Store context required' }, { status: 400 })
     const body = await req.json()
     const { code, subtotal, memberName, record, orderTotal } = body
     if (!code) return NextResponse.json({ error: 'code required' }, { status: 400 })
 
-    const result = await validateCoupon(code, Number(subtotal) || 0, memberName)
+    const result = await validateCoupon(code, Number(subtotal) || 0, memberName, storeId)
     if (!result.valid) return NextResponse.json({ valid: false, error: result.error }, { status: 422 })
 
     // record=true à¹€à¸¡à¸·à¹ˆà¸­à¸­à¸­à¹€à¸”à¸­à¸£à¹Œà¸–à¸¹à¸ confirm à¹à¸¥à¹‰à¸§
     if (record && result.coupon) {
-      await recordCouponUse(result.coupon.id, result.discountAmount, Number(orderTotal) || 0, memberName)
+      await recordCouponUse(result.coupon.id, result.discountAmount, Number(orderTotal) || 0, memberName, storeId)
     }
 
     return NextResponse.json({

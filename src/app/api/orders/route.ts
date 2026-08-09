@@ -82,7 +82,7 @@ export async function POST(req: NextRequest) {
     if (couponId) {
       try {
         const discountAmt = discount?.amount ?? 0
-        await recordCouponUse(String(couponId), discountAmt, Number(couponOrderTotal) || 0, couponMemberName || undefined)
+        await recordCouponUse(String(couponId), discountAmt, Number(couponOrderTotal) || 0, couponMemberName || undefined, storeId)
       } catch (err) {
         console.error('[Orders API] Coupon record failed:', err)
       }

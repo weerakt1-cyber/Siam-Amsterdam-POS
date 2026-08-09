@@ -2,10 +2,13 @@ export const dynamic = "force-dynamic"
 
 import { NextRequest, NextResponse } from 'next/server'
 import { getCoupon, updateCoupon, deleteCoupon, getCouponUses } from '@/lib/store'
+import { resolveStoreId } from '@/lib/api-auth'
 
-export async function GET(_: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
-  const [coupon, uses] = await Promise.all([getCoupon(id), getCouponUses(id)])
+  const storeId = await resolveStoreId(req)
+  if (!storeId) return NextResponse.json({ error: 'Store context required' }, { status: 400 })
+  const [coupon, uses] = await Promise.all([getCoupon(id, storeId), getCouponUses(id, storeId)])
   if (!coupon) return NextResponse.json({ error: 'Not found' }, { status: 404 })
   return NextResponse.json({ coupon, uses })
 }
@@ -13,9 +16,11 @@ export async function GET(_: NextRequest, { params }: { params: Promise<{ id: st
 export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
   try {
+    const storeId = await resolveStoreId(req)
+    if (!storeId) return NextResponse.json({ error: 'Store context required' }, { status: 400 })
     const body = await req.json()
     if (body.code) body.code = String(body.code).toUpperCase().trim()
-    const updated = await updateCoupon(id, body)
+    const updated = await updateCoupon(id, body, storeId)
     if (!updated) return NextResponse.json({ error: 'Not found' }, { status: 404 })
     return NextResponse.json({ coupon: updated })
   } catch {
@@ -23,9 +28,11 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
   }
 }
 
-export async function DELETE(_: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+export async function DELETE(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
-  const ok = await deleteCoupon(id)
+  const storeId = await resolveStoreId(req)
+  if (!storeId) return NextResponse.json({ error: 'Store context required' }, { status: 400 })
+  const ok = await deleteCoupon(id, storeId)
   if (!ok) return NextResponse.json({ error: 'Not found' }, { status: 404 })
   return NextResponse.json({ ok: true })
 }

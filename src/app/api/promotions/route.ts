@@ -2,12 +2,15 @@ export const dynamic = "force-dynamic"
 
 import { NextRequest, NextResponse } from 'next/server'
 import { getPromotions, createPromotion } from '@/lib/store'
+import { resolveStoreId } from '@/lib/api-auth'
 import type { PromotionType } from '@/lib/types'
 
 // GET — list all promotions. Public (read-only): the QR ordering page reads this
 // server-side to show active deals + the promo popup, same as /api/menu.
-export async function GET() {
-  const promotions = await getPromotions()
+export async function GET(req: NextRequest) {
+  const storeId = await resolveStoreId(req)
+  if (!storeId) return NextResponse.json({ error: 'Store context required' }, { status: 400 })
+  const promotions = await getPromotions(storeId)
   return NextResponse.json({ promotions })
 }
 
@@ -15,6 +18,8 @@ const VALID_TYPES: PromotionType[] = ['bundle', 'free_item', 'discount']
 
 export async function POST(req: NextRequest) {
   try {
+    const storeId = await resolveStoreId(req)
+    if (!storeId) return NextResponse.json({ error: 'Store context required' }, { status: 400 })
     const b = await req.json()
     if (!b.name?.trim()) return NextResponse.json({ error: 'name required' }, { status: 400 })
     if (!VALID_TYPES.includes(b.type)) return NextResponse.json({ error: 'invalid type' }, { status: 400 })
@@ -35,7 +40,7 @@ export async function POST(req: NextRequest) {
       startTime:     b.startTime || undefined,
       endTime:       b.endTime || undefined,
       showOnQr:      b.showOnQr !== false,
-    })
+    }, storeId)
     return NextResponse.json({ promotion }, { status: 201 })
   } catch {
     return NextResponse.json({ error: 'Invalid request' }, { status: 400 })

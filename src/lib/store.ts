@@ -737,31 +737,36 @@ export type { ExpenseCategory }
 
 // ─── Coupons ─────────────────────────────────────────────────────────────────
 
-export async function getCoupons(): Promise<Coupon[]> {
-  const { data, error } = await supabase.from('coupons').select('*').order('created_at', { ascending: false })
+export async function getCoupons(storeId?: string): Promise<Coupon[]> {
+  const sid = await requireStoreId(storeId)
+  const { data, error } = await supabase.from('coupons').select('*').eq('store_id', sid).order('created_at', { ascending: false })
   if (error) throw error
   return (data ?? []).map(mapCoupon)
 }
 
-export async function getCoupon(id: string): Promise<Coupon | undefined> {
-  const { data, error } = await supabase.from('coupons').select('*').eq('id', id).single()
+export async function getCoupon(id: string, storeId?: string): Promise<Coupon | undefined> {
+  const sid = await requireStoreId(storeId)
+  const { data, error } = await supabase.from('coupons').select('*').eq('id', id).eq('store_id', sid).single()
   if (error || !data) return undefined
   return mapCoupon(data)
 }
 
-export async function getCouponByCode(code: string): Promise<Coupon | undefined> {
+export async function getCouponByCode(code: string, storeId?: string): Promise<Coupon | undefined> {
+  const sid = await requireStoreId(storeId)
   const { data, error } = await supabase
-    .from('coupons').select('*').eq('code', code.trim().toUpperCase()).single()
+    .from('coupons').select('*').eq('code', code.trim().toUpperCase()).eq('store_id', sid).single()
   if (error || !data) return undefined
   return mapCoupon(data)
 }
 
-export async function createCoupon(data: Omit<Coupon, 'id' | 'usedCount' | 'createdAt' | 'updatedAt'>): Promise<Coupon> {
+export async function createCoupon(data: Omit<Coupon, 'id' | 'usedCount' | 'createdAt' | 'updatedAt'>, storeId?: string): Promise<Coupon> {
+  const sid = await requireStoreId(storeId)
   const ts = now()
   const { data: row, error } = await supabase
     .from('coupons')
     .insert({
       id:          makeId('cp'),
+      store_id:    sid,
       code:        data.code,
       name:        data.name,
       description: data.description ?? null,
@@ -783,7 +788,8 @@ export async function createCoupon(data: Omit<Coupon, 'id' | 'usedCount' | 'crea
   return mapCoupon(row)
 }
 
-export async function updateCoupon(id: string, data: Partial<Omit<Coupon, 'id' | 'createdAt'>>): Promise<Coupon | null> {
+export async function updateCoupon(id: string, data: Partial<Omit<Coupon, 'id' | 'createdAt'>>, storeId?: string): Promise<Coupon | null> {
+  const sid = await requireStoreId(storeId)
   const update: Record<string, unknown> = { updated_at: now() }
   if (data.code        !== undefined) update.code        = data.code
   if (data.name        !== undefined) update.name        = data.name
@@ -798,14 +804,15 @@ export async function updateCoupon(id: string, data: Partial<Omit<Coupon, 'id' |
   if (data.memberOnly  !== undefined) update.member_only = data.memberOnly
 
   const { data: row, error } = await supabase
-    .from('coupons').update(update).eq('id', id).select().single()
+    .from('coupons').update(update).eq('id', id).eq('store_id', sid).select().single()
   if (error || !row) return null
   return mapCoupon(row)
 }
 
-export async function deleteCoupon(id: string): Promise<boolean> {
-  const { error } = await supabase.from('coupons').delete().eq('id', id)
-  return !error
+export async function deleteCoupon(id: string, storeId?: string): Promise<boolean> {
+  const sid = await requireStoreId(storeId)
+  const { error, count } = await supabase.from('coupons').delete({ count: 'exact' }).eq('id', id).eq('store_id', sid)
+  return !error && (count ?? 0) > 0
 }
 
 // ─── Promotions (item-level auto-applied deals) ────────────────────────────────
@@ -833,19 +840,22 @@ function mapPromotion(row: Record<string, unknown>): Promotion {
   }
 }
 
-export async function getPromotions(): Promise<Promotion[]> {
+export async function getPromotions(storeId?: string): Promise<Promotion[]> {
+  const sid = await requireStoreId(storeId)
   const { data, error } = await supabase
-    .from('promotions').select('*').order('created_at', { ascending: false })
+    .from('promotions').select('*').eq('store_id', sid).order('created_at', { ascending: false })
   if (error) throw error
   return (data ?? []).map(mapPromotion)
 }
 
-export async function createPromotion(data: Omit<Promotion, 'id' | 'createdAt' | 'updatedAt'>): Promise<Promotion> {
+export async function createPromotion(data: Omit<Promotion, 'id' | 'createdAt' | 'updatedAt'>, storeId?: string): Promise<Promotion> {
+  const sid = await requireStoreId(storeId)
   const ts = now()
   const { data: row, error } = await supabase
     .from('promotions')
     .insert({
       id:             makeId('promo'),
+      store_id:       sid,
       name:           data.name,
       type:           data.type,
       active:         data.active,
@@ -870,7 +880,8 @@ export async function createPromotion(data: Omit<Promotion, 'id' | 'createdAt' |
   return mapPromotion(row)
 }
 
-export async function updatePromotion(id: string, data: Partial<Omit<Promotion, 'id' | 'createdAt'>>): Promise<Promotion | null> {
+export async function updatePromotion(id: string, data: Partial<Omit<Promotion, 'id' | 'createdAt'>>, storeId?: string): Promise<Promotion | null> {
+  const sid = await requireStoreId(storeId)
   const u: Record<string, unknown> = { updated_at: now() }
   if (data.name          !== undefined) u.name           = data.name
   if (data.type          !== undefined) u.type           = data.type
@@ -889,21 +900,22 @@ export async function updatePromotion(id: string, data: Partial<Omit<Promotion, 
   if (data.showOnQr      !== undefined) u.show_on_qr     = data.showOnQr
 
   const { data: row, error } = await supabase
-    .from('promotions').update(u).eq('id', id).select().single()
+    .from('promotions').update(u).eq('id', id).eq('store_id', sid).select().single()
   if (error || !row) return null
   return mapPromotion(row)
 }
 
-export async function deletePromotion(id: string): Promise<boolean> {
-  const { error } = await supabase.from('promotions').delete().eq('id', id)
-  return !error
+export async function deletePromotion(id: string, storeId?: string): Promise<boolean> {
+  const sid = await requireStoreId(storeId)
+  const { error, count } = await supabase.from('promotions').delete({ count: 'exact' }).eq('id', id).eq('store_id', sid)
+  return !error && (count ?? 0) > 0
 }
 
 // ตรวจสอบ coupon code และคำนวณส่วนลด
 export async function validateCoupon(
-  code: string, subtotal: number, memberName?: string
+  code: string, subtotal: number, memberName?: string, storeId?: string
 ): Promise<{ valid: true; coupon: Coupon; discountAmount: number } | { valid: false; error: string }> {
-  const coupon = await getCouponByCode(code)
+  const coupon = await getCouponByCode(code, storeId)
   if (!coupon) return { valid: false, error: 'Coupon code not found' }
   if (!coupon.active) return { valid: false, error: 'This coupon is no longer active' }
 
@@ -922,10 +934,11 @@ export async function validateCoupon(
 }
 
 // บันทึกการใช้ coupon
-export async function recordCouponUse(couponId: string, discountAmount: number, orderTotal: number, memberName?: string): Promise<CouponUse> {
-  const coupon = await getCoupon(couponId)
+export async function recordCouponUse(couponId: string, discountAmount: number, orderTotal: number, memberName?: string, storeId?: string): Promise<CouponUse> {
+  const sid = await requireStoreId(storeId)
+  const coupon = await getCoupon(couponId, sid)
   // เพิ่ม used_count
-  await supabase.from('coupons').update({ used_count: (coupon?.usedCount ?? 0) + 1, updated_at: now() }).eq('id', couponId)
+  await supabase.from('coupons').update({ used_count: (coupon?.usedCount ?? 0) + 1, updated_at: now() }).eq('id', couponId).eq('store_id', sid)
 
   const use: CouponUse = {
     id: makeId('use'), couponId, couponCode: coupon?.code ?? '',
@@ -933,6 +946,7 @@ export async function recordCouponUse(couponId: string, discountAmount: number, 
   }
   await supabase.from('coupon_uses').insert({
     id:              use.id,
+    store_id:        sid,
     coupon_id:       couponId,
     coupon_code:     use.couponCode,
     discount_amount: discountAmount,
@@ -943,8 +957,9 @@ export async function recordCouponUse(couponId: string, discountAmount: number, 
   return use
 }
 
-export async function getCouponUses(couponId?: string): Promise<CouponUse[]> {
-  let q = supabase.from('coupon_uses').select('*').order('created_at', { ascending: false }).limit(100)
+export async function getCouponUses(couponId?: string, storeId?: string): Promise<CouponUse[]> {
+  const sid = await requireStoreId(storeId)
+  let q = supabase.from('coupon_uses').select('*').eq('store_id', sid).order('created_at', { ascending: false }).limit(100)
   if (couponId) q = q.eq('coupon_id', couponId).limit(20)
   const { data, error } = await q
   if (error) throw error
