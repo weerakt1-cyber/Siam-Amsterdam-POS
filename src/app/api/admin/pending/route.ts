@@ -1,7 +1,14 @@
-import { NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 import { supabase } from '@/lib/supabase'
+import { requireRole } from '@/lib/api-auth'
 
-export async function GET() {
+// Pending signups aren't assigned to a store yet (they get one on approval), so
+// this list is global to admins — an admin approves a pending user into their
+// own store. Gated to admins (previously unauthenticated).
+export async function GET(req: NextRequest) {
+  const gate = await requireRole(req, ['admin'])
+  if (!gate.ok) return gate.res
+
   const { data, error } = await supabase
     .from('profiles')
     .select('id, name, color, requested_role, status, created_at, provider')
