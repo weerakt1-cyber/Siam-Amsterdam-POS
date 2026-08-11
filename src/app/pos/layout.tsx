@@ -4,6 +4,7 @@ import AIChatPanel from '@/components/pos/AIChatPanel'
 import LockScreen from '@/components/pos/LockScreen'
 import StaffGate from '@/components/pos/StaffGate'
 import PrinterAutoConnect from '@/components/pos/PrinterAutoConnect'
+import QrOrderAutoPrint from '@/components/pos/QrOrderAutoPrint'
 import SettingsSync from '@/components/pos/SettingsSync'
 import { PosAuthProvider } from '@/lib/pos-auth'
 import { PosLangProvider } from '@/lib/pos-i18n'
@@ -28,6 +29,7 @@ export default function POSLayout({ children }: { children: React.ReactNode }) {
         <LockScreen />
         <StaffGate />
         <PrinterAutoConnect />
+        <QrOrderAutoPrint />
         <SettingsSync />
       </AppAuthGuard>
       </PosLangProvider>

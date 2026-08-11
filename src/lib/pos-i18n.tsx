@@ -28,6 +28,8 @@ const DICT = {
   navMembers:   { en: 'Members',    th: 'สมาชิก' },
   navCash:      { en: 'Cash',       th: 'เงินสด' },
   saveServerFailed: { en: 'Saved on this device, but could not save to the server. Make sure you are signed in as an admin and try again.', th: 'บันทึกในเครื่องแล้ว แต่บันทึกขึ้นเซิร์ฟเวอร์ไม่สำเร็จ กรุณาตรวจสอบว่าล็อกอินเป็นผู้ดูแล (admin) แล้วลองใหม่' },
+  qrAutoPrintLabel: { en: 'Auto-print QR orders on this device', th: 'ปริ้นออเดอร์ QR อัตโนมัติบนเครื่องนี้' },
+  qrAutoPrintDesc:  { en: 'When a customer places a QR self-order, a ticket prints automatically on this device’s printer. Turn off if another tablet already prints.', th: 'เมื่อลูกค้าสั่งผ่าน QR ระบบจะปริ้นใบออเดอร์อัตโนมัติที่เครื่องพิมพ์ของเครื่องนี้ ปิดถ้ามีแท็บเล็ตอื่นปริ้นอยู่แล้ว' },
   navCoupons:   { en: 'Coupons',    th: 'คูปอง' },
   navAnalytics: { en: 'Analytics',  th: 'รายงาน' },
   navUsers:     { en: 'Users',      th: 'ผู้ใช้งาน' },

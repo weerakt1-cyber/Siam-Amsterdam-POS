@@ -731,6 +731,7 @@ export default function SettingsPage() {
   const FLOOR_LS_KEY = 'pos_floor_layout'
 
   const [qrBaseUrl,   setQrBaseUrl]   = useState('')
+  const [qrAutoPrint, setQrAutoPrint] = useState(true)  // auto-print incoming QR orders on THIS device
   const [storeSlug,   setStoreSlug]   = useState('')   // this venue's store — the QR link is /order/{slug}/{table}
   const [qrImages,    setQrImages]    = useState<{ tableNo: string; dataUrl: string }[]>([])
   const [qrLoading,   setQrLoading]   = useState(false)
@@ -742,6 +743,7 @@ export default function SettingsPage() {
   // เครื่องอื่น ต้องแก้เป็น LAN IP ของเครื่องนี้ (เช่น http://192.168.1.50:3000) หรือโดเมนจริงตอน deploy
   useEffect(() => {
     setQrBaseUrl(window.location.origin)
+    try { setQrAutoPrint(localStorage.getItem('pos_qr_autoprint') !== 'off') } catch { /* ignore */ }
     // Resolve this venue's store slug for the customer QR link.
     authedFetch('/api/store')
       .then(r => r.ok ? r.json() : null)
@@ -772,6 +774,14 @@ export default function SettingsPage() {
       if (next.has(tableNo)) next.delete(tableNo)
       else next.add(tableNo)
       return next
+    })
+  }
+
+  function toggleQrAutoPrint() {
+    setQrAutoPrint(v => {
+      const nv = !v
+      try { localStorage.setItem('pos_qr_autoprint', nv ? 'on' : 'off') } catch { /* ignore */ }
+      return nv
     })
   }
 
@@ -1693,6 +1703,21 @@ export default function SettingsPage() {
               <p className="text-xs text-gray-500 leading-relaxed">
                 Generate QR codes for each table. Customers scan → browse the menu → place their order directly to the kitchen.
               </p>
+
+              {/* Auto-print incoming QR orders on THIS device */}
+              <button
+                type="button"
+                onClick={toggleQrAutoPrint}
+                className="flex items-center justify-between gap-3 w-full text-left bg-amber-50/60 border border-amber-100 rounded-xl px-3 py-2.5 active:scale-[0.99] transition"
+              >
+                <span className="min-w-0">
+                  <span className="block text-sm font-semibold text-gray-800">{tr('qrAutoPrintLabel')}</span>
+                  <span className="block text-[11px] text-gray-500 leading-snug mt-0.5">{tr('qrAutoPrintDesc')}</span>
+                </span>
+                <span className={`shrink-0 w-11 h-6 rounded-full p-0.5 transition ${qrAutoPrint ? 'bg-amber-500' : 'bg-gray-300'}`}>
+                  <span className={`block w-5 h-5 rounded-full bg-white shadow transition-transform ${qrAutoPrint ? 'translate-x-5' : ''}`} />
+                </span>
+              </button>
 
               <div className="flex flex-col gap-1">
                 <label className="text-xs font-semibold text-gray-400 uppercase tracking-wide">{tr('setBaseUrl')}</label>
