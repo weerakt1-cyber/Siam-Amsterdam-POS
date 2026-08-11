@@ -538,7 +538,7 @@ export default function POSPage() {
         total:          finalTotal,
         vatIncluded:    Math.round(finalTotal * 7 / 107),
         note:           freebieNote || undefined,
-      }, cfg)
+      }, cfg, { reviewQR: true })
     } catch (e) {
       alert(e instanceof Error ? e.message : t('posPrintCheckConn'))
     }

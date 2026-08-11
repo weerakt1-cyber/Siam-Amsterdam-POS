@@ -295,7 +295,7 @@ export default function CheckoutModal({
       // than firing it as a separate connection afterwards — that separate kick
       // raced with the printer still feeding the bill and usually didn't open
       // the till even though the bytes flushed. One job = reliable.
-      await printReceipt(data, cfg, { openDrawer: payment === 'cash' })
+      await printReceipt(data, cfg, { openDrawer: payment === 'cash', reviewQR: true })
       printed = true
     } catch (err) {
       setBtError(err instanceof Error ? err.message : 'เกิดข้อผิดพลาด')

@@ -576,7 +576,7 @@ function canvasToRasterBytes(canvas: HTMLCanvasElement): Uint8Array {
 // ─── Build ESC/POS bytes for the full receipt (raster image + optional QR) ────
 
 export async function buildReceiptBytes(
-  d: ReceiptData, cfg: BarSettings, opts?: { openDrawer?: boolean },
+  d: ReceiptData, cfg: BarSettings, opts?: { openDrawer?: boolean; reviewQR?: boolean },
 ): Promise<Uint8Array> {
   if (typeof document === 'undefined') {
     throw new Error('Receipt rendering requires a browser context')
@@ -591,10 +591,11 @@ export async function buildReceiptBytes(
   // and pops the till the moment printing starts.
   if (opts?.openDrawer) parts.push(b(C.DRAWER))
   parts.push(b(C.CENTER), raster)
-  if (cfg.googleReviewUrl) {
-    // Render the QR as a raster image (same proven path as the receipt). The
-    // native ESC/POS QR command (GS ( k) is silently ignored by this RT/Rongta
-    // firmware — only the caption printed before — so we draw a real scannable QR.
+  if (cfg.googleReviewUrl && opts?.reviewQR) {
+    // Only the real customer bill (checkout + print-bill) carries the Google-
+    // review QR — reprints and test prints skip it to save paper. Render as a
+    // raster image (same proven path as the receipt); the native ESC/POS QR
+    // command (GS ( k) is silently ignored by this RT/Rongta firmware.
     parts.push(await buildQRRaster(cfg.googleReviewUrl, cfg))
   }
   // Minimal feed before the cut — 1 blank line plus the cut command's own feed.
@@ -693,7 +694,7 @@ export async function sendBytesViaLan(bytes: Uint8Array, ip: string, port = 9100
 // ─── Universal: route to Bluetooth or LAN based on cfg ───────────────────────
 
 export async function printReceipt(
-  d: ReceiptData, cfg: BarSettings, opts?: { openDrawer?: boolean },
+  d: ReceiptData, cfg: BarSettings, opts?: { openDrawer?: boolean; reviewQR?: boolean },
 ): Promise<void> {
   const bytes = await buildReceiptBytes(d, cfg, opts)
   if ((cfg.printerConnectionType ?? 'bluetooth') === 'lan') {
