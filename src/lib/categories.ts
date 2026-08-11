@@ -65,10 +65,12 @@ function hasCustomData(cats: CatEntry[]): boolean {
 //   push that local data up once, so it becomes the new shared source of truth
 //   instead of silently disappearing.
 // - Otherwise (genuinely fresh install/device) → built-in defaults.
-export async function fetchCategories(): Promise<CatEntry[]> {
+export async function fetchCategories(storeRef?: string): Promise<CatEntry[]> {
   if (typeof window === 'undefined') return DEFAULT_CATEGORIES
   try {
-    const res = await fetch('/api/categories')
+    // storeRef: the public QR order page has no session, so it passes its store
+    // (from the URL) as a hint. Staff pages omit it (server uses their session).
+    const res = await fetch('/api/categories', storeRef ? { headers: { 'x-store-id': storeRef } } : undefined)
     if (!res.ok) return loadAllCategories()
     const data = await res.json()
     const list: CatEntry[] = Array.isArray(data.categories) ? data.categories : []

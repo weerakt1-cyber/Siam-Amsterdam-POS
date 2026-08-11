@@ -30,6 +30,9 @@ type Props = {
   total: number
   onSuccess: () => Promise<void>
   onClose: () => void
+  // The public QR order page (no session) passes its store so the charge uses
+  // that store's Omise keys. Staff (POS) omit it — their session resolves it.
+  storeRef?: string
 }
 
 const META: Record<OmisePayType, { title: string; icon: string; accent: string; badge: string }> = {
@@ -38,7 +41,14 @@ const META: Record<OmisePayType, { title: string; icon: string; accent: string; 
   wechat_pay:   { title: 'WeChat Pay / Alipay',  icon: '/pos-icons/scan.png',        accent: 'bg-green-600 hover:bg-green-500',  badge: 'bg-green-50 text-green-700 border-green-200' },
 }
 
-export default function OmisePaymentModal({ paymentType, total, onSuccess, onClose }: Props) {
+export default function OmisePaymentModal({ paymentType, total, onSuccess, onClose, storeRef }: Props) {
+  // Adds the store hint header on the public flow; a no-op for staff (session wins).
+  const pf = (path: string, init: RequestInit = {}) => {
+    if (!storeRef) return authedFetch(path, init)
+    const headers = new Headers(init.headers)
+    headers.set('x-store-id', storeRef)
+    return authedFetch(path, { ...init, headers })
+  }
   const [step, setStep]         = useState<Step>('idle')
   const [error, setError]       = useState('')
   const [chargeId, setChargeId] = useState<string | null>(null)
@@ -63,7 +73,7 @@ export default function OmisePaymentModal({ paymentType, total, onSuccess, onClo
     ;(async () => {
       let pk = ''
       try {
-        const r = await authedFetch('/api/payment/config')
+        const r = await pf('/api/payment/config')
         if (r.ok) pk = (await r.json()).publicKey ?? ''
       } catch { /* fall through — modal shows an error on submit if empty */ }
       if (cancelled) return
@@ -90,7 +100,7 @@ export default function OmisePaymentModal({ paymentType, total, onSuccess, onClo
     let stopped = false
     const interval = setInterval(async () => {
       try {
-        const res  = await authedFetch(`/api/payment/omise/${chargeId}`)
+        const res  = await pf(`/api/payment/omise/${chargeId}`)
         const data = await res.json()
         if (!stopped && (data.paid || data.status === 'successful')) {
           stopped = true
@@ -118,7 +128,7 @@ export default function OmisePaymentModal({ paymentType, total, onSuccess, onClo
     setError('')
     try {
       const apiType = paymentType === 'promptpay_qr' ? 'promptpay' : 'wechat_pay'
-      const res  = await authedFetch('/api/payment/omise', {
+      const res  = await pf('/api/payment/omise', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ type: apiType, amount: total }),
@@ -152,7 +162,7 @@ export default function OmisePaymentModal({ paymentType, total, onSuccess, onClo
         return
       }
       try {
-        const res  = await authedFetch('/api/payment/omise', {
+        const res  = await pf('/api/payment/omise', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ type: 'credit_card', token: response.id, amount: total, description: loadBarSettings().barName }),

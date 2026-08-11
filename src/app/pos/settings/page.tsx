@@ -731,6 +731,7 @@ export default function SettingsPage() {
   const FLOOR_LS_KEY = 'pos_floor_layout'
 
   const [qrBaseUrl,   setQrBaseUrl]   = useState('')
+  const [storeSlug,   setStoreSlug]   = useState('')   // this venue's store — the QR link is /order/{slug}/{table}
   const [qrImages,    setQrImages]    = useState<{ tableNo: string; dataUrl: string }[]>([])
   const [qrLoading,   setQrLoading]   = useState(false)
   const [floorTables, setFloorTables] = useState<string[]>([])
@@ -741,6 +742,11 @@ export default function SettingsPage() {
   // เครื่องอื่น ต้องแก้เป็น LAN IP ของเครื่องนี้ (เช่น http://192.168.1.50:3000) หรือโดเมนจริงตอน deploy
   useEffect(() => {
     setQrBaseUrl(window.location.origin)
+    // Resolve this venue's store slug for the customer QR link.
+    authedFetch('/api/store')
+      .then(r => r.ok ? r.json() : null)
+      .then(d => { if (d?.store) setStoreSlug(d.store.slug || d.store.id) })
+      .catch(() => {})
   }, [])
 
   const loadFloorTables = useCallback(() => {
@@ -776,13 +782,13 @@ export default function SettingsPage() {
     const base = qrBaseUrl || window.location.origin
     const results: { tableNo: string; dataUrl: string }[] = []
     for (const tableNo of tableNos) {
-      const url     = `${base}/order/${tableNo}`
+      const url     = `${base}/order/${storeSlug}/${tableNo}`
       const dataUrl = await QRCode.toDataURL(url, { width: 300, margin: 2, color: { dark: '#111111', light: '#FFFFFF' } })
       results.push({ tableNo, dataUrl })
     }
     setQrImages(results)
     setQrLoading(false)
-  }, [floorTables, selectedQrTables, qrBaseUrl])
+  }, [floorTables, selectedQrTables, qrBaseUrl, storeSlug])
 
   function downloadQR(tableNo: string, dataUrl: string) {
     const a = document.createElement('a')
@@ -799,7 +805,7 @@ export default function SettingsPage() {
       <div style="display:flex;flex-direction:column;align-items:center;padding:12px;border:1px solid #eee;border-radius:12px;break-inside:avoid">
         <img src="${dataUrl}" style="width:120px;height:120px" />
         <p style="margin:6px 0 2px;font-size:14px;font-weight:900;font-family:sans-serif">Table ${tableNo}</p>
-        <p style="margin:0;font-size:9px;color:#888;font-family:monospace;word-break:break-all;text-align:center">${base}/order/${tableNo}</p>
+        <p style="margin:0;font-size:9px;color:#888;font-family:monospace;word-break:break-all;text-align:center">${base}/order/${storeSlug}/${tableNo}</p>
       </div>`).join('')
     win.document.write(`<!DOCTYPE html><html><head><title>QR Codes — ${cfg?.barName || 'Your Bar'}</title>
       <style>body{margin:24px;font-family:sans-serif}h1{font-size:18px;margin-bottom:16px}
@@ -820,7 +826,7 @@ export default function SettingsPage() {
     {
       title: 'QR Self-Order',
       description: 'Customer-facing order page URL. Print as QR code for each table.',
-      badge: '/order/[tableNo]',
+      badge: '/order/[store]/[tableNo]',
       extra: 'qr-url',
     },
   ]
@@ -1703,7 +1709,7 @@ export default function SettingsPage() {
                     ให้แก้เป็น IP เครื่องนี้ในวง LAN เดียวกัน (เช่น <code>http://192.168.1.50:3000</code>) หรือโดเมนจริงหลัง deploy
                   </p>
                 ) : (
-                  <p className="text-[11px] text-gray-400">QR จะลิงก์ไปที่ {qrBaseUrl || '…'}/order/[tableNo]</p>
+                  <p className="text-[11px] text-gray-400">QR จะลิงก์ไปที่ {qrBaseUrl || '…'}/order/{storeSlug || '…'}/[tableNo]</p>
                 )}
               </div>
 
@@ -1848,7 +1854,7 @@ export default function SettingsPage() {
                 </div>
                 {card.extra === 'qr-url' && (
                   <p className="text-[10px] text-gray-400 font-mono break-all">
-                    {typeof window !== 'undefined' ? window.location.origin : 'https://your-domain.com'}/order/T1
+                    {typeof window !== 'undefined' ? window.location.origin : 'https://your-domain.com'}/order/{storeSlug || '…'}/T1
                   </p>
                 )}
                 {card.badge === 'Coming soon' && (

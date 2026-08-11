@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabase } from './supabase'
-import { getSoleStoreId } from './store'
+import { getSoleStoreId, resolveStoreRef } from './store'
 
 // ─── Session role guard (for owner/manager-only endpoints) ────────────────────
 // The browser Supabase session lives in localStorage, so callers must send their
@@ -41,8 +41,15 @@ export async function getSessionProfile(req: NextRequest): Promise<SessionProfil
  *      isn't authenticated — callers must then treat it as a 400/401.
  */
 export async function resolveStoreId(req: NextRequest): Promise<string | null> {
+  // 1. authenticated staff → their store (a session always wins over any hint)
   const profile = await getSessionProfile(req)
   if (profile?.store_id) return profile.store_id
+  // 2. public/customer flows (QR order page) carry their store explicitly, since
+  //    they have no session — as an `x-store-id` header or `?store=` (id or slug).
+  //    An invalid hint returns null (400) rather than falling back to a guess.
+  const hint = req.headers.get('x-store-id') || req.nextUrl.searchParams.get('store')
+  if (hint) return await resolveStoreRef(hint)
+  // 3. single-tenant convenience: the sole store, else null once ≥2 exist.
   return await getSoleStoreId()
 }
 

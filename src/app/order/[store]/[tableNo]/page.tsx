@@ -62,8 +62,17 @@ function statusIndex(s: OrderStatus) {
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
-export default function OrderPage({ params }: { params: Promise<{ tableNo: string }> }) {
-  const { tableNo } = use(params)
+export default function OrderPage({ params }: { params: Promise<{ store: string; tableNo: string }> }) {
+  const { store, tableNo } = use(params)
+
+  // The customer has no session, so every API call carries the store (from the
+  // URL path) as a header; resolveStoreId(req) reads it. This is what makes a
+  // 2nd store's QR show that store's menu/orders instead of the sole-store one.
+  const sfetch = useCallback((path: string, init: RequestInit = {}) => {
+    const headers = new Headers(init.headers)
+    headers.set('x-store-id', store)
+    return fetch(path, { ...init, headers })
+  }, [store])
 
   const [menu, setMenu]         = useState<MenuItem[]>([])
   const [loading, setLoading]   = useState(true)
@@ -76,8 +85,8 @@ export default function OrderPage({ params }: { params: Promise<{ tableNo: strin
   // Fetch the real list on mount, then re-poll periodically in case staff add/
   // rename/reorder categories while a customer already has this page open.
   useEffect(() => {
-    fetchCategories().then(setAllCats)
-    const iv = setInterval(() => { fetchCategories().then(setAllCats) }, 60000)
+    fetchCategories(store).then(setAllCats)
+    const iv = setInterval(() => { fetchCategories(store).then(setAllCats) }, 60000)
     // Same-device custom event/storage listeners — a no-op in the normal
     // cross-device case, but keeps this page in sync if it's ever opened on
     // the same device/browser that just edited categories (e.g. staff testing).
@@ -89,7 +98,7 @@ export default function OrderPage({ params }: { params: Promise<{ tableNo: strin
       window.removeEventListener(CATEGORIES_CHANGED_EVENT, refresh)
       window.removeEventListener('storage', refresh)
     }
-  }, [])
+  }, [store])
 
   const [cart, setCart]         = useState<CartItem[]>([])
   const [cartOpen, setCartOpen] = useState(false)
@@ -128,15 +137,15 @@ export default function OrderPage({ params }: { params: Promise<{ tableNo: strin
   // ── Load menu ────────────────────────────────────────────────────────────────
 
   useEffect(() => {
-    fetch('/api/menu')
+    sfetch('/api/menu')
       .then(r => r.json())
       .then(d => { setMenu((d.menu ?? []).filter((m: MenuItem) => m.available)); setLoading(false) })
       .catch(() => setLoading(false))
-    fetch('/api/promotions')
+    sfetch('/api/promotions')
       .then(r => r.json())
       .then(d => setPromos((d.promotions ?? []).filter((p: Promotion) => p.active)))
       .catch(() => {})
-  }, [])
+  }, [sfetch])
 
   // ── Poll order status ─────────────────────────────────────────────────────────
 
@@ -145,7 +154,7 @@ export default function OrderPage({ params }: { params: Promise<{ tableNo: strin
     const updated = await Promise.all(
       orders.map(async o => {
         try {
-          const r = await fetch(`/api/orders/${o.id}`)
+          const r = await sfetch(`/api/orders/${o.id}`)
           if (!r.ok) return o
           const d = await r.json()
           return { ...o, status: d.order.status as OrderStatus }
@@ -153,7 +162,7 @@ export default function OrderPage({ params }: { params: Promise<{ tableNo: strin
       })
     )
     setOrders(updated)
-  }, [orders])
+  }, [orders, sfetch])
 
   useEffect(() => {
     if (phase !== 'tracking') return
@@ -167,7 +176,7 @@ export default function OrderPage({ params }: { params: Promise<{ tableNo: strin
 
   async function markPaid(orderId: string, method: OmisePayType) {
     try {
-      await fetch(`/api/orders/${orderId}`, {
+      await sfetch(`/api/orders/${orderId}`, {
         method:  'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body:    JSON.stringify({ status: 'paid', paymentMethod: method }),
@@ -183,7 +192,7 @@ export default function OrderPage({ params }: { params: Promise<{ tableNo: strin
     if (typeof window !== 'undefined' && !window.confirm(t('confirmCancel'))) return
     setCancelling(orderId)
     try {
-      const r = await fetch(`/api/orders/${orderId}`, {
+      const r = await sfetch(`/api/orders/${orderId}`, {
         method:  'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body:    JSON.stringify({ status: 'cancelled' }),
@@ -275,7 +284,7 @@ export default function OrderPage({ params }: { params: Promise<{ tableNo: strin
     if (cart.length === 0 || submitting) return
     setSubmitting(true); setSubmitError('')
     try {
-      const r = await fetch('/api/orders', {
+      const r = await sfetch('/api/orders', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -553,6 +562,7 @@ export default function OrderPage({ params }: { params: Promise<{ tableNo: strin
         {/* Omise online payment (PromptPay QR / Card) */}
         {payOrder && payMethod && (
           <OmisePaymentModal
+            storeRef={store}
             paymentType={payMethod}
             total={payOrder.total}
             onSuccess={async () => { await markPaid(payOrder.id, payMethod); setPayOrder(null); setPayMethod(null) }}

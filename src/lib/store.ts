@@ -204,6 +204,22 @@ async function requireStoreId(storeId?: string): Promise<string> {
   return sid
 }
 
+// Resolve a store reference (a uuid id, or a url slug) to a store id — used by
+// the public QR order flow, which carries its store in the URL path. Returns
+// null if it doesn't match any store (caller then 400s rather than guessing).
+export async function resolveStoreRef(ref: string): Promise<string | null> {
+  if (!ref) return null
+  const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(ref)
+  const { data } = await supabase.from('stores').select('id').eq(isUuid ? 'id' : 'slug', ref).maybeSingle()
+  return (data?.id as string) ?? null
+}
+
+export type StoreInfo = { id: string; name: string; slug: string | null }
+export async function getStore(storeId: string): Promise<StoreInfo | null> {
+  const { data } = await supabase.from('stores').select('id, name, slug').eq('id', storeId).maybeSingle()
+  return data ? { id: data.id as string, name: data.name as string, slug: (data.slug as string | null) ?? null } : null
+}
+
 export async function getCategories(storeId?: string): Promise<CatEntry[]> {
   const sid = await requireStoreId(storeId)
   const { data, error } = await supabase
