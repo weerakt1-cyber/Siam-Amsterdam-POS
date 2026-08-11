@@ -1,5 +1,6 @@
 ﻿'use client'
 
+import { authedFetch } from "@/lib/supabase-browser"
 import { useState, useEffect, useRef, useCallback } from 'react'
 import type { MenuItem, Variant, VariantOption, InventoryItem, MenuIngredient } from '@/lib/types'
 import NumPad from '@/components/pos/NumPad'
@@ -354,7 +355,7 @@ export default function ItemsPage() {
 
   const fetchMenu = useCallback(async () => {
     try {
-      const r = await fetch('/api/menu')
+      const r = await authedFetch('/api/menu')
       if (r.ok) {
         const d = await r.json()
         setItems(d.menu ?? [])
@@ -365,7 +366,7 @@ export default function ItemsPage() {
   }, [])
 
   const fetchIngredients = useCallback(async (menuItemId: string) => {
-    const r = await fetch(`/api/menu/${menuItemId}/ingredients`)
+    const r = await authedFetch(`/api/menu/${menuItemId}/ingredients`)
     if (!r.ok) return
     const d = await r.json()
     setIngredients((d.ingredients ?? []).map((i: MenuIngredient) => ({
@@ -379,7 +380,7 @@ export default function ItemsPage() {
   useEffect(() => { fetchMenu() }, [fetchMenu])
 
   useEffect(() => {
-    fetch('/api/inventory').then(r => r.ok ? r.json() : { items: [] }).then(d => setInventory(d.items ?? []))
+    authedFetch('/api/inventory').then(r => r.ok ? r.json() : { items: [] }).then(d => setInventory(d.items ?? []))
   }, [])
 
   function showToast(msg: string, ok = true) {
@@ -418,7 +419,7 @@ export default function ItemsPage() {
   }
 
   async function toggleAvailable(item: MenuItem) {
-    await fetch(`/api/menu/${item.id}`, {
+    await authedFetch(`/api/menu/${item.id}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ available: !item.available }),
@@ -455,14 +456,14 @@ export default function ItemsPage() {
     setIsSaving(true)
     try {
       if (isCreating) {
-        const r = await fetch('/api/menu', {
+        const r = await authedFetch('/api/menu', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(payload),
         })
         if (!r.ok) throw new Error((await r.json()).error)
         const d = await r.json()
-        await fetch(`/api/menu/${d.item.id}/ingredients`, {
+        await authedFetch(`/api/menu/${d.item.id}/ingredients`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ ingredients: ingPayload }),
@@ -473,13 +474,13 @@ export default function ItemsPage() {
         setIsCreating(false)
         setForm(itemToForm(d.item))
       } else if (selectedId) {
-        const r = await fetch(`/api/menu/${selectedId}`, {
+        const r = await authedFetch(`/api/menu/${selectedId}`, {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(payload),
         })
         if (!r.ok) throw new Error((await r.json()).error)
-        await fetch(`/api/menu/${selectedId}/ingredients`, {
+        await authedFetch(`/api/menu/${selectedId}/ingredients`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ ingredients: ingPayload }),
@@ -501,7 +502,7 @@ export default function ItemsPage() {
 
     setIsDeleting(true)
     try {
-      const r = await fetch(`/api/menu/${selectedId}`, { method: 'DELETE' })
+      const r = await authedFetch(`/api/menu/${selectedId}`, { method: 'DELETE' })
       if (!r.ok) throw new Error((await r.json()).error)
       showToast(`"${item?.name}" deleted`)
       setSelectedId(null)
@@ -523,7 +524,7 @@ export default function ItemsPage() {
     setAiError('')
     setAppliedIds(new Set())
     try {
-      const r = await fetch('/api/ai/menu-optimize')
+      const r = await authedFetch('/api/ai/menu-optimize')
       const d = await r.json()
       if (!r.ok) throw new Error(d.error ?? tr('itAnalysisFailed'))
       setAiSuggestions(d.suggestions ?? [])
@@ -536,7 +537,7 @@ export default function ItemsPage() {
   async function applyPrice(s: AiSuggestion) {
     setApplyingId(s.menuId)
     try {
-      const r = await fetch(`/api/menu/${s.menuId}`, {
+      const r = await authedFetch(`/api/menu/${s.menuId}`, {
         method:  'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body:    JSON.stringify({ price: s.suggestedPrice }),

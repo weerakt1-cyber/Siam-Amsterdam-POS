@@ -1,5 +1,6 @@
 'use client'
 
+import { authedFetch } from "@/lib/supabase-browser"
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { useAuth } from '@/lib/pos-auth'
@@ -155,7 +156,7 @@ export default function FloorPage() {
 
   const poll = useCallback(async () => {
     try {
-      const r = await fetch('/api/orders')
+      const r = await authedFetch('/api/orders')
       if (r.ok) setOrders((await r.json()).orders ?? [])
     } catch { /* ignore */ }
   }, [])

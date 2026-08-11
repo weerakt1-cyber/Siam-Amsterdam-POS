@@ -1,5 +1,6 @@
 'use client'
 
+import { authedFetch } from "@/lib/supabase-browser"
 import { useState, useEffect, useRef, useLayoutEffect } from 'react'
 import { getOwnerProfile, setOwnerProfile, clearOwnerProfile, type GoogleProfile } from '@/lib/google-auth'
 
@@ -208,7 +209,7 @@ export default function GoogleAuthGuard({ children }: { children: React.ReactNod
   async function handleCredential(resp: { credential: string }) {
     setError('')
     try {
-      const r = await fetch('/api/auth/google/verify', {
+      const r = await authedFetch('/api/auth/google/verify', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ credential: resp.credential }),

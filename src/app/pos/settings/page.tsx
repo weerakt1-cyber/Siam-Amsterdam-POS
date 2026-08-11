@@ -454,7 +454,7 @@ export default function SettingsPage() {
     setLanTestStatus('testing')
     setLanTestMsg('')
     try {
-      const r = await fetch('/api/printer/send', {
+      const r = await authedFetch('/api/printer/send', {
         method:  'POST',
         headers: { 'Content-Type': 'application/json' },
         body:    JSON.stringify({ ip: cfg.printerLanIp, port: cfg.printerLanPort ?? 9100, bytes: [] }),
@@ -609,16 +609,16 @@ export default function SettingsPage() {
   const [lineDailyMsg, setLineDailyMsg] = useState('')
 
   useEffect(() => {
-    fetch('/api/sheets/setup').then(r => r.json()).then(setSheetsCfg).catch(() => {})
-    fetch('/api/telegram').then(r => r.json()).then(setTgCfg).catch(() => {})
-    fetch('/api/line').then(r => r.json()).then(setLineCfg).catch(() => {})
+    authedFetch('/api/sheets/setup').then(r => r.json()).then(setSheetsCfg).catch(() => {})
+    authedFetch('/api/telegram').then(r => r.json()).then(setTgCfg).catch(() => {})
+    authedFetch('/api/line').then(r => r.json()).then(setLineCfg).catch(() => {})
   }, [])
 
   async function handleSheetsSetup() {
     setSheetsSetup('loading')
     setSheetsMsg('')
     try {
-      const r    = await fetch('/api/sheets/setup', { method: 'POST' })
+      const r    = await authedFetch('/api/sheets/setup', { method: 'POST' })
       const data = await r.json()
       setSheetsMsg(data.message ?? (r.ok ? tr('toastDone') : tr('toastError')))
       setSheetsSetup(r.ok ? 'done' : 'error')
@@ -636,11 +636,11 @@ export default function SettingsPage() {
     setTgTest('loading')
     setTgTestMsg('')
     try {
-      const r    = await fetch('/api/telegram', { method: 'POST' })
+      const r    = await authedFetch('/api/telegram', { method: 'POST' })
       const data = await r.json()
       setTgTestMsg(data.error ?? (r.ok ? tr('toastSentTelegram') : tr('toastFailedSend')))
       setTgTest(r.ok ? 'done' : 'error')
-      if (r.ok) fetch('/api/telegram').then(r2 => r2.json()).then(setTgCfg).catch(() => {})
+      if (r.ok) authedFetch('/api/telegram').then(r2 => r2.json()).then(setTgCfg).catch(() => {})
       setTimeout(() => setTgTest('idle'), 5000)
     } catch (err) {
       setTgTestMsg(err instanceof Error ? err.message : tr('toastNetworkError'))
@@ -653,7 +653,7 @@ export default function SettingsPage() {
     setTgDaily('loading')
     setTgDailyMsg('')
     try {
-      const r    = await fetch('/api/telegram/daily', { method: 'POST' })
+      const r    = await authedFetch('/api/telegram/daily', { method: 'POST' })
       const data = await r.json()
       setTgDailyMsg(data.error ?? (r.ok ? `Sent! ${data.orders} orders · ฿${(data.revenue ?? 0).toLocaleString()}` : tr('toastFailedSend')))
       setTgDaily(r.ok ? 'done' : 'error')
@@ -670,7 +670,7 @@ export default function SettingsPage() {
     setTgDetectResult(null)
     setTgTestMsg('')
     try {
-      const r    = await fetch('/api/telegram/setup')
+      const r    = await authedFetch('/api/telegram/setup')
       const data = await r.json()
       if (r.ok && data.ok) {
         setTgDetectResult({ chatId: data.chatId, from: data.from ?? '' })
@@ -693,7 +693,7 @@ export default function SettingsPage() {
     setLineTest('loading')
     setLineTestMsg('')
     try {
-      const r    = await fetch('/api/line', { method: 'POST' })
+      const r    = await authedFetch('/api/line', { method: 'POST' })
       const data = await r.json()
       setLineTestMsg(data.error ?? (r.ok ? tr('toastSentLine') : tr('toastFailedSend')))
       setLineTest(r.ok ? 'done' : 'error')
@@ -709,7 +709,7 @@ export default function SettingsPage() {
     setLineDaily('loading')
     setLineDailyMsg('')
     try {
-      const r    = await fetch('/api/line/daily', { method: 'POST' })
+      const r    = await authedFetch('/api/line/daily', { method: 'POST' })
       const data = await r.json()
       setLineDailyMsg(data.error ?? (r.ok ? `Sent! ${data.orders} orders · ฿${(data.revenue ?? 0).toLocaleString()}` : tr('toastFailedSend')))
       setLineDaily(r.ok ? 'done' : 'error')

@@ -1,5 +1,6 @@
 ﻿'use client'
 
+import { authedFetch } from "@/lib/supabase-browser"
 import { useState, useEffect, useCallback } from 'react'
 import type { Member, Order } from '@/lib/types'
 import NumPad from '@/components/pos/NumPad'
@@ -118,8 +119,8 @@ export default function MembersPage() {
   const fetchAll = useCallback(async () => {
     try {
       const [mr, or] = await Promise.all([
-        fetch('/api/members').then((r) => r.json()),
-        fetch('/api/orders').then((r) => r.json()),
+        authedFetch('/api/members').then((r) => r.json()),
+        authedFetch('/api/orders').then((r) => r.json()),
       ])
       setMembers(mr.members ?? [])
       setOrders(or.orders ?? [])
@@ -153,7 +154,7 @@ export default function MembersPage() {
     setIsSaving(true)
     try {
       if (isCreating) {
-        const r = await fetch('/api/members', {
+        const r = await authedFetch('/api/members', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(form),
@@ -161,7 +162,7 @@ export default function MembersPage() {
         if (!r.ok) throw new Error((await r.json()).error)
         showToast(`${form.name} added`)
       } else {
-        const r = await fetch(`/api/members/${selectedId}`, {
+        const r = await authedFetch(`/api/members/${selectedId}`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(form),
@@ -184,7 +185,7 @@ export default function MembersPage() {
     if (!confirm(`Delete member "${m?.name}"?`)) return
     setIsDeleting(true)
     try {
-      await fetch(`/api/members/${selectedId}`, { method: 'DELETE' })
+      await authedFetch(`/api/members/${selectedId}`, { method: 'DELETE' })
       showToast(tr('memDeleted'))
       setSelectedId(null)
       await fetchAll()
@@ -197,7 +198,7 @@ export default function MembersPage() {
     if (!selectedId) return
     const delta = parseInt(addPointsVal) || 0
     if (delta === 0) return
-    const r = await fetch(`/api/members/${selectedId}`, {
+    const r = await authedFetch(`/api/members/${selectedId}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ pointsDelta: delta }),
@@ -215,7 +216,7 @@ export default function MembersPage() {
     if (!m) return
     const newStamps = (m.stamps + 1) % 10
     const newEarned = m.stampsEarned + 1
-    await fetch(`/api/members/${selectedId}`, {
+    await authedFetch(`/api/members/${selectedId}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ stamps: newStamps, stampsEarned: newEarned }),
@@ -228,7 +229,7 @@ export default function MembersPage() {
     if (!selectedId) return
     const m = members.find((x) => x.id === selectedId)
     if (!m || m.stamps < 10) return
-    await fetch(`/api/members/${selectedId}`, {
+    await authedFetch(`/api/members/${selectedId}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ stamps: 0 }),
@@ -482,7 +483,7 @@ export default function MembersPage() {
                   <button
                     onClick={() => {
                       if (selected.points < 100) return showToast(tr('memNeed100'), false)
-                      fetch(`/api/members/${selectedId}`, {
+                      authedFetch(`/api/members/${selectedId}`, {
                         method: 'PUT',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ points: selected.points - 100 }),

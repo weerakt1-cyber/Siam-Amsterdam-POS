@@ -1,5 +1,6 @@
 'use client'
 
+import { authedFetch } from "@/lib/supabase-browser"
 import { useState, useEffect, useCallback, useMemo } from 'react'
 import type { Order, OrderStatus, MenuItem, DeliveryChannel } from '@/lib/types'
 import {
@@ -197,7 +198,7 @@ function QuickEntryModal({
     setSaving(true)
     setError('')
     try {
-      const r = await fetch('/api/orders', {
+      const r = await authedFetch('/api/orders', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -411,7 +412,7 @@ export default function DeliveryPage() {
 
   const fetchAll = useCallback(async () => {
     try {
-      const [ro, rm] = await Promise.all([fetch('/api/orders'), fetch('/api/menu')])
+      const [ro, rm] = await Promise.all([authedFetch('/api/orders'), authedFetch('/api/menu')])
       if (ro.ok) {
         const d = await ro.json()
         setOrders((d.orders as Order[]).filter(o => o.channel))
@@ -435,7 +436,7 @@ export default function DeliveryPage() {
     const body: Record<string, unknown> = { status }
     // Picked up = platform pays → mark paid with channel as payment method
     if (status === 'paid') body.paymentMethod = order.channel
-    const r = await fetch(`/api/orders/${order.id}`, {
+    const r = await authedFetch(`/api/orders/${order.id}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body),

@@ -1,5 +1,6 @@
 'use client'
 
+import { authedFetch } from "@/lib/supabase-browser"
 import { useState, useEffect, useCallback } from 'react'
 import { usePosLang } from '@/lib/pos-i18n'
 
@@ -330,7 +331,7 @@ export default function AnalyticsPage() {
   const [tierStats, setTierStats]     = useState<TierStats | null>(null)
 
   useEffect(() => {
-    fetch('/api/members')
+    authedFetch('/api/members')
       .then(r => r.json())
       .then((d: { members?: { tier?: string }[] }) => {
         const members = d.members ?? []
@@ -346,7 +347,7 @@ export default function AnalyticsPage() {
   const load = useCallback(async () => {
     setLoading(true)
     try {
-      const r = await fetch(`/api/analytics?period=${period}`)
+      const r = await authedFetch(`/api/analytics?period=${period}`)
       if (r.ok) {
         setData(await r.json())
         setLastUpdated(new Date())

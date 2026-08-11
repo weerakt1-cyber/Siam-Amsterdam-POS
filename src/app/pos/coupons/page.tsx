@@ -1,5 +1,6 @@
 ﻿'use client'
 
+import { authedFetch } from "@/lib/supabase-browser"
 import { useState, useEffect, useCallback } from 'react'
 import type { Coupon, CouponUse, CouponType } from '@/lib/types'
 import NumPad from '@/components/pos/NumPad'
@@ -78,7 +79,7 @@ export default function CouponsPage() {
 
   const fetchAll = useCallback(async () => {
     try {
-      const r = await fetch('/api/coupons').then(res => res.json())
+      const r = await authedFetch('/api/coupons').then(res => res.json())
       setCoupons(r.coupons ?? [])
     } finally {
       setLoading(false)
@@ -104,7 +105,7 @@ export default function CouponsPage() {
       startDate: c.startDate ?? '', endDate: c.endDate ?? '',
     })
     setShowUses(false)
-    fetch(`/api/coupons/${c.id}`).then(r => r.json()).then(d => setUses(d.uses ?? []))
+    authedFetch(`/api/coupons/${c.id}`).then(r => r.json()).then(d => setUses(d.uses ?? []))
   }
 
   function startCreate() {
@@ -134,12 +135,12 @@ export default function CouponsPage() {
         endDate: form.endDate || undefined,
       }
       if (isCreating) {
-        const r = await fetch('/api/coupons', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) })
+        const r = await authedFetch('/api/coupons', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) })
         if (!r.ok) throw new Error((await r.json()).error)
         showToast(`Coupon ${payload.code} created`)
         setIsCreating(false)
       } else {
-        const r = await fetch(`/api/coupons/${selectedId}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) })
+        const r = await authedFetch(`/api/coupons/${selectedId}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) })
         if (!r.ok) throw new Error((await r.json()).error)
         showToast(t('saved'))
       }
@@ -153,7 +154,7 @@ export default function CouponsPage() {
 
   async function toggleActive() {
     if (!selectedId || !selected) return
-    await fetch(`/api/coupons/${selectedId}`, {
+    await authedFetch(`/api/coupons/${selectedId}`, {
       method: 'PUT', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ active: !selected.active }),
     })
@@ -166,7 +167,7 @@ export default function CouponsPage() {
   async function handleDelete() {
     if (!selectedId) return
     if (!confirm(`Delete coupon "${selected?.code}"?`)) return
-    await fetch(`/api/coupons/${selectedId}`, { method: 'DELETE' })
+    await authedFetch(`/api/coupons/${selectedId}`, { method: 'DELETE' })
     showToast(t('cmDeleted'))
     setSelectedId(null)
     await fetchAll()
@@ -174,7 +175,7 @@ export default function CouponsPage() {
 
   async function handleTest() {
     if (!testCode.trim()) return
-    const r = await fetch('/api/coupons/validate', {
+    const r = await authedFetch('/api/coupons/validate', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ code: testCode.trim(), subtotal: Number(testAmount) || 0 }),
     })

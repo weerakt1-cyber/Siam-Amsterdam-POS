@@ -1,5 +1,6 @@
 'use client'
 
+import { authedFetch } from "@/lib/supabase-browser"
 import { useState, useEffect, useCallback } from 'react'
 import type { MenuItem, Order, Promotion } from '@/lib/types'
 import { applyPromotions } from '@/lib/promotions'
@@ -244,11 +245,11 @@ export default function POSPage() {
 
   useEffect(() => {
     setBizName(loadBarSettings().barName || DEFAULT_BAR_SETTINGS.barName)
-    fetch('/api/coupons')
+    authedFetch('/api/coupons')
       .then(r => r.json())
       .then(d => setCoupons((d.coupons ?? []).filter((c: { active: boolean }) => c.active)))
       .catch(() => {})
-    fetch('/api/promotions')
+    authedFetch('/api/promotions')
       .then(r => r.json())
       .then(d => setPromos((d.promotions ?? []).filter((p: Promotion) => p.active)))
       .catch(() => {})
@@ -257,9 +258,9 @@ export default function POSPage() {
   useEffect(() => {
     // Fetch menu + ingredients + inventory in parallel; compute low-stock map
     Promise.all([
-      fetch('/api/menu').then(r => r.json()),
-      fetch('/api/menu/ingredients').then(r => r.json()),
-      fetch('/api/inventory').then(r => r.json()),
+      authedFetch('/api/menu').then(r => r.json()),
+      authedFetch('/api/menu/ingredients').then(r => r.json()),
+      authedFetch('/api/inventory').then(r => r.json()),
     ]).then(([menuData, ingData, invData]) => {
       setMenu(menuData.menu ?? [])
       const invMap: Record<string, { name: string; currentStock: number; lowStockThreshold: number }> =
@@ -274,7 +275,7 @@ export default function POSPage() {
       }
       setLowStockMap(map)
     }).catch(() => {}).finally(() => setMenuLoading(false))
-    fetch('/api/members')
+    authedFetch('/api/members')
       .then((r) => r.json())
       .then((d) => {
         if (d.members?.length)
@@ -287,7 +288,7 @@ export default function POSPage() {
 
   const fetchOrders = useCallback(async () => {
     try {
-      const r = await fetch('/api/orders')
+      const r = await authedFetch('/api/orders')
       if (r.ok) {
         const d = await r.json()
         setOrders(d.orders ?? [])
@@ -392,7 +393,7 @@ export default function POSPage() {
 
   async function handleVoidOrder(orderId: string) {
     try {
-      const r = await fetch(`/api/orders/${orderId}`, {
+      const r = await authedFetch(`/api/orders/${orderId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ status: 'cancelled' }),
@@ -412,7 +413,7 @@ export default function POSPage() {
     if (!code) return
     setCouponError('')
     try {
-      const r = await fetch('/api/coupons/validate', {
+      const r = await authedFetch('/api/coupons/validate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ code, subtotal, memberName: memberName.trim() || undefined }),
@@ -459,7 +460,7 @@ export default function POSPage() {
   async function verifyDrawerPin(entered: string): Promise<boolean> {
     if (!user?.id) return false
     try {
-      const r = await fetch('/api/users/verify-pin', {
+      const r = await authedFetch('/api/users/verify-pin', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ id: user.id, pin: entered }),
@@ -552,7 +553,7 @@ export default function POSPage() {
     let representativeId = ''
 
     for (const orderId of mergedOrderIds) {
-      const r = await fetch(`/api/orders/${orderId}`, {
+      const r = await authedFetch(`/api/orders/${orderId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ status: 'paid', paymentMethod: method }),
@@ -564,7 +565,7 @@ export default function POSPage() {
     }
 
     if (manualItems.length > 0) {
-      const res = await fetch('/api/orders', {
+      const res = await authedFetch('/api/orders', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -600,13 +601,13 @@ export default function POSPage() {
     }
 
     if (method === 'cash') {
-      fetch('/api/drawer', { method: 'POST' }).catch(() => {})
+      authedFetch('/api/drawer', { method: 'POST' }).catch(() => {})
     }
 
     // Deduct redeemed points from member
     if (actualPointsDiscount > 0 && selectedMember?.id) {
       const newPoints = Math.max(0, selectedMember.points - actualPointsDiscount)
-      fetch(`/api/members/${selectedMember.id}`, {
+      authedFetch(`/api/members/${selectedMember.id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ points: newPoints }),
@@ -625,7 +626,7 @@ export default function POSPage() {
     const manualItems = cart.filter(c => !c.fromOrderId)
     if (manualItems.length === 0) return
     try {
-      const res = await fetch('/api/orders', {
+      const res = await authedFetch('/api/orders', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -659,7 +660,7 @@ export default function POSPage() {
   // so separate customers at the same table can each pay for just their own order.
   async function handleSingleTicketPayment(method: string, received?: number): Promise<string> {
     if (!payingTicket) throw new Error(t('toastNoTicket'))
-    const r = await fetch(`/api/orders/${payingTicket.id}`, {
+    const r = await authedFetch(`/api/orders/${payingTicket.id}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ status: 'paid', paymentMethod: method }),
@@ -670,7 +671,7 @@ export default function POSPage() {
       throw new Error(err.error ?? t('toastPaymentFail'))
     }
     const d = await r.json()
-    if (method === 'cash') fetch('/api/drawer', { method: 'POST' }).catch(() => {})
+    if (method === 'cash') authedFetch('/api/drawer', { method: 'POST' }).catch(() => {})
     await fetchOrders()
     return d.order?.id ?? payingTicket.id
   }

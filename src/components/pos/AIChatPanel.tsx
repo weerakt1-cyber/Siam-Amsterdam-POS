@@ -1,5 +1,6 @@
 'use client'
 
+import { authedFetch } from "@/lib/supabase-browser"
 import { useState, useRef, useEffect, useCallback } from 'react'
 import { AI_NAME } from '@/lib/ai-brand'
 
@@ -170,7 +171,7 @@ export default function AIChatPanel() {
         body.file = { name: fileToSend.name, ext: fileToSend.ext, content: fileToSend.content }
       }
 
-      const res = await fetch('/api/ai/chat', {
+      const res = await authedFetch('/api/ai/chat', {
         method:  'POST',
         headers: { 'Content-Type': 'application/json' },
         body:    JSON.stringify(body),

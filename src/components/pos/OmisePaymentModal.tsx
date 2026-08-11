@@ -1,5 +1,6 @@
 'use client'
 
+import { authedFetch } from "@/lib/supabase-browser"
 import { useState, useEffect } from 'react'
 import { loadBarSettings } from '@/lib/printer'
 import PosIcon from './PosIcon'
@@ -62,7 +63,7 @@ export default function OmisePaymentModal({ paymentType, total, onSuccess, onClo
     ;(async () => {
       let pk = ''
       try {
-        const r = await fetch('/api/payment/config')
+        const r = await authedFetch('/api/payment/config')
         if (r.ok) pk = (await r.json()).publicKey ?? ''
       } catch { /* fall through — modal shows an error on submit if empty */ }
       if (cancelled) return
@@ -89,7 +90,7 @@ export default function OmisePaymentModal({ paymentType, total, onSuccess, onClo
     let stopped = false
     const interval = setInterval(async () => {
       try {
-        const res  = await fetch(`/api/payment/omise/${chargeId}`)
+        const res  = await authedFetch(`/api/payment/omise/${chargeId}`)
         const data = await res.json()
         if (!stopped && (data.paid || data.status === 'successful')) {
           stopped = true
@@ -117,7 +118,7 @@ export default function OmisePaymentModal({ paymentType, total, onSuccess, onClo
     setError('')
     try {
       const apiType = paymentType === 'promptpay_qr' ? 'promptpay' : 'wechat_pay'
-      const res  = await fetch('/api/payment/omise', {
+      const res  = await authedFetch('/api/payment/omise', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ type: apiType, amount: total }),
@@ -151,7 +152,7 @@ export default function OmisePaymentModal({ paymentType, total, onSuccess, onClo
         return
       }
       try {
-        const res  = await fetch('/api/payment/omise', {
+        const res  = await authedFetch('/api/payment/omise', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ type: 'credit_card', token: response.id, amount: total, description: loadBarSettings().barName }),

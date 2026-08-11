@@ -1,5 +1,6 @@
 'use client'
 
+import { authedFetch } from "@/lib/supabase-browser"
 import { useState, useEffect, useRef } from 'react'
 import {
   loadBarSettings, loadPrinterDevice,
@@ -235,7 +236,7 @@ export default function CheckoutModal({
     const phone = cfg?.promptpayNumber ?? ''
     if (!phone) { setPpLoading(false); return }
     const barNameParam = cfg?.barName ? `&barName=${encodeURIComponent(cfg.barName)}` : ''
-    fetch(`/api/payment/promptpay?phone=${encodeURIComponent(phone)}&amount=${total}${barNameParam}`)
+    authedFetch(`/api/payment/promptpay?phone=${encodeURIComponent(phone)}&amount=${total}${barNameParam}`)
       .then(r => r.json())
       .then(d => { if (d.dataUrl) setPpQr(d.dataUrl) })
       .catch(() => {})

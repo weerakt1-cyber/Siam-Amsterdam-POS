@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { getSupabaseBrowser, fetchProfile } from '@/lib/supabase-browser'
+import { getSupabaseBrowser, fetchProfile, authedFetch } from "@/lib/supabase-browser"
 import { useAuth } from '@/lib/pos-auth'
 
 type State = 'checking' | 'ready' | 'unauthenticated'
@@ -42,7 +42,7 @@ export default function AppAuthGuard({ children }: { children: React.ReactNode }
       // bootstrap on a fetch error, to avoid locking the tablet out.
       if (!user) {
         try {
-          const r = await fetch('/api/users')
+          const r = await authedFetch('/api/users')
           const d = r.ok ? await r.json() : null
           const staff = Array.isArray(d?.users) ? d.users : []
           if (staff.length === 0) {

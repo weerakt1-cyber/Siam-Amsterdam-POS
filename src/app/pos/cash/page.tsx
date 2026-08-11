@@ -1,5 +1,6 @@
 ﻿'use client'
 
+import { authedFetch } from "@/lib/supabase-browser"
 import { useState, useEffect, useCallback } from 'react'
 import type { DailyReport, Order, ExpenseCategory } from '@/lib/types'
 import NumPad from '@/components/pos/NumPad'
@@ -226,7 +227,7 @@ export default function CashPage() {
   const fetchReport = useCallback(async (d: string) => {
     setIsLoading(true)
     try {
-      const r = await fetch(`/api/reports/${d}`).then(res => res.json())
+      const r = await authedFetch(`/api/reports/${d}`).then(res => res.json())
       setReport(r.report)
       setOrders(r.orders ?? [])
     } finally {
@@ -247,7 +248,7 @@ export default function CashPage() {
     if (!confirm(t('cashConfirmVoid'))) return
     setVoiding(true)
     try {
-      const r = await fetch(`/api/orders/${o.id}`, {
+      const r = await authedFetch(`/api/orders/${o.id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ status: 'cancelled' }),
@@ -296,7 +297,7 @@ export default function CashPage() {
   }
 
   async function callReport(body: object) {
-    const r = await fetch(`/api/reports/${date}`, {
+    const r = await authedFetch(`/api/reports/${date}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body),

@@ -1,5 +1,6 @@
 'use client'
 
+import { authedFetch } from "@/lib/supabase-browser"
 import { useEffect, useState } from 'react'
 import type { Order, OrderStatus } from '@/lib/types'
 
@@ -31,7 +32,7 @@ export default function KitchenDisplay() {
   useEffect(() => {
     const fetch_ = async () => {
       try {
-        const res = await fetch('/api/orders')
+        const res = await authedFetch('/api/orders')
         if (res.ok) {
           const data = await res.json()
           setOrders(data.orders.filter((o: Order) => ACTIVE.includes(o.status)))
@@ -44,7 +45,7 @@ export default function KitchenDisplay() {
   }, [])
 
   async function markAccepted(id: string) {
-    await fetch(`/api/orders/${id}`, {
+    await authedFetch(`/api/orders/${id}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ status: 'accepted' }),
@@ -52,7 +53,7 @@ export default function KitchenDisplay() {
   }
 
   async function markReady(id: string) {
-    await fetch(`/api/orders/${id}`, {
+    await authedFetch(`/api/orders/${id}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ status: 'ready' }),

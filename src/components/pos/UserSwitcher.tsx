@@ -1,5 +1,6 @@
 'use client'
 
+import { authedFetch } from "@/lib/supabase-browser"
 import { useState, useEffect } from 'react'
 import type { ActiveUser } from '@/lib/pos-auth'
 
@@ -50,7 +51,7 @@ export default function UserSwitcher({
   // log in here — no demo/sample fallback. Every PIN goes through the server
   // check below.
   useEffect(() => {
-    fetch('/api/users')
+    authedFetch('/api/users')
       .then(r => r.ok ? r.json() : null)
       .then(d => setUsers(Array.isArray(d?.users) ? d.users : []))
       .catch(() => setUsers([]))
@@ -60,7 +61,7 @@ export default function UserSwitcher({
   useEffect(() => {
     if (pin.length !== 4 || !picked || checking) return
     setChecking(true)
-    fetch('/api/users/verify-pin', {
+    authedFetch('/api/users/verify-pin', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ id: picked.id, pin }),

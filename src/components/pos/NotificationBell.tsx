@@ -1,5 +1,6 @@
 'use client'
 
+import { authedFetch } from "@/lib/supabase-browser"
 import { useState, useEffect, useCallback, useRef } from 'react'
 import type { Alert, AlertSeverity } from '@/lib/alerts'
 import { loadBarSettings } from '@/lib/printer'
@@ -46,7 +47,7 @@ export default function NotificationBell() {
         weekly:  String(s.weeklyRevenueTarget ?? 0),
         monthly: String(s.monthlyRevenueTarget ?? 0),
       })
-      const r = await fetch(`/api/alerts?${qs}`)
+      const r = await authedFetch(`/api/alerts?${qs}`)
       if (!r.ok) return
       const d = await r.json()
       const list: Alert[] = Array.isArray(d.alerts) ? d.alerts : []

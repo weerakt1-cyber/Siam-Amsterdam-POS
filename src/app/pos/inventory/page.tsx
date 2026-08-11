@@ -1,5 +1,6 @@
 ﻿'use client'
 
+import { authedFetch } from "@/lib/supabase-browser"
 import { useState, useEffect, useCallback, useRef } from 'react'
 import type { InventoryItem, StockAdjustment, AdjustReason } from '@/lib/types'
 import NumPad from '@/components/pos/NumPad'
@@ -156,7 +157,7 @@ export default function InventoryPage() {
 
   const fetchAll = useCallback(async () => {
     try {
-      const r = await fetch('/api/inventory').then(res => res.json())
+      const r = await authedFetch('/api/inventory').then(res => res.json())
       setItems(r.items ?? [])
     } finally {
       setLoading(false)
@@ -164,7 +165,7 @@ export default function InventoryPage() {
   }, [])
 
   const fetchAdjustments = useCallback(async (id: string) => {
-    const r = await fetch(`/api/inventory/${id}/adjust`).then(res => res.json())
+    const r = await authedFetch(`/api/inventory/${id}/adjust`).then(res => res.json())
     setAdjustments(r.adjustments ?? [])
   }, [])
 
@@ -213,12 +214,12 @@ export default function InventoryPage() {
         notes: form.notes || undefined,
       }
       if (isCreating) {
-        const r = await fetch('/api/inventory', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) })
+        const r = await authedFetch('/api/inventory', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) })
         if (!r.ok) throw new Error((await r.json()).error)
         showToast(`${form.name} added`)
         setIsCreating(false)
       } else {
-        const r = await fetch(`/api/inventory/${selectedId}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) })
+        const r = await authedFetch(`/api/inventory/${selectedId}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) })
         if (!r.ok) throw new Error((await r.json()).error)
         showToast(tr('saved'))
       }
@@ -234,7 +235,7 @@ export default function InventoryPage() {
     if (!selectedId) return
     const item = items.find(i => i.id === selectedId)
     if (!confirm(`Delete "${item?.name}"?`)) return
-    await fetch(`/api/inventory/${selectedId}`, { method: 'DELETE' })
+    await authedFetch(`/api/inventory/${selectedId}`, { method: 'DELETE' })
     showToast(tr('cmDeleted'))
     setSelectedId(null)
     await fetchAll()
@@ -242,7 +243,7 @@ export default function InventoryPage() {
 
   async function doAdjust(delta: number, reason: AdjustReason) {
     if (!selectedId || delta === 0) return
-    const r = await fetch(`/api/inventory/${selectedId}/adjust`, {
+    const r = await authedFetch(`/api/inventory/${selectedId}/adjust`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ delta, reason, note: adjustNote || undefined }),

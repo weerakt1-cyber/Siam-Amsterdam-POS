@@ -1,5 +1,6 @@
 'use client'
 
+import { authedFetch } from "@/lib/supabase-browser"
 import { useState, useEffect, useCallback, useRef } from 'react'
 import type { Order, OrderStatus } from '@/lib/types'
 import { usePosLang, type PosStringKey } from '@/lib/pos-i18n'
@@ -181,7 +182,7 @@ export default function KitchenPage() {
 
   const fetchOrders = useCallback(async () => {
     try {
-      const r = await fetch('/api/orders')
+      const r = await authedFetch('/api/orders')
       if (r.ok) {
         const d = await r.json()
         const active = (d.orders as Order[]).filter(o =>
@@ -220,7 +221,7 @@ export default function KitchenPage() {
   async function handleUpdate(id: string, status: OrderStatus) {
     setUpdating(prev => new Set(prev).add(id))
     try {
-      const r = await fetch(`/api/orders/${id}`, {
+      const r = await authedFetch(`/api/orders/${id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ status }),

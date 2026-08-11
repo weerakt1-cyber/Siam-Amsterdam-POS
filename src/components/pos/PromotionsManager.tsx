@@ -1,5 +1,6 @@
 'use client'
 
+import { authedFetch } from "@/lib/supabase-browser"
 import { useState, useEffect, useCallback } from 'react'
 import type { Promotion, PromotionType, MenuItem } from '@/lib/types'
 import { fetchCategories, type CatEntry } from '@/lib/categories'
@@ -68,13 +69,13 @@ export default function PromotionsManager() {
   const showToast = (msg: string, ok = true) => { setToast({ msg, ok }); setTimeout(() => setToast(null), 2500) }
 
   const fetchAll = useCallback(async () => {
-    const r = await fetch('/api/promotions').then(res => res.json()).catch(() => ({ promotions: [] }))
+    const r = await authedFetch('/api/promotions').then(res => res.json()).catch(() => ({ promotions: [] }))
     setPromos(r.promotions ?? [])
   }, [])
 
   useEffect(() => {
     fetchAll()
-    fetch('/api/menu').then(r => r.json()).then(d => setMenu(d.menu ?? [])).catch(() => {})
+    authedFetch('/api/menu').then(r => r.json()).then(d => setMenu(d.menu ?? [])).catch(() => {})
     fetchCategories().then(setCats).catch(() => {})
   }, [fetchAll])
 
@@ -140,7 +141,7 @@ export default function PromotionsManager() {
   }
 
   async function toggleActive(p: Promotion) {
-    await fetch(`/api/promotions/${p.id}`, {
+    await authedFetch(`/api/promotions/${p.id}`, {
       method: 'PATCH', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ active: !p.active }),
     })
@@ -149,7 +150,7 @@ export default function PromotionsManager() {
 
   async function remove(p: Promotion) {
     if (!window.confirm(`Delete promotion "${p.name}"?`)) return
-    await fetch(`/api/promotions/${p.id}`, { method: 'DELETE' })
+    await authedFetch(`/api/promotions/${p.id}`, { method: 'DELETE' })
     if (selectedId === p.id) cancel()
     await fetchAll()
   }

@@ -1,5 +1,6 @@
 ﻿'use client'
 
+import { authedFetch } from "@/lib/supabase-browser"
 import { useState, useEffect, useCallback } from 'react'
 import type { UserRole } from '@/lib/types'
 import { usePosLang } from '@/lib/pos-i18n'
@@ -152,7 +153,7 @@ export default function UsersPage() {
   const loadUsers = useCallback(async () => {
     setLoading(true)
     try {
-      const r = await fetch('/api/users')
+      const r = await authedFetch('/api/users')
       if (r.ok) { const d = await r.json(); setUsers(d.users) }
     } finally { setLoading(false) }
   }, [])
@@ -160,7 +161,7 @@ export default function UsersPage() {
   const loadPending = useCallback(async () => {
     setPendingLoading(true)
     try {
-      const r = await fetch('/api/admin/pending')
+      const r = await authedFetch('/api/admin/pending')
       if (r.ok) { const d = await r.json(); setPending(d.pending) }
     } finally { setPendingLoading(false) }
   }, [])
@@ -228,7 +229,7 @@ export default function UsersPage() {
     if (pin !== confirmPin) return showToast(t('usPinMismatch'))
     setSaving(true)
     try {
-      const r = await fetch('/api/users', {
+      const r = await authedFetch('/api/users', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name: name.trim(), role, pin, color }),
@@ -249,7 +250,7 @@ export default function UsersPage() {
     if (!selected || !name.trim()) return
     setSaving(true)
     try {
-      const r = await fetch(`/api/users/${selected.id}`, {
+      const r = await authedFetch(`/api/users/${selected.id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name: name.trim(), role, color }),
@@ -267,7 +268,7 @@ export default function UsersPage() {
     if (!selected || newPin.length !== 4) return
     setSaving(true)
     try {
-      const r = await fetch(`/api/users/${selected.id}`, {
+      const r = await authedFetch(`/api/users/${selected.id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ pin: newPin }),
@@ -283,7 +284,7 @@ export default function UsersPage() {
   const handleDelete = async () => {
     if (!selected) return
     if (!confirm(`ลบ User "${selected.name}" ออกจากระบบ?`)) return
-    const r = await fetch(`/api/users/${selected.id}`, { method: 'DELETE' })
+    const r = await authedFetch(`/api/users/${selected.id}`, { method: 'DELETE' })
     if (r.ok) {
       setUsers(prev => prev.filter(u => u.id !== selected.id))
       setSelected(null)
@@ -296,7 +297,7 @@ export default function UsersPage() {
     if (!selectedPending) return
     setApproving(true)
     try {
-      const r = await fetch('/api/admin/approve', {
+      const r = await authedFetch('/api/admin/approve', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ userId: selectedPending.id, action, role: action === 'approve' ? approveRole : undefined }),
