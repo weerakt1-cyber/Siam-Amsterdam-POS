@@ -681,71 +681,83 @@ export type { InventoryCategory }
 
 // ─── Daily Reports ────────────────────────────────────────────────────────────
 
-export async function getReport(date: string): Promise<DailyReport> {
-  const { data } = await supabase.from('daily_reports').select('*').eq('date', date).single()
+export async function getReport(date: string, storeId?: string): Promise<DailyReport> {
+  const sid = await requireStoreId(storeId)
+  const { data } = await supabase.from('daily_reports').select('*').eq('date', date).eq('store_id', sid).maybeSingle()
   if (data) return mapReport(data)
   // สร้างรายงานใหม่ถ้ายังไม่มี
   const blank: DailyReport = { date, openingCash: 0, cashIns: [], expenses: [], updatedAt: now() }
   await supabase.from('daily_reports').insert({
-    date, opening_cash: 0, cash_ins: [], expenses: [], updated_at: blank.updatedAt,
+    store_id: sid, date, opening_cash: 0, cash_ins: [], expenses: [], updated_at: blank.updatedAt,
   })
   return blank
 }
 
-export async function setOpeningCash(date: string, amount: number): Promise<DailyReport> {
+export async function setOpeningCash(date: string, amount: number, storeId?: string): Promise<DailyReport> {
+  const sid = await requireStoreId(storeId)
+  // Preserve existing cash_ins/expenses — only the opening float changes.
+  const cur = await getReport(date, sid)
   const { data, error } = await supabase
     .from('daily_reports')
-    .upsert({ date, opening_cash: amount, cash_ins: [], expenses: [], updated_at: now() }, { onConflict: 'date' })
+    .upsert({ store_id: sid, date, opening_cash: amount, cash_ins: cur.cashIns, expenses: cur.expenses, updated_at: now() }, { onConflict: 'store_id,date' })
     .select()
     .single()
   if (error) throw error
   return mapReport(data)
 }
 
-export async function addCashIn(date: string, data: Omit<CashEntry, 'id' | 'createdAt'>): Promise<DailyReport> {
-  const report = await getReport(date)
+export async function addCashIn(date: string, data: Omit<CashEntry, 'id' | 'createdAt'>, storeId?: string): Promise<DailyReport> {
+  const sid = await requireStoreId(storeId)
+  const report = await getReport(date, sid)
   const entry: CashEntry = { ...data, id: makeId('ci'), createdAt: now() }
   const { data: row, error } = await supabase
     .from('daily_reports')
     .update({ cash_ins: [...report.cashIns, entry], updated_at: now() })
     .eq('date', date)
+    .eq('store_id', sid)
     .select()
     .single()
   if (error) throw error
   return mapReport(row)
 }
 
-export async function removeCashIn(date: string, entryId: string): Promise<DailyReport> {
-  const report = await getReport(date)
+export async function removeCashIn(date: string, entryId: string, storeId?: string): Promise<DailyReport> {
+  const sid = await requireStoreId(storeId)
+  const report = await getReport(date, sid)
   const { data: row, error } = await supabase
     .from('daily_reports')
     .update({ cash_ins: report.cashIns.filter(e => e.id !== entryId), updated_at: now() })
     .eq('date', date)
+    .eq('store_id', sid)
     .select()
     .single()
   if (error) throw error
   return mapReport(row)
 }
 
-export async function addExpense(date: string, data: Omit<ExpenseEntry, 'id' | 'createdAt'>): Promise<DailyReport> {
-  const report = await getReport(date)
+export async function addExpense(date: string, data: Omit<ExpenseEntry, 'id' | 'createdAt'>, storeId?: string): Promise<DailyReport> {
+  const sid = await requireStoreId(storeId)
+  const report = await getReport(date, sid)
   const entry: ExpenseEntry = { ...data, id: makeId('ex'), createdAt: now() }
   const { data: row, error } = await supabase
     .from('daily_reports')
     .update({ expenses: [...report.expenses, entry], updated_at: now() })
     .eq('date', date)
+    .eq('store_id', sid)
     .select()
     .single()
   if (error) throw error
   return mapReport(row)
 }
 
-export async function removeExpense(date: string, entryId: string): Promise<DailyReport> {
-  const report = await getReport(date)
+export async function removeExpense(date: string, entryId: string, storeId?: string): Promise<DailyReport> {
+  const sid = await requireStoreId(storeId)
+  const report = await getReport(date, sid)
   const { data: row, error } = await supabase
     .from('daily_reports')
     .update({ expenses: report.expenses.filter(e => e.id !== entryId), updated_at: now() })
     .eq('date', date)
+    .eq('store_id', sid)
     .select()
     .single()
   if (error) throw error
