@@ -218,22 +218,25 @@ export async function getCategories(storeId?: string): Promise<CatEntry[]> {
 // ─── App config (key/value) ────────────────────────────────────────────────
 // Server-side settings that must not live in the browser (e.g. Omise secret key).
 
-export async function getConfig(key: string): Promise<string | null> {
-  const { data, error } = await supabase.from('app_config').select('value').eq('key', key).maybeSingle()
+export async function getConfig(key: string, storeId?: string): Promise<string | null> {
+  const sid = await requireStoreId(storeId)
+  const { data, error } = await supabase.from('app_config').select('value').eq('key', key).eq('store_id', sid).maybeSingle()
   if (error || !data) return null
   return (data.value as string | null) ?? null
 }
 
-export async function getConfigMany(keys: string[]): Promise<Record<string, string>> {
-  const { data, error } = await supabase.from('app_config').select('key, value').in('key', keys)
+export async function getConfigMany(keys: string[], storeId?: string): Promise<Record<string, string>> {
+  const sid = await requireStoreId(storeId)
+  const { data, error } = await supabase.from('app_config').select('key, value').in('key', keys).eq('store_id', sid)
   if (error || !data) return {}
   const out: Record<string, string> = {}
   for (const row of data) if (row.value != null) out[row.key as string] = row.value as string
   return out
 }
 
-export async function setConfig(key: string, value: string): Promise<void> {
-  const { error } = await supabase.from('app_config').upsert({ key, value, updated_at: now() })
+export async function setConfig(key: string, value: string, storeId?: string): Promise<void> {
+  const sid = await requireStoreId(storeId)
+  const { error } = await supabase.from('app_config').upsert({ store_id: sid, key, value, updated_at: now() }, { onConflict: 'store_id,key' })
   if (error) throw error
 }
 

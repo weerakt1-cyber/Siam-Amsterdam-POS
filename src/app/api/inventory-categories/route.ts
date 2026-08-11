@@ -2,14 +2,17 @@ export const dynamic = 'force-dynamic'
 
 import { NextRequest, NextResponse } from 'next/server'
 import { getConfig, setConfig } from '@/lib/store'
+import { resolveStoreId } from '@/lib/api-auth'
 
 const CONFIG_KEY = 'inventory_categories'
 
 type InvCat = { value: string; label: string }
 
-export async function GET() {
+export async function GET(req: NextRequest) {
   try {
-    const raw = await getConfig(CONFIG_KEY)
+    const storeId = await resolveStoreId(req)
+    if (!storeId) return NextResponse.json({ categories: [], error: 'Store context required' }, { status: 400 })
+    const raw = await getConfig(CONFIG_KEY, storeId)
     const categories: InvCat[] = raw ? JSON.parse(raw) : []
     return NextResponse.json({ categories: Array.isArray(categories) ? categories : [] })
   } catch (err) {
@@ -21,13 +24,15 @@ export async function GET() {
 // Full-replace — body.categories is the complete list.
 export async function POST(req: NextRequest) {
   try {
+    const storeId = await resolveStoreId(req)
+    if (!storeId) return NextResponse.json({ error: 'Store context required' }, { status: 400 })
     const body = await req.json()
     const categories: InvCat[] = Array.isArray(body.categories)
       ? body.categories
           .filter((c: unknown): c is InvCat => !!c && typeof (c as InvCat).value === 'string' && typeof (c as InvCat).label === 'string')
           .map((c: InvCat) => ({ value: c.value, label: c.label }))
       : []
-    await setConfig(CONFIG_KEY, JSON.stringify(categories))
+    await setConfig(CONFIG_KEY, JSON.stringify(categories), storeId)
     return NextResponse.json({ categories })
   } catch (err) {
     console.error('[inventory-categories] POST failed:', err instanceof Error ? err.message : err)

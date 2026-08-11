@@ -2,7 +2,7 @@ export const dynamic = 'force-dynamic'
 
 import { NextRequest, NextResponse } from 'next/server'
 import { getConfigMany, setConfig } from '@/lib/store'
-import { getSessionProfile, requireRole } from '@/lib/api-auth'
+import { getSessionProfile, requireRole, resolveStoreId } from '@/lib/api-auth'
 
 const PUBLIC_KEY = 'omise_public_key'
 const SECRET_KEY = 'omise_secret_key'
@@ -18,7 +18,9 @@ function modeOf(key: string | undefined): 'test' | 'live' | null {
 // is returned ONLY to an admin caller. The secret key itself is NEVER returned.
 export async function GET(req: NextRequest) {
   try {
-    const cfg = await getConfigMany([PUBLIC_KEY, SECRET_KEY])
+    const storeId = await resolveStoreId(req)
+    if (!storeId) return NextResponse.json({ error: 'Store context required' }, { status: 400 })
+    const cfg = await getConfigMany([PUBLIC_KEY, SECRET_KEY], storeId)
     const publicKey = cfg[PUBLIC_KEY] || process.env.NEXT_PUBLIC_OMISE_PUBLIC_KEY || ''
     const secretKey = cfg[SECRET_KEY] || process.env.OMISE_SECRET_KEY || ''
 
@@ -47,10 +49,12 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   const auth = await requireRole(req, ['admin'])
   if (!auth.ok) return auth.res
+  const storeId = auth.profile.store_id ?? (await resolveStoreId(req))
+  if (!storeId) return NextResponse.json({ error: 'Store context required' }, { status: 400 })
   try {
     const body = await req.json()
-    if (typeof body.publicKey === 'string') await setConfig(PUBLIC_KEY, body.publicKey.trim())
-    if (typeof body.secretKey === 'string') await setConfig(SECRET_KEY, body.secretKey.trim())
+    if (typeof body.publicKey === 'string') await setConfig(PUBLIC_KEY, body.publicKey.trim(), storeId)
+    if (typeof body.secretKey === 'string') await setConfig(SECRET_KEY, body.secretKey.trim(), storeId)
     return NextResponse.json({ ok: true })
   } catch (err) {
     console.error('[payment/config] POST', err instanceof Error ? err.message : err)
