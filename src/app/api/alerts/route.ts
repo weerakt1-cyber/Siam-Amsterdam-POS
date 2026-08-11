@@ -2,6 +2,7 @@ export const dynamic = 'force-dynamic'
 
 import { NextRequest, NextResponse } from 'next/server'
 import { getOrders, getInventory, getMenu, getAllMenuIngredients } from '@/lib/store'
+import { resolveStoreId } from '@/lib/api-auth'
 import { computeAlerts } from '@/lib/alerts'
 
 // GET /api/alerts?daily=&weekly=&monthly=
@@ -12,10 +13,12 @@ export async function GET(req: NextRequest) {
   const num = (k: string) => Math.max(0, Number(searchParams.get(k) ?? 0) || 0)
 
   try {
+    const storeId = await resolveStoreId(req)
+    if (!storeId) return NextResponse.json({ alerts: [], error: 'Store context required' }, { status: 400 })
     const [orders, inventory, menu, ingredients] = await Promise.all([
-      getOrders(),
-      getInventory(),
-      getMenu(),
+      getOrders(storeId),
+      getInventory(storeId),
+      getMenu(storeId),
       // Ingredient links power the sales-velocity / variance suggestions but are
       // optional — if the table isn't provisioned, degrade gracefully to stock +
       // target alerts rather than failing the whole endpoint.

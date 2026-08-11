@@ -2,10 +2,13 @@ export const dynamic = "force-dynamic"
 
 import { NextRequest, NextResponse } from 'next/server'
 import { getReport, setOpeningCash, addCashIn, removeCashIn, addExpense, removeExpense, getOrdersByDate } from '@/lib/store'
+import { resolveStoreId } from '@/lib/api-auth'
 
-export async function GET(_: NextRequest, { params }: { params: Promise<{ date: string }> }) {
+export async function GET(req: NextRequest, { params }: { params: Promise<{ date: string }> }) {
   const { date } = await params
-  const [report, orders] = await Promise.all([getReport(date), getOrdersByDate(date)])
+  const storeId = await resolveStoreId(req)
+  if (!storeId) return NextResponse.json({ error: 'Store context required' }, { status: 400 })
+  const [report, orders] = await Promise.all([getReport(date), getOrdersByDate(date, storeId)])
   return NextResponse.json({ report, orders })
 }
 
