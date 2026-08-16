@@ -538,7 +538,7 @@ export default function POSPage() {
         total:          finalTotal,
         vatIncluded:    Math.round(finalTotal * 7 / 107),
         note:           freebieNote || undefined,
-      }, cfg, { reviewQR: true })
+      }, cfg)   // Print Check = pre-payment bill: no review QR (only the final checkout receipt has it)
     } catch (e) {
       alert(e instanceof Error ? e.message : t('posPrintCheckConn'))
     }
