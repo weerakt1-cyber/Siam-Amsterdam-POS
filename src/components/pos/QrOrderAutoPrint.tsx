@@ -5,8 +5,9 @@ import { useEffect, useRef, useCallback } from 'react'
 import { loadBarSettings, printReceipt, isNativePlatform, type ReceiptData } from '@/lib/printer'
 import type { Order } from '@/lib/types'
 
-// Auto-prints an order ticket on THIS device's printer the moment a customer
-// places a QR self-order. Runs quietly in the POS layout (like PrinterAutoConnect).
+// Auto-prints an order ticket on THIS device's printer within a few seconds of
+// a customer placing a QR self-order. Runs quietly in the POS layout (like
+// PrinterAutoConnect), polling every POLL_MS.
 //
 // Safeguards:
 //  • Seeds a baseline on the first poll after mount, so opening the app never
@@ -20,7 +21,7 @@ import type { Order } from '@/lib/types'
 //  • Per-device toggle (pos_qr_autoprint) — set to 'off' to stop this tablet
 //    auto-printing (e.g. when a second tablet already does).
 
-const POLL_MS     = 12_000
+const POLL_MS     = 6_000
 const SETTING_KEY = 'pos_qr_autoprint'
 const PRINTED_KEY = 'pos_qr_autoprinted'
 
