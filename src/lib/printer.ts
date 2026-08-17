@@ -406,19 +406,38 @@ function layoutReceipt(ctx: CanvasRenderingContext2D, W: number, d: ReceiptData,
   }
   function itemRow(name: string, qtyPrice: string, size: number) {
     setFont(size, false)
-    const rightW  = ctx.measureText(qtyPrice).width
-    const maxNmW  = innerW - rightW - S(10)
-    const full    = stripEmoji(name)
-    let nm = full
-    if (ctx.measureText(nm).width > maxNmW) {
-      while (nm.length > 1 && ctx.measureText(nm + '…').width > maxNmW) nm = nm.slice(0, -1)
-      nm += '…'
+    const rightW = ctx.measureText(qtyPrice).width
+    const maxNmW = innerW - rightW - S(10)   // leave room for the qty/price column
+    const full   = stripEmoji(name)
+    const fit    = (s: string) => ctx.measureText(s).width <= maxNmW
+
+    // Wrap the item name onto as many lines as needed so nothing is cut off —
+    // by words first, then hard-break a single token too wide to fit (long
+    // option labels like "(Large, Less Ice)", or Thai text without spaces).
+    const lines: string[] = []
+    for (const word of full.split(/\s+/).filter(Boolean)) {
+      const cur    = lines.length ? lines[lines.length - 1] : ''
+      const merged = cur ? cur + ' ' + word : word
+      if (cur && fit(merged)) { lines[lines.length - 1] = merged; continue }
+      let chunk = ''
+      for (const ch of word) {
+        if (chunk && !fit(chunk + ch)) { lines.push(chunk); chunk = ch }
+        else chunk += ch
+      }
+      if (chunk) lines.push(chunk)
     }
+    if (lines.length === 0) lines.push(full)
+
     if (draw) {
-      ctx.textAlign = 'left';  ctx.fillText(nm, pad, y)
+      // First line carries the qty/price on the right; wrapped lines are the
+      // name only, slightly indented so they read as a continuation.
+      ctx.textAlign = 'left';  ctx.fillText(lines[0], pad, y)
       ctx.textAlign = 'right'; ctx.fillText(qtyPrice, W - pad, y)
+      for (let i = 1; i < lines.length; i++) {
+        ctx.textAlign = 'left'; ctx.fillText(lines[i], pad + S(6), y + lh(size) * i)
+      }
     }
-    y += lh(size)
+    y += lh(size) * lines.length
   }
   function hr(dashed = false) {
     y += S(5)
