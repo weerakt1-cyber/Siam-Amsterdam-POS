@@ -118,6 +118,8 @@ export default function OrderPage({ params }: { params: Promise<{ store: string;
   const [showConfirm, setShowConfirm] = useState(false)
 
   const [customerName, setCustomerName] = useState('')
+  const [memberPhone, setMemberPhone]   = useState('')
+  const [memberLinkedName, setMemberLinkedName] = useState<string | null>(null)
   const [infoError, setInfoError]       = useState('')
 
   // Always starts 'en' (matches what the server renders) and picks up the
@@ -290,6 +292,7 @@ export default function OrderPage({ params }: { params: Promise<{ store: string;
         body: JSON.stringify({
           tableNo: selectedTable,
           customerName: customerName.trim(),
+          memberPhone: memberPhone.trim() || undefined,
           source: 'qr',
           note: [note.trim(), freebieNote].filter(Boolean).join(' · '),
           items: cart.map(c => ({ menuId: c.menuId, name: c.name, qty: c.qty, price: c.price, variantLabel: c.variantLabel })),
@@ -306,6 +309,7 @@ export default function OrderPage({ params }: { params: Promise<{ store: string;
         return
       }
       const d = await r.json()
+      if (d.memberLinked) setMemberLinkedName(d.memberName ?? '')
       const placed: PlacedOrder = {
         id:     d.order?.id ?? '',
         status: 'pending',
@@ -380,6 +384,18 @@ export default function OrderPage({ params }: { params: Promise<{ store: string;
             autoFocus
           />
 
+          <label className="text-xs font-semibold text-gray-400 uppercase tracking-widest block mb-2 mt-4">{t('memberPhone')}</label>
+          <input
+            value={memberPhone}
+            onChange={e => setMemberPhone(e.target.value)}
+            placeholder="08x-xxx-xxxx"
+            inputMode="tel"
+            type="tel"
+            className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm text-gray-900 placeholder:text-gray-300 focus:outline-none focus:border-amber-400 transition"
+            style={{ userSelect: 'text' }}
+          />
+          <p className="text-[11px] text-amber-600 mt-1.5">⭐ {t('memberPhoneHint')}</p>
+
           {infoError && <p className="text-xs text-red-500 text-center mt-3">{infoError}</p>}
 
           <button
@@ -411,6 +427,15 @@ export default function OrderPage({ params }: { params: Promise<{ store: string;
         </header>
 
         <main className="flex-1 max-w-md mx-auto w-full px-4 py-6 flex flex-col gap-6">
+
+          {memberLinkedName !== null && (
+            <div className="bg-amber-50 border border-amber-200 rounded-2xl px-4 py-3 flex items-center gap-2.5">
+              <span className="text-xl">⭐</span>
+              <p className="text-sm font-semibold text-amber-800">
+                {t('pointsEarning')}{memberLinkedName ? ` · ${memberLinkedName}` : ''}
+              </p>
+            </div>
+          )}
 
           {orders.map((order, i) => {
             const stepIdx     = statusIndex(order.status)

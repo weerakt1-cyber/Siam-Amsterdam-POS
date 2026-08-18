@@ -19,6 +19,7 @@ export const LANGS: { code: Lang; flag: string; label: string }[] = [
 export type OrderStringKey =
   | 'selectLanguage'
   | 'welcomeTitle' | 'welcomeSubtitle' | 'tableLabel' | 'yourName' | 'namePlaceholder'
+  | 'memberPhone' | 'memberPhoneHint' | 'pointsEarning'
   | 'errNameRequired' | 'errTableRequired' | 'continueToMenu'
   | 'orderMenu' | 'trackingBtn' | 'readyBtn' | 'loadingMenu' | 'noItemsCategory'
   | 'viewOrder' | 'yourOrder' | 'specialRequest' | 'notePlaceholder' | 'total'
@@ -41,6 +42,9 @@ export const STRINGS: Record<Lang, Record<OrderStringKey, string>> = {
     tableLabel:         'Table',
     yourName:           'Your Name',
     namePlaceholder:    'e.g. Somchai',
+    memberPhone:        'Phone (optional)',
+    memberPhoneHint:    'Member? Enter your phone to earn points',
+    pointsEarning:      'Earning points',
     errNameRequired:    'Please enter your name',
     errTableRequired:   'Please select a table',
     continueToMenu:     'Continue to Menu →',
@@ -101,6 +105,9 @@ export const STRINGS: Record<Lang, Record<OrderStringKey, string>> = {
     tableLabel:         'Столик',
     yourName:           'Ваше имя',
     namePlaceholder:    'например, Иван',
+    memberPhone:        'Телефон (необязательно)',
+    memberPhoneHint:    'Участник? Введите телефон, чтобы копить баллы',
+    pointsEarning:      'Начисляем баллы',
     errNameRequired:    'Пожалуйста, введите ваше имя',
     errTableRequired:   'Пожалуйста, выберите столик',
     continueToMenu:     'Перейти к меню →',
@@ -161,6 +168,9 @@ export const STRINGS: Record<Lang, Record<OrderStringKey, string>> = {
     tableLabel:         '桌号',
     yourName:           '您的姓名',
     namePlaceholder:    '例如：小明',
+    memberPhone:        '电话（可选）',
+    memberPhoneHint:    '会员？输入电话号码以累积积分',
+    pointsEarning:      '正在累积积分',
     errNameRequired:    '请输入您的姓名',
     errTableRequired:   '请选择桌号',
     continueToMenu:     '进入菜单 →',

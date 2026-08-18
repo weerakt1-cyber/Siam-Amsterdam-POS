@@ -1,7 +1,7 @@
 export const dynamic = "force-dynamic"
 
 import { NextRequest, NextResponse } from 'next/server'
-import { getOrder, updateOrderStatus, getMenuIngredients, adjustStock } from '@/lib/store'
+import { getOrder, updateOrderStatus, getMenuIngredients, adjustStock, awardOrderPoints } from '@/lib/store'
 import { resolveStoreId } from '@/lib/api-auth'
 import { fireWebhook } from '@/lib/webhooks'
 import { getAdapter } from '@/lib/delivery-platforms'
@@ -54,6 +54,11 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   if (status === 'paid') {
     deductStockForOrder(updated.id, storeId).catch(err =>
       console.error('[Orders PATCH] Stock deduction failed:', err)
+    )
+    // Auto-credit loyalty points to a linked member (QR order with a phone).
+    // Idempotent, so paying more than once won't double-award.
+    awardOrderPoints(updated.id, storeId).catch(err =>
+      console.error('[Orders PATCH] Points award failed:', err)
     )
     fireWebhook('order.paid', updated).catch(err =>
       console.error('[Orders PATCH] Webhook delivery failed:', err)

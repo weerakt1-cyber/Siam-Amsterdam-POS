@@ -1,7 +1,7 @@
 ﻿export const dynamic = "force-dynamic"
 
 import { NextRequest, NextResponse } from 'next/server'
-import { getOrders, getMenu, createOrder, recordCouponUse } from '@/lib/store'
+import { getOrders, getMenu, createOrder, recordCouponUse, getMemberByPhone } from '@/lib/store'
 import { resolveStoreId } from '@/lib/api-auth'
 import { appendOrderToSheet } from '@/lib/sheets'
 import { sendOrderAlert } from '@/lib/telegram'
@@ -24,7 +24,17 @@ export async function POST(req: NextRequest) {
     if (!storeId) return NextResponse.json({ error: 'Store context required' }, { status: 400 })
 
     const body = await req.json()
-    const { tableNo, items, note, source, paymentMethod, discount, memberName, customerName, couponId, couponOrderTotal, couponMemberName, hold, orderType, channel, platformCode, commissionRate } = body
+    const { tableNo, items, note, source, paymentMethod, discount, memberName, memberPhone, customerName, couponId, couponOrderTotal, couponMemberName, hold, orderType, channel, platformCode, commissionRate } = body
+
+    // QR self-order: the customer may enter their phone to link this order to
+    // their member account (points auto-credit when it's paid). Resolve it
+    // server-side so the phone is never trusted as a member id.
+    let linkedMemberId: string | undefined
+    let linkedMemberName: string | undefined = memberName ? String(memberName) : undefined
+    if (memberPhone && typeof memberPhone === 'string' && memberPhone.trim()) {
+      const m = await getMemberByPhone(memberPhone.trim(), storeId)
+      if (m) { linkedMemberId = m.id; linkedMemberName = m.name }
+    }
 
     // Delivery orders: channel is required, tableNo defaults to the channel short code
     const isDelivery = orderType === 'delivery'
@@ -69,7 +79,8 @@ export async function POST(req: NextRequest) {
       source:        source === 'pos' ? 'pos' : source === 'qr' ? 'qr' : 'manual',
       paymentMethod: paymentMethod ? String(paymentMethod) : undefined,
       discount:      discount && typeof discount === 'object' ? discount : undefined,
-      memberName:    memberName ? String(memberName) : undefined,
+      memberName:    linkedMemberName,
+      memberId:      linkedMemberId,
       customerName:  customerName ? String(customerName) : undefined,
       hold:          Boolean(hold),
       orderType:     isDelivery ? 'delivery' : orderType === 'takeaway' ? 'takeaway' : 'dine-in',
@@ -122,7 +133,7 @@ export async function POST(req: NextRequest) {
     sendLineOrderAlert(notifyPayload)
       .catch((err) => console.error('[Orders API] LINE notify failed:', err))
 
-    return NextResponse.json({ order }, { status: 201 })
+    return NextResponse.json({ order, memberLinked: !!linkedMemberId, memberName: linkedMemberName }, { status: 201 })
   } catch {
     return NextResponse.json({ error: 'Invalid request body' }, { status: 400 })
   }

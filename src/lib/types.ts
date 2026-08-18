@@ -31,6 +31,8 @@ export type Order = {
   total: number            // after discount
   paymentMethod?: string
   memberName?: string
+  memberId?: string          // linked member (QR order: resolved from the customer's phone)
+  pointsAwarded?: boolean     // loyalty points already credited for this order (set on paid)
   customerName?: string
   // Delivery platform fields (null/undefined for dine-in orders)
   orderType?: OrderType          // default 'dine-in'

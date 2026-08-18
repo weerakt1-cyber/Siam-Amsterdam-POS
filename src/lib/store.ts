@@ -12,6 +12,7 @@ import type {
   MenuIngredient,
 } from './types'
 import type { CatEntry } from './categories'
+import { computePointsEarned, getTier } from './loyalty'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -60,6 +61,8 @@ function mapOrder(row: Record<string, unknown>): Order {
     total:         Number(row.total),
     paymentMethod: row.payment_method as string | undefined,
     memberName:    row.member_name as string | undefined,
+    memberId:      (row.member_id as string | null) ?? undefined,
+    pointsAwarded: Boolean(row.points_awarded),
     customerName:  row.customer_name as string | undefined,
     orderType:     (row.order_type as OrderType | null) ?? 'dine-in',
     channel:       (row.channel as DeliveryChannel | null) ?? undefined,
@@ -401,6 +404,7 @@ export async function createOrder(data: {
   paymentMethod?: string
   discount?: OrderDiscount
   memberName?: string
+  memberId?: string
   customerName?: string
   hold?: boolean  // true = ส่งครัว/บาร์ทันทีแต่ "พักบิล" ไว้ ยังไม่เก็บเงิน (status เริ่มที่ pending เหมือน QR order)
   orderType?: OrderType
@@ -431,6 +435,7 @@ export async function createOrder(data: {
     total,
     payment_method: data.paymentMethod ?? null,
     member_name:    data.memberName ?? null,
+    member_id:      data.memberId ?? null,
     customer_name:  data.customerName ?? null,
     order_type:     data.orderType ?? 'dine-in',
     channel:        data.channel ?? null,
@@ -482,6 +487,29 @@ export async function updateOrderStatus(id: string, status: OrderStatus, payment
     .eq('store_id', sid)   // can't change another store's order
   if (error) return null
   return (await getOrder(id, sid)) ?? null
+}
+
+// Credit loyalty points for a paid order that's linked to a member. Idempotent —
+// points_awarded guards against double-crediting if the order is PATCHed to
+// paid more than once. No-op for orders with no linked member.
+export async function awardOrderPoints(orderId: string, storeId?: string): Promise<void> {
+  const sid   = await requireStoreId(storeId)
+  const order = await getOrder(orderId, sid)
+  if (!order || !order.memberId || order.pointsAwarded) return
+  const member = await getMember(order.memberId, sid)
+  if (member) {
+    const pts = computePointsEarned(order.total, getTier(member.lifetimePoints))
+    if (pts > 0) {
+      const newLifetime = member.lifetimePoints + pts
+      await updateMember(member.id, {
+        points:         member.points + pts,
+        lifetimePoints: newLifetime,
+        tier:           getTier(newLifetime).name,
+      }, sid)
+    }
+  }
+  // Mark awarded even if 0 pts / member missing, so we never recompute this order.
+  await supabase.from('orders').update({ points_awarded: true }).eq('id', orderId).eq('store_id', sid)
 }
 
 export async function getOrdersByDate(date: string, storeId?: string): Promise<Order[]> {
