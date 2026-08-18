@@ -732,6 +732,8 @@ export default function SettingsPage() {
 
   const [qrBaseUrl,   setQrBaseUrl]   = useState('')
   const [qrAutoPrint, setQrAutoPrint] = useState(true)  // auto-print incoming QR orders on THIS device
+  const [memberQr,    setMemberQr]    = useState('')    // QR image for the member sign-up link
+  const [linkCopied,  setLinkCopied]  = useState(false)
   const [storeSlug,   setStoreSlug]   = useState('')   // this venue's store — the QR link is /order/{slug}/{table}
   const [qrImages,    setQrImages]    = useState<{ tableNo: string; dataUrl: string }[]>([])
   const [qrLoading,   setQrLoading]   = useState(false)
@@ -775,6 +777,22 @@ export default function SettingsPage() {
       else next.add(tableNo)
       return next
     })
+  }
+
+  // Build + render the member sign-up link QR whenever the store/base is known.
+  const memberSignupUrl = `${qrBaseUrl || (typeof window !== 'undefined' ? window.location.origin : '')}/register/${storeSlug}`
+  useEffect(() => {
+    if (!storeSlug) { setMemberQr(''); return }
+    QRCode.toDataURL(memberSignupUrl, { width: 300, margin: 2, color: { dark: '#111111', light: '#FFFFFF' } })
+      .then(setMemberQr).catch(() => setMemberQr(''))
+  }, [memberSignupUrl, storeSlug])
+
+  function copyMemberLink() {
+    try {
+      navigator.clipboard?.writeText(memberSignupUrl)
+      setLinkCopied(true)
+      setTimeout(() => setLinkCopied(false), 1800)
+    } catch { /* ignore */ }
   }
 
   function toggleQrAutoPrint() {
@@ -1849,6 +1867,33 @@ export default function SettingsPage() {
                 <p className="text-sm">{tr('setClickGenerate')}</p>
               </div>
             )}
+          </div>
+
+          {/* Member sign-up link + QR */}
+          <div className="bg-white border border-gray-100 rounded-2xl p-5 shadow-sm flex flex-col gap-4 mt-4">
+            <div>
+              <h3 className="font-bold text-gray-900">{tr('memberSignupTitle')}</h3>
+              <p className="text-sm text-gray-500 mt-1 leading-snug">{tr('memberSignupDesc')}</p>
+            </div>
+            <div className="flex flex-col sm:flex-row gap-4 items-start">
+              {memberQr && <img src={memberQr} alt="Member sign-up QR" className="w-32 h-32 rounded-xl border border-gray-100 shrink-0" />}
+              <div className="flex-1 min-w-0 w-full flex flex-col gap-2">
+                <p className="text-[11px] text-gray-500 font-mono break-all bg-gray-50 rounded-lg px-2 py-1.5">{memberSignupUrl}</p>
+                <div className="flex gap-2">
+                  <button onClick={copyMemberLink}
+                    className="flex-1 text-xs py-2 rounded-lg bg-gray-900 hover:bg-gray-700 text-white font-semibold transition active:scale-95">
+                    {linkCopied ? tr('linkCopied') : tr('copyLink')}
+                  </button>
+                  {memberQr && (
+                    <button
+                      onClick={() => { const a = document.createElement('a'); a.href = memberQr; a.download = 'member-signup-qr.png'; a.click() }}
+                      className="flex-1 text-xs py-2 rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-600 font-semibold transition active:scale-95">
+                      {tr('downloadQr')}
+                    </button>
+                  )}
+                </div>
+              </div>
+            </div>
           </div>
         </section>}
 

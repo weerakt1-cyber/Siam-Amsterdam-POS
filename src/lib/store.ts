@@ -510,6 +510,17 @@ export async function getMembers(storeId?: string): Promise<Member[]> {
   return (data ?? []).map(mapMember)
 }
 
+// Find a member by phone within a store — used to de-duplicate public self-
+// registration (a phone already on file returns the existing member instead of
+// creating a second one).
+export async function getMemberByPhone(phone: string, storeId?: string): Promise<Member | undefined> {
+  const sid = await requireStoreId(storeId)
+  const clean = phone.trim()
+  if (!clean) return undefined
+  const { data } = await supabase.from('members').select('*').eq('store_id', sid).eq('phone', clean).limit(1).maybeSingle()
+  return data ? mapMember(data) : undefined
+}
+
 export async function getMember(id: string, storeId?: string): Promise<Member | undefined> {
   const sid = await requireStoreId(storeId)
   const { data, error } = await supabase.from('members').select('*').eq('id', id).eq('store_id', sid).single()
@@ -517,7 +528,11 @@ export async function getMember(id: string, storeId?: string): Promise<Member | 
   return mapMember(data)
 }
 
-export async function createMember(data: Omit<Member, 'id' | 'createdAt' | 'updatedAt'>, storeId?: string): Promise<Member> {
+export async function createMember(
+  data: Omit<Member, 'id' | 'createdAt' | 'updatedAt'>,
+  storeId?: string,
+  meta?: { source?: string; consentAt?: string },
+): Promise<Member> {
   const sid = await requireStoreId(storeId)
   const ts = now()
   const { data: row, error } = await supabase
@@ -535,6 +550,8 @@ export async function createMember(data: Omit<Member, 'id' | 'createdAt' | 'upda
       tier:            data.tier ?? 'bronze',
       stamps:          data.stamps,
       stamps_earned:   data.stampsEarned,
+      source:          meta?.source ?? null,
+      consent_at:      meta?.consentAt ?? null,
       created_at:      ts,
       updated_at:      ts,
     })
