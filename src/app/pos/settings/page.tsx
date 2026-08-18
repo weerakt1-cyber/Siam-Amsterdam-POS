@@ -734,6 +734,8 @@ export default function SettingsPage() {
   const [qrAutoPrint, setQrAutoPrint] = useState(true)  // auto-print incoming QR orders on THIS device
   const [memberQr,    setMemberQr]    = useState('')    // QR image for the member sign-up link
   const [linkCopied,  setLinkCopied]  = useState(false)
+  const [benefits,    setBenefits]    = useState<{ icon: string; text: string }[]>([])
+  const [benefitsSaved, setBenefitsSaved] = useState(false)
   const [storeSlug,   setStoreSlug]   = useState('')   // this venue's store — the QR link is /order/{slug}/{table}
   const [qrImages,    setQrImages]    = useState<{ tableNo: string; dataUrl: string }[]>([])
   const [qrLoading,   setQrLoading]   = useState(false)
@@ -751,7 +753,27 @@ export default function SettingsPage() {
       .then(r => r.ok ? r.json() : null)
       .then(d => { if (d?.store) setStoreSlug(d.store.slug || d.store.id) })
       .catch(() => {})
+    authedFetch('/api/member-benefits')
+      .then(r => r.ok ? r.json() : null)
+      .then(d => { if (Array.isArray(d?.benefits)) setBenefits(d.benefits) })
+      .catch(() => {})
   }, [])
+
+  function addBenefit()               { setBenefits(b => [...b, { icon: '⭐', text: '' }]); setBenefitsSaved(false) }
+  function removeBenefit(i: number)   { setBenefits(b => b.filter((_, j) => j !== i)); setBenefitsSaved(false) }
+  function updateBenefit(i: number, field: 'icon' | 'text', val: string) {
+    setBenefits(b => b.map((x, j) => j === i ? { ...x, [field]: val } : x)); setBenefitsSaved(false)
+  }
+  async function saveBenefits() {
+    const clean = benefits.map(b => ({ icon: b.icon || '⭐', text: b.text.trim() })).filter(b => b.text)
+    try {
+      const r = await authedFetch('/api/member-benefits', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ benefits: clean }),
+      })
+      if (r.ok) { setBenefits((await r.json()).benefits ?? clean); setBenefitsSaved(true); setTimeout(() => setBenefitsSaved(false), 2500) }
+      else alert(tr('saveServerFailed'))
+    } catch { alert(tr('saveServerFailed')) }
+  }
 
   const loadFloorTables = useCallback(() => {
     try {
@@ -1893,6 +1915,41 @@ export default function SettingsPage() {
                   )}
                 </div>
               </div>
+            </div>
+          </div>
+
+          {/* Member benefits editor — shown on the sign-up page */}
+          <div className="bg-white border border-gray-100 rounded-2xl p-5 shadow-sm flex flex-col gap-4 mt-4">
+            <div>
+              <h3 className="font-bold text-gray-900">{tr('memberBenefitsTitle')}</h3>
+              <p className="text-sm text-gray-500 mt-1 leading-snug">{tr('memberBenefitsDesc')}</p>
+            </div>
+            <div className="flex flex-col gap-2">
+              {benefits.map((b, i) => (
+                <div key={i} className="flex items-center gap-2">
+                  <input
+                    value={b.icon}
+                    onChange={e => updateBenefit(i, 'icon', e.target.value)}
+                    className="w-12 text-center border border-gray-200 rounded-lg px-1 py-2 text-lg focus:outline-none focus:border-amber-400 transition"
+                    maxLength={4}
+                  />
+                  <input
+                    value={b.text}
+                    onChange={e => updateBenefit(i, 'text', e.target.value)}
+                    placeholder={tr('benefitTextPh')}
+                    className="flex-1 min-w-0 border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-amber-400 transition"
+                  />
+                  <button onClick={() => removeBenefit(i)} className="shrink-0 w-8 h-8 rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 transition text-lg">×</button>
+                </div>
+              ))}
+            </div>
+            <div className="flex gap-2">
+              <button onClick={addBenefit} className="flex-1 text-xs py-2 rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-600 font-semibold transition active:scale-95">
+                {tr('addBenefit')}
+              </button>
+              <button onClick={saveBenefits} className="flex-1 text-xs py-2 rounded-lg bg-gray-900 hover:bg-gray-700 text-white font-semibold transition active:scale-95">
+                {benefitsSaved ? tr('benefitsSaved') : tr('benefitsSaveBtn')}
+              </button>
             </div>
           </div>
         </section>}

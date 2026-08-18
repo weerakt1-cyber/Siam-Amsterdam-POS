@@ -28,6 +28,12 @@ const T = {
     alreadyTitle: 'คุณเป็นสมาชิกอยู่แล้ว 😊',
     alreadyBody: 'เบอร์นี้ลงทะเบียนไว้แล้ว แจ้งเบอร์ที่แคชเชียร์เพื่อสะสมแต้มได้เลย',
     secureNote: '🔒 ข้อมูลของคุณปลอดภัย เห็นเฉพาะร้านนี้เท่านั้น ไม่ขายหรือส่งต่อให้บุคคลภายนอก',
+    benefitsTitle: 'สิทธิประโยชน์สมาชิก',
+    defaultBenefits: [
+      { icon: '⭐', text: 'สะสมแต้มทุกการสั่ง' },
+      { icon: '🎂', text: 'สิทธิพิเศษวันเกิด' },
+      { icon: '🎁', text: 'โปรโมชั่นเฉพาะสมาชิก' },
+    ],
     policy: [
       ['ข้อมูลที่เราเก็บ', 'ชื่อ, เบอร์โทรศัพท์ และวันเกิด (ถ้ากรอก) เท่านั้น'],
       ['ใช้ทำอะไร', 'เพื่อเป็นสมาชิก สะสมแต้ม แจ้งโปรโมชั่น/สิทธิพิเศษวันเกิด และให้สั่งอาหารสะดวกขึ้น'],
@@ -58,6 +64,12 @@ const T = {
     alreadyTitle: "You're already a member 😊",
     alreadyBody: 'This number is already registered. Give it at the cashier to earn points.',
     secureNote: '🔒 Your details are safe — visible only to this store, never sold or shared.',
+    benefitsTitle: 'Member benefits',
+    defaultBenefits: [
+      { icon: '⭐', text: 'Earn points on every order' },
+      { icon: '🎂', text: 'Birthday perks' },
+      { icon: '🎁', text: 'Member-only promotions' },
+    ],
     policy: [
       ['What we collect', 'Only your name, phone number, and birthday (if given).'],
       ['What it is for', 'Membership, points, promotions / birthday perks, and easier ordering.'],
@@ -75,6 +87,7 @@ export default function RegisterPage({ params }: { params: Promise<{ store: stri
   const t = T[lang]
 
   const [storeName, setStoreName] = useState('')
+  const [benefits, setBenefits]   = useState<{ icon: string; text: string }[]>([])
   const [name, setName]         = useState('')
   const [phone, setPhone]       = useState('')
   const [birthday, setBirthday] = useState('')
@@ -93,7 +106,11 @@ export default function RegisterPage({ params }: { params: Promise<{ store: stri
 
   useEffect(() => {
     sfetch('/api/store').then(r => r.ok ? r.json() : null).then(d => { if (d?.store) setStoreName(d.store.name) }).catch(() => {})
+    sfetch('/api/member-benefits').then(r => r.ok ? r.json() : null).then(d => { if (Array.isArray(d?.benefits)) setBenefits(d.benefits) }).catch(() => {})
   }, [sfetch])
+
+  // Store-authored benefits if configured, else the default list (follows the toggle).
+  const shownBenefits = benefits.length > 0 ? benefits : t.defaultBenefits
 
   const phoneDigits = phone.replace(/\D/g, '')
   const canSubmit = name.trim().length > 0 && phoneDigits.length >= 8 && consent && !submitting
@@ -153,6 +170,21 @@ export default function RegisterPage({ params }: { params: Promise<{ store: stri
             <h1 className="text-2xl font-black text-gray-900 mt-1">{t.title}</h1>
             <p className="text-sm text-gray-400 mt-1">{t.subtitle}</p>
           </div>
+
+          {/* Benefits — what you get by signing up (draws people in) */}
+          {shownBenefits.length > 0 && (
+            <div className="bg-gradient-to-br from-amber-50 to-orange-50 border border-amber-100 rounded-2xl p-4 mb-5">
+              <p className="text-[11px] font-bold text-amber-700 uppercase tracking-widest mb-2.5">{t.benefitsTitle}</p>
+              <div className="flex flex-col gap-2.5">
+                {shownBenefits.map((b, i) => (
+                  <div key={i} className="flex items-start gap-2.5">
+                    <span className="text-lg leading-none shrink-0">{b.icon || '⭐'}</span>
+                    <span className="text-sm text-gray-700 leading-snug">{b.text}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
 
           <div className="flex flex-col gap-4">
             <Field label={t.name}>
