@@ -19,7 +19,7 @@ export const LANGS: { code: Lang; flag: string; label: string }[] = [
 export type OrderStringKey =
   | 'selectLanguage'
   | 'welcomeTitle' | 'welcomeSubtitle' | 'tableLabel' | 'yourName' | 'namePlaceholder'
-  | 'memberPhone' | 'memberPhoneHint' | 'pointsEarning' | 'becomeMemberCta' | 'changeName'
+  | 'memberPhone' | 'memberPhoneHint' | 'pointsEarning' | 'becomeMemberCta' | 'changeName' | 'memberPerksTitle'
   | 'errNameRequired' | 'errTableRequired' | 'continueToMenu'
   | 'orderMenu' | 'trackingBtn' | 'readyBtn' | 'loadingMenu' | 'noItemsCategory'
   | 'viewOrder' | 'yourOrder' | 'specialRequest' | 'notePlaceholder' | 'total'
@@ -47,6 +47,7 @@ export const STRINGS: Record<Lang, Record<OrderStringKey, string>> = {
     pointsEarning:      'Earning points',
     becomeMemberCta:    'Not a member yet? Sign up free ⭐',
     changeName:         'Not you?',
+    memberPerksTitle:   'Members get',
     errNameRequired:    'Please enter your name',
     errTableRequired:   'Please select a table',
     continueToMenu:     'Continue to Menu →',
@@ -112,6 +113,7 @@ export const STRINGS: Record<Lang, Record<OrderStringKey, string>> = {
     pointsEarning:      'Начисляем баллы',
     becomeMemberCta:    'Ещё не участник? Регистрация бесплатно ⭐',
     changeName:         'Не вы?',
+    memberPerksTitle:   'Участникам',
     errNameRequired:    'Пожалуйста, введите ваше имя',
     errTableRequired:   'Пожалуйста, выберите столик',
     continueToMenu:     'Перейти к меню →',
@@ -177,6 +179,7 @@ export const STRINGS: Record<Lang, Record<OrderStringKey, string>> = {
     pointsEarning:      '正在累积积分',
     becomeMemberCta:    '还不是会员？免费注册 ⭐',
     changeName:         '不是您？',
+    memberPerksTitle:   '会员专享',
     errNameRequired:    '请输入您的姓名',
     errTableRequired:   '请选择桌号',
     continueToMenu:     '进入菜单 →',
@@ -246,4 +249,10 @@ export function loadOrderLang(): Lang {
 export function saveOrderLang(lang: Lang): void {
   if (typeof window === 'undefined') return
   try { localStorage.setItem(LS_KEY, lang) } catch { /* ignore */ }
+}
+
+export const DEFAULT_MEMBER_BENEFITS: Record<Lang, { icon: string; text: string }[]> = {
+  en: [{ icon: "⭐", text: "Earn points on every order" }, { icon: "🎂", text: "Birthday perks" }, { icon: "🎁", text: "Member-only promotions" }],
+  ru: [{ icon: "⭐", text: "Баллы за каждый заказ" }, { icon: "🎂", text: "Подарки на день рождения" }, { icon: "🎁", text: "Акции только для участников" }],
+  zh: [{ icon: "⭐", text: "每单累积积分" }, { icon: "🎂", text: "生日专属礼遇" }, { icon: "🎁", text: "会员专属优惠" }],
 }

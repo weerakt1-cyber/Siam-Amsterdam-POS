@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef, use, useCallback } from 'react'
 import type { MenuItem, Promotion } from '@/lib/types'
 import { type CatEntry, CATEGORIES_CHANGED_EVENT, loadAllCategories, fetchCategories } from '@/lib/categories'
-import { type Lang, type OrderStringKey, LANGS, STRINGS, loadOrderLang, saveOrderLang } from '@/lib/order-i18n'
+import { type Lang, type OrderStringKey, LANGS, STRINGS, DEFAULT_MEMBER_BENEFITS, loadOrderLang, saveOrderLang } from '@/lib/order-i18n'
 import { applyPromotions, isPromotionActiveNow, promotionSummary } from '@/lib/promotions'
 import OmisePaymentModal, { type OmisePayType } from '@/components/pos/OmisePaymentModal'
 
@@ -105,6 +105,7 @@ export default function OrderPage({ params }: { params: Promise<{ store: string;
   const [note, setNote]         = useState('')
   const [addedKey, setAddedKey] = useState<string | null>(null)
   const [promos, setPromos]     = useState<Promotion[]>([])
+  const [benefits, setBenefits] = useState<{ icon: string; text: string }[]>([])
   const [showPromoPopup, setShowPromoPopup] = useState(false)
   const promoPopupShownRef = useRef(false)
 
@@ -168,6 +169,10 @@ export default function OrderPage({ params }: { params: Promise<{ store: string;
     sfetch('/api/promotions')
       .then(r => r.json())
       .then(d => setPromos((d.promotions ?? []).filter((p: Promotion) => p.active)))
+      .catch(() => {})
+    sfetch('/api/member-benefits')
+      .then(r => r.json())
+      .then(d => { if (Array.isArray(d?.benefits)) setBenefits(d.benefits) })
       .catch(() => {})
   }, [sfetch])
 
@@ -363,6 +368,35 @@ export default function OrderPage({ params }: { params: Promise<{ store: string;
     setPhase('menu')
   }
 
+  // Membership perks + sign-up CTA (reused on the info + tracking screens).
+  // Uses the store's configured benefits, else a default set in the current lang.
+  const memberBenefits = benefits.length > 0 ? benefits : DEFAULT_MEMBER_BENEFITS[lang]
+  const memberCtaBlock = (
+    <div className="flex flex-col gap-2">
+      {memberBenefits.length > 0 && (
+        <div className="bg-amber-50 border border-amber-100 rounded-2xl px-4 py-3">
+          <p className="text-[10px] font-bold text-amber-700 uppercase tracking-widest mb-1.5">{t('memberPerksTitle')}</p>
+          <div className="flex flex-col gap-1">
+            {memberBenefits.slice(0, 3).map((b, i) => (
+              <div key={i} className="flex items-center gap-2">
+                <span className="text-sm shrink-0">{b.icon || '⭐'}</span>
+                <span className="text-xs text-gray-700 leading-snug">{b.text}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+      <a
+        href={`/register/${store}`}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="flex items-center justify-center gap-1.5 w-full py-3 rounded-2xl border-2 border-amber-300 bg-amber-50 text-amber-700 font-bold text-sm active:scale-[0.98] transition"
+      >
+        {t('becomeMemberCta')}
+      </a>
+    </div>
+  )
+
   // Brief blank while we check this device for a remembered customer, so a
   // returning customer never flashes the info screen before jumping to the menu.
   if (!ready) return <div className="min-h-screen bg-gray-50" />
@@ -424,14 +458,7 @@ export default function OrderPage({ params }: { params: Promise<{ store: string;
           />
           <p className="text-[11px] text-amber-600 mt-1.5">⭐ {t('memberPhoneHint')}</p>
 
-          <a
-            href={`/register/${store}`}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="mt-2.5 flex items-center justify-center gap-1.5 w-full py-2.5 rounded-xl border-2 border-amber-300 bg-amber-50 text-amber-700 font-bold text-sm active:scale-[0.98] transition"
-          >
-            {t('becomeMemberCta')}
-          </a>
+          <div className="mt-3">{memberCtaBlock}</div>
 
           {infoError && <p className="text-xs text-red-500 text-center mt-3">{infoError}</p>}
 
@@ -620,16 +647,7 @@ export default function OrderPage({ params }: { params: Promise<{ store: string;
           </button>
 
           {/* Membership upsell — only if this order isn't already linked to a member */}
-          {memberLinkedName === null && (
-            <a
-              href={`/register/${store}`}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="flex items-center justify-center gap-1.5 w-full py-3.5 rounded-2xl border-2 border-amber-300 bg-amber-50 text-amber-700 font-bold text-sm active:scale-[0.98] transition"
-            >
-              {t('becomeMemberCta')}
-            </a>
-          )}
+          {memberLinkedName === null && memberCtaBlock}
 
           <p className="text-xs text-center text-gray-400 pb-4">{t('tableLabel')} {selectedTable} · {t('refreshing')}</p>
         </main>
