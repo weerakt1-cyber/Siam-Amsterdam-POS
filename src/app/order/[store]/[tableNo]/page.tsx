@@ -396,6 +396,15 @@ export default function OrderPage({ params }: { params: Promise<{ store: string;
           />
           <p className="text-[11px] text-amber-600 mt-1.5">⭐ {t('memberPhoneHint')}</p>
 
+          <a
+            href={`/register/${store}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="mt-2.5 flex items-center justify-center gap-1.5 w-full py-2.5 rounded-xl border-2 border-amber-300 bg-amber-50 text-amber-700 font-bold text-sm active:scale-[0.98] transition"
+          >
+            {t('becomeMemberCta')}
+          </a>
+
           {infoError && <p className="text-xs text-red-500 text-center mt-3">{infoError}</p>}
 
           <button
@@ -581,6 +590,19 @@ export default function OrderPage({ params }: { params: Promise<{ store: string;
           >
             {t('orderMore')}
           </button>
+
+          {/* Membership upsell — only if this order isn't already linked to a member */}
+          {memberLinkedName === null && (
+            <a
+              href={`/register/${store}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center justify-center gap-1.5 w-full py-3.5 rounded-2xl border-2 border-amber-300 bg-amber-50 text-amber-700 font-bold text-sm active:scale-[0.98] transition"
+            >
+              {t('becomeMemberCta')}
+            </a>
+          )}
+
           <p className="text-xs text-center text-gray-400 pb-4">{t('tableLabel')} {selectedTable} · {t('refreshing')}</p>
         </main>
 
