@@ -131,6 +131,28 @@ export default function OrderPage({ params }: { params: Promise<{ store: string;
   function setLang(l: Lang) { setLangState(l); saveOrderLang(l) }
   const t = (key: OrderStringKey) => STRINGS[lang][key]
 
+  // Remember the customer on THEIR OWN device (per store), so re-ordering — later
+  // in the same meal or on a return visit — skips the name/phone step entirely.
+  // Read after mount only (localStorage during SSR render would mismatch).
+  const CUST_KEY = `pos_order_customer_${store}`
+  const [ready, setReady] = useState(false)
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(CUST_KEY)
+      if (raw) {
+        const s = JSON.parse(raw)
+        if (s?.name) { setCustomerName(s.name); setMemberPhone(s.phone || ''); setPhase('menu') }
+      }
+    } catch { /* ignore */ }
+    setReady(true)
+  }, [CUST_KEY])
+
+  function resetIdentity() {
+    try { localStorage.removeItem(CUST_KEY) } catch { /* ignore */ }
+    setCustomerName(''); setMemberPhone(''); setMemberLinkedName(null)
+    setCart([]); setOrders([]); setPhase('info')
+  }
+
   // Table is fixed by the QR code that was scanned — the customer never picks it
   const selectedTable = TABLES.includes(tableNo) ? tableNo : (tableNo || TABLES[0])
 
@@ -336,8 +358,14 @@ export default function OrderPage({ params }: { params: Promise<{ store: string;
     if (!customerName.trim()) { setInfoError(t('errNameRequired')); return }
     if (!selectedTable)        { setInfoError(t('errTableRequired')); return }
     setInfoError('')
+    // Remember on this device so the next order skips this step.
+    try { localStorage.setItem(CUST_KEY, JSON.stringify({ name: customerName.trim(), phone: memberPhone.trim() })) } catch { /* ignore */ }
     setPhase('menu')
   }
+
+  // Brief blank while we check this device for a remembered customer, so a
+  // returning customer never flashes the info screen before jumping to the menu.
+  if (!ready) return <div className="min-h-screen bg-gray-50" />
 
   // ─── Customer info screen ──────────────────────────────────────────────────────
 
@@ -627,10 +655,16 @@ export default function OrderPage({ params }: { params: Promise<{ store: string;
 
       <header className="sticky top-0 z-30 bg-white border-b border-gray-100 shadow-sm">
         <div className="max-w-md mx-auto px-4 py-3 flex items-center justify-between">
-          <div>
+          <div className="min-w-0">
             <h1 className="text-lg font-black text-gray-900 leading-none">{t('orderMenu')}</h1>
+            {customerName && (
+              <p className="text-[11px] text-gray-400 mt-0.5 truncate">
+                👋 {customerName}
+                <button onClick={resetIdentity} className="ml-1.5 text-amber-600 font-semibold underline underline-offset-2">{t('changeName')}</button>
+              </p>
+            )}
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 shrink-0">
             {latestOrder && (
               <button
                 onClick={() => setPhase('tracking')}
