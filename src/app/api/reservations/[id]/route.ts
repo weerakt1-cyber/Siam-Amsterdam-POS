@@ -44,13 +44,18 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   if (typeof body.zone === 'string')       patch.zone       = body.zone.trim() || undefined
 
   try {
+    // Prior status, so we only alert on a real transition (not a repeat click).
+    const prev = await getReservation(id, storeId)
+    if (!prev) return NextResponse.json({ error: 'Reservation not found' }, { status: 404 })
+
     const updated = await updateReservation(id, patch, storeId)
     if (!updated) return NextResponse.json({ error: 'Reservation not found' }, { status: 404 })
 
     // On an approve/reject decision, log it to the shop's Telegram (the customer
-    // sees it on their tracking page). Non-blocking. Cancellations by the
-    // customer don't alert (the shop initiated nothing to confirm).
-    if (patch.status === 'approved' || patch.status === 'rejected') {
+    // sees it on their tracking page). Non-blocking. Only when the status
+    // actually changes, so a repeated Approve tap doesn't spam duplicate alerts.
+    // Cancellations by the customer don't alert (the shop confirmed nothing).
+    if ((patch.status === 'approved' || patch.status === 'rejected') && patch.status !== prev.status) {
       sendReservationDecision(
         {
           refCode: updated.refCode, customerName: updated.customerName,

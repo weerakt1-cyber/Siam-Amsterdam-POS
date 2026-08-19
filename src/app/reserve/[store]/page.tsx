@@ -229,11 +229,17 @@ export default function ReservePage({ params }: { params: Promise<{ store: strin
   }, [sfetch, activeKey])
 
   // Availability: refresh taken tables whenever date/time changes on the form.
+  // If the table the customer already picked has become taken for the new
+  // window, drop the selection so they don't submit a booking the server rejects.
   useEffect(() => {
     if (phase !== 'form') return
     const q = new URLSearchParams({ date, start: startTime, end: endTime })
     sfetch(`/api/reservations/availability?${q}`).then(r => r.ok ? r.json() : null)
-      .then(d => { if (Array.isArray(d?.taken)) setTaken(d.taken) }).catch(() => {})
+      .then(d => {
+        if (!Array.isArray(d?.taken)) return
+        setTaken(d.taken)
+        setTableNo(cur => (cur && d.taken.includes(cur)) ? '' : cur)
+      }).catch(() => {})
   }, [phase, date, startTime, endTime, sfetch])
 
   // Poll the reservation status while tracking (mirror QR order tracker).
