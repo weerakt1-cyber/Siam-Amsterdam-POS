@@ -131,10 +131,15 @@ const TIME_SLOTS = (() => {
 
 const DURATIONS = [1, 1.5, 2, 3] as const
 
+// Add a duration and clamp to end-of-day (23:59). We clamp on total minutes —
+// NOT the hour alone — so a late+long booking yields an honest end time
+// (22:30 + 2h → 23:59), and the label the customer sees matches what's stored.
+// Bookings across midnight aren't supported.
+const END_OF_DAY_MIN = 23 * 60 + 59
 function addHours(time: string, hours: number): string {
   const [h, m] = time.split(':').map(Number)
-  const total = h * 60 + m + Math.round(hours * 60)
-  const nh = Math.min(23, Math.floor(total / 60))
+  const total = Math.min(END_OF_DAY_MIN, h * 60 + m + Math.round(hours * 60))
+  const nh = Math.floor(total / 60)
   const nm = total % 60
   return `${String(nh).padStart(2, '0')}:${String(nm).padStart(2, '0')}`
 }
@@ -172,7 +177,6 @@ export default function ReservePage({ params }: { params: Promise<{ store: strin
   const [entryMode, setEntryMode] = useState<'member' | 'guest'>('member')
   const [memberPhone, setMemberPhone] = useState('')
   const [memberName, setMemberName] = useState('')
-  const [memberId, setMemberId] = useState<string | undefined>(undefined)
   const [guestName, setGuestName] = useState('')
   const [lookupErr, setLookupErr] = useState('')
   const [lookingUp, setLookingUp] = useState(false)
@@ -262,7 +266,7 @@ export default function ReservePage({ params }: { params: Promise<{ store: strin
       const d = await r.json().catch(() => ({}))
       if (d?.found) {
         setMemberName(d.name)
-        setMemberId(undefined)   // lookup returns name only; link stays by phone
+        // The booking links to the member server-side by phone (see submit()).
         if (!phone) setPhone(memberPhone.trim())
       } else {
         setLookupErr(t.memberNotFound); setMemberName('')
@@ -285,7 +289,10 @@ export default function ReservePage({ params }: { params: Promise<{ store: strin
       const r = await sfetch('/api/reservations', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          memberId, customerName: displayName,
+          // Send the member's login phone (never a client-supplied id): the
+          // server resolves it to the member record, same as the QR order flow.
+          memberPhone: entryMode === 'member' ? memberPhone.trim() || undefined : undefined,
+          customerName: displayName,
           phone: phone.trim() || memberPhone.trim() || undefined,
           zone: zone || undefined,
           tableNo: tableNo || undefined,

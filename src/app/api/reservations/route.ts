@@ -2,6 +2,7 @@ export const dynamic = 'force-dynamic'
 
 import { NextRequest, NextResponse } from 'next/server'
 import { resolveStoreId } from '@/lib/api-auth'
+import { getMemberByPhone } from '@/lib/store'
 import { createReservation, listReservations, takenTables, type NewReservation, type Reservation } from '@/lib/reservations'
 import { sendReservationRequest, type ReservationNotify } from '@/lib/telegram'
 
@@ -60,6 +61,17 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Cannot book a past date' }, { status: 400 })
     }
 
+    // Member linkage: resolve the login phone to the member record server-side
+    // (the phone is never trusted as an id), exactly like the QR order flow. A
+    // matched member links the booking (member_id) and uses their registered name.
+    let memberId: string | undefined
+    let memberName: string | undefined
+    const memberPhone = typeof body.memberPhone === 'string' ? body.memberPhone.trim() : ''
+    if (memberPhone) {
+      const m = await getMemberByPhone(memberPhone, storeId)
+      if (m) { memberId = m.id; memberName = m.name }
+    }
+
     const tableNo = typeof body.tableNo === 'string' && body.tableNo.trim() ? body.tableNo.trim() : undefined
 
     // Availability guard: a customer cannot book a table already held for an
@@ -76,9 +88,9 @@ export async function POST(req: NextRequest) {
     }
 
     const input: NewReservation = {
-      memberId:     typeof body.memberId === 'string' ? body.memberId : undefined,
-      customerName,
-      phone:        typeof body.phone === 'string' && body.phone.trim() ? body.phone.trim() : undefined,
+      memberId,
+      customerName: memberName ?? customerName,
+      phone:        typeof body.phone === 'string' && body.phone.trim() ? body.phone.trim() : (memberPhone || undefined),
       zone:         typeof body.zone === 'string' && body.zone.trim() ? body.zone.trim() : undefined,
       tableNo,
       partySize:    Math.max(1, parseInt(body.partySize) || 1),
