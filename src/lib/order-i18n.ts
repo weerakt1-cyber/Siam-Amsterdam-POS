@@ -20,6 +20,8 @@ export type OrderStringKey =
   | 'selectLanguage'
   | 'welcomeTitle' | 'welcomeSubtitle' | 'tableLabel' | 'yourName' | 'namePlaceholder'
   | 'memberPhone' | 'memberPhoneHint' | 'pointsEarning' | 'becomeMemberCta' | 'changeName' | 'memberPerksTitle'
+  | 'welcomeChoose' | 'memberSectionTitle' | 'memberSectionHint' | 'memberLoginBtn'
+  | 'guestSectionTitle' | 'guestSectionHint' | 'guestContinueBtn' | 'memberNotFound' | 'errPhone' | 'phonePh'
   | 'errNameRequired' | 'errTableRequired' | 'continueToMenu'
   | 'orderMenu' | 'trackingBtn' | 'readyBtn' | 'loadingMenu' | 'noItemsCategory'
   | 'viewOrder' | 'yourOrder' | 'specialRequest' | 'notePlaceholder' | 'total'
@@ -48,6 +50,16 @@ export const STRINGS: Record<Lang, Record<OrderStringKey, string>> = {
     becomeMemberCta:    'Not a member yet? Sign up free ⭐',
     changeName:         'Not you?',
     memberPerksTitle:   'Members get',
+    welcomeChoose: 'How would you like to order?',
+    memberSectionTitle: 'I’m a member',
+    memberSectionHint: 'Enter your phone — points added automatically',
+    memberLoginBtn: 'Continue →',
+    guestSectionTitle: 'Just visiting',
+    guestSectionHint: 'Order without an account',
+    guestContinueBtn: 'Continue as guest →',
+    memberNotFound: 'Phone not found. Sign up below, or continue as guest.',
+    errPhone: 'Please enter a valid phone number',
+    phonePh: '08x-xxx-xxxx',
     errNameRequired:    'Please enter your name',
     errTableRequired:   'Please select a table',
     continueToMenu:     'Continue to Menu →',
@@ -114,6 +126,16 @@ export const STRINGS: Record<Lang, Record<OrderStringKey, string>> = {
     becomeMemberCta:    'Ещё не участник? Регистрация бесплатно ⭐',
     changeName:         'Не вы?',
     memberPerksTitle:   'Участникам',
+    welcomeChoose: 'Как желаете заказать?',
+    memberSectionTitle: 'Я участник',
+    memberSectionHint: 'Введите телефон — баллы начислим автоматически',
+    memberLoginBtn: 'Продолжить →',
+    guestSectionTitle: 'Просто зашёл',
+    guestSectionHint: 'Заказать без аккаунта',
+    guestContinueBtn: 'Продолжить как гость →',
+    memberNotFound: 'Телефон не найден. Зарегистрируйтесь ниже или продолжите как гость.',
+    errPhone: 'Введите корректный номер телефона',
+    phonePh: '08x-xxx-xxxx',
     errNameRequired:    'Пожалуйста, введите ваше имя',
     errTableRequired:   'Пожалуйста, выберите столик',
     continueToMenu:     'Перейти к меню →',
@@ -180,6 +202,16 @@ export const STRINGS: Record<Lang, Record<OrderStringKey, string>> = {
     becomeMemberCta:    '还不是会员？免费注册 ⭐',
     changeName:         '不是您？',
     memberPerksTitle:   '会员专享',
+    welcomeChoose: '您想如何点单？',
+    memberSectionTitle: '我是会员',
+    memberSectionHint: '输入电话号码，自动累积积分',
+    memberLoginBtn: '继续 →',
+    guestSectionTitle: '随便看看',
+    guestSectionHint: '无需账户直接点单',
+    guestContinueBtn: '以访客身份继续 →',
+    memberNotFound: '未找到该号码。请在下方注册，或以访客身份继续。',
+    errPhone: '请输入有效的电话号码',
+    phonePh: '08x-xxx-xxxx',
     errNameRequired:    '请输入您的姓名',
     errTableRequired:   '请选择桌号',
     continueToMenu:     '进入菜单 →',

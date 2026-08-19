@@ -118,10 +118,16 @@ export default function OrderPage({ params }: { params: Promise<{ store: string;
   const [orders, setOrders]           = useState<PlacedOrder[]>([])
   const [showConfirm, setShowConfirm] = useState(false)
 
-  const [customerName, setCustomerName] = useState('')
-  const [memberPhone, setMemberPhone]   = useState('')
+  const [customerName, setCustomerName] = useState('')   // guest name
+  const [memberPhone, setMemberPhone]   = useState('')   // member phone (login)
+  const [memberName, setMemberName]     = useState('')   // member's resolved name
+  const [entryMode, setEntryMode]       = useState<'member' | 'guest' | null>(null)
   const [memberLinkedName, setMemberLinkedName] = useState<string | null>(null)
-  const [infoError, setInfoError]       = useState('')
+  const [lookupError, setLookupError]   = useState('')
+  const [lookingUp, setLookingUp]       = useState(false)
+
+  // The one identity label for this order: the member's name, or the guest's.
+  const displayName = entryMode === 'member' ? memberName : customerName
 
   // Always starts 'en' (matches what the server renders) and picks up the
   // real saved language after mount — reading localStorage during the
@@ -142,15 +148,52 @@ export default function OrderPage({ params }: { params: Promise<{ store: string;
       const raw = localStorage.getItem(CUST_KEY)
       if (raw) {
         const s = JSON.parse(raw)
-        if (s?.name) { setCustomerName(s.name); setMemberPhone(s.phone || ''); setPhase('menu') }
+        if (s?.type === 'member' && s.phone) {
+          setEntryMode('member'); setMemberPhone(s.phone); setMemberName(s.name || ''); setMemberLinkedName(s.name || ''); setPhase('menu')
+        } else if (s?.type === 'guest' || s?.name) {   // 'guest', or legacy {name,phone}
+          setEntryMode('guest'); setCustomerName(s.name || ''); setPhase('menu')
+        }
       }
     } catch { /* ignore */ }
     setReady(true)
   }, [CUST_KEY])
 
+  function persistIdentity(type: 'member' | 'guest', name: string, phone: string) {
+    try { localStorage.setItem(CUST_KEY, JSON.stringify({ type, name, phone })) } catch { /* ignore */ }
+  }
+
+  // "Log in" as a member: look the phone up, greet by the registered name, and
+  // go straight to the menu — no name typing (it's related from registration).
+  async function memberLogin() {
+    const phone = memberPhone.trim()
+    if (phone.replace(/\D/g, '').length < 8) { setLookupError(t('errPhone')); return }
+    setLookingUp(true); setLookupError('')
+    try {
+      const r = await sfetch('/api/member-lookup', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ phone }),
+      })
+      const d = await r.json().catch(() => ({}))
+      if (d.found) {
+        setMemberName(d.name || ''); setEntryMode('member'); setMemberLinkedName(d.name || '')
+        persistIdentity('member', d.name || '', phone)
+        setPhase('menu')
+      } else {
+        setLookupError(t('memberNotFound'))
+      }
+    } catch { setLookupError(t('networkError')) }
+    setLookingUp(false)
+  }
+
+  function guestContinue() {
+    const nm = customerName.trim()
+    setEntryMode('guest')
+    persistIdentity('guest', nm, '')
+    setPhase('menu')
+  }
+
   function resetIdentity() {
     try { localStorage.removeItem(CUST_KEY) } catch { /* ignore */ }
-    setCustomerName(''); setMemberPhone(''); setMemberLinkedName(null)
+    setEntryMode(null); setCustomerName(''); setMemberPhone(''); setMemberName(''); setMemberLinkedName(null); setLookupError('')
     setCart([]); setOrders([]); setPhase('info')
   }
 
@@ -318,8 +361,11 @@ export default function OrderPage({ params }: { params: Promise<{ store: string;
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           tableNo: selectedTable,
-          customerName: customerName.trim(),
-          memberPhone: memberPhone.trim() || undefined,
+          // Exactly one identity: a guest's name OR a member's phone (which the
+          // server resolves to the member) — never both, so the kitchen ticket
+          // shows a single name, not two.
+          customerName: entryMode === 'guest' ? (customerName.trim() || undefined) : undefined,
+          memberPhone:  entryMode === 'member' ? (memberPhone.trim() || undefined) : undefined,
           source: 'qr',
           note: [note.trim(), freebieNote].filter(Boolean).join(' · '),
           items: cart.map(c => ({ menuId: c.menuId, name: c.name, qty: c.qty, price: c.price, variantLabel: c.variantLabel })),
@@ -359,14 +405,6 @@ export default function OrderPage({ params }: { params: Promise<{ store: string;
 
   // ── Confirm customer info ───────────────────────────────────────────────────
 
-  function confirmInfo() {
-    if (!customerName.trim()) { setInfoError(t('errNameRequired')); return }
-    if (!selectedTable)        { setInfoError(t('errTableRequired')); return }
-    setInfoError('')
-    // Remember on this device so the next order skips this step.
-    try { localStorage.setItem(CUST_KEY, JSON.stringify({ name: customerName.trim(), phone: memberPhone.trim() })) } catch { /* ignore */ }
-    setPhase('menu')
-  }
 
   // Membership perks + sign-up CTA (reused on the info + tracking screens).
   // Uses the store's configured benefits, else a default set in the current lang.
@@ -405,19 +443,17 @@ export default function OrderPage({ params }: { params: Promise<{ store: string;
 
   if (phase === 'info') {
     return (
-      <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center px-5" style={{ userSelect: 'none' }}>
-        <div className="w-full max-w-sm bg-white rounded-3xl shadow-sm border border-gray-100 p-6">
+      <div className="min-h-screen bg-gray-50 flex flex-col items-center px-5 py-8" style={{ userSelect: 'none' }}>
+        <div className="w-full max-w-sm">
 
-          {/* Language selector — first thing a customer picks */}
-          <div className="flex items-center justify-center gap-2 mb-5">
+          {/* Language selector */}
+          <div className="flex items-center justify-center gap-2 mb-4">
             {LANGS.map(l => (
               <button
                 key={l.code}
                 onClick={() => setLang(l.code)}
                 className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold transition active:scale-95 border ${
-                  lang === l.code
-                    ? 'bg-gray-900 text-white border-gray-900'
-                    : 'bg-white text-gray-500 border-gray-200 hover:border-gray-400'
+                  lang === l.code ? 'bg-gray-900 text-white border-gray-900' : 'bg-white text-gray-500 border-gray-200'
                 }`}
               >
                 <span>{l.flag}</span> {l.label}
@@ -425,49 +461,73 @@ export default function OrderPage({ params }: { params: Promise<{ store: string;
             ))}
           </div>
 
-          <div className="text-center mb-6">
-            <h1 className="text-xl font-black text-gray-900 mt-0.5">{t('welcomeTitle')}</h1>
-            <p className="text-sm text-gray-400 mt-1">{t('welcomeSubtitle')}</p>
-          </div>
-
-          <div className="flex items-center justify-center mb-5">
-            <div className="bg-amber-500 text-black px-4 py-2 rounded-xl font-black text-sm">
+          <div className="text-center mb-4">
+            <h1 className="text-2xl font-black text-gray-900">{t('welcomeTitle')}</h1>
+            <p className="text-sm text-gray-400 mt-1">{t('welcomeChoose')}</p>
+            <div className="inline-block mt-3 bg-amber-500 text-black px-4 py-1.5 rounded-xl font-black text-sm">
               🪑 {t('tableLabel')} {selectedTable}
             </div>
           </div>
 
-          <label className="text-xs font-semibold text-gray-400 uppercase tracking-widest block mb-2">{t('yourName')}</label>
-          <input
-            value={customerName}
-            onChange={e => setCustomerName(e.target.value)}
-            placeholder={t('namePlaceholder')}
-            className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm text-gray-900 placeholder:text-gray-300 focus:outline-none focus:border-amber-400 transition"
-            style={{ userSelect: 'text' }}
-            autoFocus
-          />
+          {/* ── Member section ── */}
+          <div className="bg-white rounded-3xl shadow-sm border border-amber-200 p-5 mb-3">
+            <div className="flex items-center gap-2 mb-1">
+              <span className="text-lg">⭐</span>
+              <h2 className="font-black text-gray-900">{t('memberSectionTitle')}</h2>
+            </div>
+            <p className="text-xs text-gray-400 mb-3">{t('memberSectionHint')}</p>
+            <input
+              value={memberPhone}
+              onChange={e => { setMemberPhone(e.target.value); setLookupError('') }}
+              onKeyDown={e => { if (e.key === 'Enter') memberLogin() }}
+              placeholder={t('phonePh')}
+              inputMode="tel"
+              type="tel"
+              className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm text-gray-900 placeholder:text-gray-300 focus:outline-none focus:border-amber-400 transition"
+              style={{ userSelect: 'text' }}
+            />
+            {lookupError && <p className="text-xs text-red-500 mt-2">{lookupError}</p>}
+            <button
+              onClick={memberLogin}
+              disabled={lookingUp}
+              className="w-full mt-3 py-3 rounded-2xl bg-amber-500 text-black font-black text-sm active:scale-[0.98] transition disabled:opacity-50"
+            >
+              {lookingUp ? '…' : t('memberLoginBtn')}
+            </button>
+          </div>
 
-          <label className="text-xs font-semibold text-gray-400 uppercase tracking-widest block mb-2 mt-4">{t('memberPhone')}</label>
-          <input
-            value={memberPhone}
-            onChange={e => setMemberPhone(e.target.value)}
-            placeholder="08x-xxx-xxxx"
-            inputMode="tel"
-            type="tel"
-            className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm text-gray-900 placeholder:text-gray-300 focus:outline-none focus:border-amber-400 transition"
-            style={{ userSelect: 'text' }}
-          />
-          <p className="text-[11px] text-amber-600 mt-1.5">⭐ {t('memberPhoneHint')}</p>
+          {/* divider */}
+          <div className="flex items-center gap-3 my-3">
+            <div className="flex-1 h-px bg-gray-200" />
+            <span className="text-[11px] font-semibold text-gray-300 uppercase">or</span>
+            <div className="flex-1 h-px bg-gray-200" />
+          </div>
 
-          <div className="mt-3">{memberCtaBlock}</div>
+          {/* ── Guest section ── */}
+          <div className="bg-white rounded-3xl shadow-sm border border-gray-100 p-5">
+            <div className="flex items-center gap-2 mb-1">
+              <span className="text-lg">👋</span>
+              <h2 className="font-black text-gray-900">{t('guestSectionTitle')}</h2>
+            </div>
+            <p className="text-xs text-gray-400 mb-3">{t('guestSectionHint')}</p>
+            <input
+              value={customerName}
+              onChange={e => setCustomerName(e.target.value)}
+              onKeyDown={e => { if (e.key === 'Enter') guestContinue() }}
+              placeholder={t('namePlaceholder')}
+              className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm text-gray-900 placeholder:text-gray-300 focus:outline-none focus:border-amber-400 transition"
+              style={{ userSelect: 'text' }}
+            />
+            <button
+              onClick={guestContinue}
+              className="w-full mt-3 py-3 rounded-2xl bg-gray-900 text-white font-black text-sm active:scale-[0.98] transition"
+            >
+              {t('guestContinueBtn')}
+            </button>
+          </div>
 
-          {infoError && <p className="text-xs text-red-500 text-center mt-3">{infoError}</p>}
-
-          <button
-            onClick={confirmInfo}
-            className="w-full mt-5 py-4 rounded-2xl bg-gray-900 text-white font-black text-base shadow-lg shadow-gray-900/20 active:scale-[0.98] transition"
-          >
-            {t('continueToMenu')}
-          </button>
+          {/* Benefits + sign-up (convert guests to members) */}
+          <div className="mt-4">{memberCtaBlock}</div>
         </div>
       </div>
     )
@@ -675,12 +735,10 @@ export default function OrderPage({ params }: { params: Promise<{ store: string;
         <div className="max-w-md mx-auto px-4 py-3 flex items-center justify-between">
           <div className="min-w-0">
             <h1 className="text-lg font-black text-gray-900 leading-none">{t('orderMenu')}</h1>
-            {customerName && (
-              <p className="text-[11px] text-gray-400 mt-0.5 truncate">
-                👋 {customerName}
-                <button onClick={resetIdentity} className="ml-1.5 text-amber-600 font-semibold underline underline-offset-2">{t('changeName')}</button>
-              </p>
-            )}
+            <p className="text-[11px] text-gray-400 mt-0.5 truncate">
+              {entryMode === 'member' ? '⭐' : '👋'} {displayName || t('guestSectionTitle')}
+              <button onClick={resetIdentity} className="ml-1.5 text-amber-600 font-semibold underline underline-offset-2">{t('changeName')}</button>
+            </p>
           </div>
           <div className="flex items-center gap-2 shrink-0">
             {latestOrder && (
