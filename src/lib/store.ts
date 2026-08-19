@@ -201,6 +201,14 @@ export async function getSoleStoreId(): Promise<string | null> {
   return id
 }
 
+// Every store id — used by cron jobs that must run per-store (e.g. the daily
+// reservation reminder).
+export async function getAllStoreIds(): Promise<string[]> {
+  const { data, error } = await supabase.from('stores').select('id')
+  if (error || !data) return []
+  return data.map(r => r.id as string)
+}
+
 async function requireStoreId(storeId?: string): Promise<string> {
   const sid = storeId ?? (await getSoleStoreId())
   if (!sid) throw new Error('storeId is required (multiple stores exist — resolve the caller\'s store)')

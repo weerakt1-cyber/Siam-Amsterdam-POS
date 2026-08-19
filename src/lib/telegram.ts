@@ -81,6 +81,92 @@ export async function sendOrderAlert(data: OrderNotifyData): Promise<boolean> {
   return sendMessage(text)
 }
 
+// ─── Reservation alerts ─────────────────────────────────────────────────────
+
+export type ReservationNotify = {
+  refCode:       string
+  customerName:  string
+  isMember?:     boolean
+  phone?:        string
+  reservedDate:  string   // YYYY-MM-DD
+  startTime:     string   // HH:MM
+  endTime:       string   // HH:MM
+  partySize:     number
+  zone?:         string
+  tableNo?:      string
+  eventName?:    string
+  requirements?: string
+}
+
+// Friendly date like "Thu, 20 Aug 2026" (falls back to the raw string).
+function fmtDate(iso: string): string {
+  const d = new Date(`${iso}T00:00:00`)
+  if (isNaN(d.getTime())) return iso
+  return d.toLocaleDateString('en-GB', { weekday: 'short', day: '2-digit', month: 'short', year: 'numeric' })
+}
+
+// Shared body lines for one reservation (used by request + decision alerts).
+function reservationLines(r: ReservationNotify): string {
+  const who   = `🙋 <b>${esc(r.customerName)}</b>${r.isMember ? ' ⭐' : ''}`
+  const phone = r.phone ? `\n📞 ${esc(r.phone)}` : ''
+  const table = r.tableNo ? `Table <b>${esc(r.tableNo)}</b>` : (r.zone ? `${esc(r.zone)} (any table)` : 'venue assigns')
+  const event = r.eventName ? `\n🎉 ${esc(r.eventName)}` : ''
+  const req   = r.requirements ? `\n📝 <b>Needs:</b> ${esc(r.requirements)}` : ''
+  return [
+    `${who}${phone}`,
+    `🗓 ${fmtDate(r.reservedDate)}  <b>${r.startTime}–${r.endTime}</b>`,
+    `👥 ${r.partySize} pax  ·  ${table}${event}${req}`,
+  ].join('\n')
+}
+
+// New booking request → alert the shop so they can approve/reject.
+export async function sendReservationRequest(r: ReservationNotify): Promise<boolean> {
+  const text = [
+    `📅 <b>New Booking Request</b> — <code>${esc(r.refCode)}</code>`,
+    `━━━━━━━━━━━━━━━━`,
+    reservationLines(r),
+  ].join('\n')
+  return sendMessage(text)
+}
+
+// Approve/reject confirmation → logged to the shop chat (the customer sees it
+// on their tracking page; this keeps the shop's own record in Telegram).
+export async function sendReservationDecision(
+  r: ReservationNotify, approved: boolean, staffReply?: string,
+): Promise<boolean> {
+  const head = approved ? '✅ <b>Booking Confirmed</b>' : '❌ <b>Booking Rejected</b>'
+  const reply = staffReply?.trim() ? `\n💬 ${esc(staffReply.trim())}` : ''
+  const text = [
+    `${head} — <code>${esc(r.refCode)}</code>`,
+    `${esc(r.customerName)} · ${fmtDate(r.reservedDate)} ${r.startTime}–${r.endTime} · ${r.partySize} pax`,
+    r.tableNo ? `Table ${esc(r.tableNo)}` : '',
+    reply,
+  ].filter(Boolean).join('\n')
+  return sendMessage(text)
+}
+
+// Day-before reminder digest → one message listing tomorrow's bookings.
+export async function sendReservationReminder(dateISO: string, rows: ReservationNotify[]): Promise<boolean> {
+  if (rows.length === 0) return false
+  const lines = rows
+    .slice()
+    .sort((a, b) => a.startTime.localeCompare(b.startTime))
+    .map(r => {
+      const table = r.tableNo ? `🍽 ${esc(r.tableNo)}` : (r.zone ? `🍽 ${esc(r.zone)}` : '')
+      const event = r.eventName ? ` — ${esc(r.eventName)}` : ''
+      return `• <b>${r.startTime}–${r.endTime}</b>  ${esc(r.customerName)} (${r.partySize}p) ${table}${event}`
+    })
+    .join('\n')
+  const text = [
+    `⏰ <b>Tomorrow's Bookings</b> — ${fmtDate(dateISO)}`,
+    `━━━━━━━━━━━━━━━━`,
+    lines,
+    ``,
+    `${rows.length} booking${rows.length > 1 ? 's' : ''} confirmed.`,
+  ].join('\n')
+  return sendMessage(text)
+}
+
 // ─── End-of-day summary (Z-Report) ──────────────────────────────────────────
 
 export type EndOfDayData = {

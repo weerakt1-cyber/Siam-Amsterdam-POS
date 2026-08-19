@@ -18,20 +18,39 @@ export type TableTile = {
   h: number
   shape: 'rect' | 'round'
   capacity: number
+  // Free-text area the table belongs to (Indoor / Outdoor / VIP / Bar …). Used
+  // to group tables on the public reservation picker. Optional so existing
+  // layouts (and old localStorage caches) keep working with no zone set.
+  zone?: string
 }
 
 export const FLOOR_LS_KEY = 'pos_floor_layout'
 export const FLOOR_LAYOUT_CHANGED_EVENT = 'pos-floor-layout-changed'
 
+// Suggested zones offered in the floor editor's datalist. Free text — the shop
+// can type any name; this is just a convenient starting set.
+export const DEFAULT_ZONES = ['Indoor', 'Outdoor', 'VIP', 'Bar', 'Terrace'] as const
+
+// Distinct zones actually in use across the given tiles, in first-seen order —
+// what the reservation picker groups by. Tables with no zone fall under ''.
+export function zonesFromTiles(tiles: TableTile[]): string[] {
+  const seen: string[] = []
+  for (const t of tiles) {
+    const z = (t.zone || '').trim()
+    if (!seen.includes(z)) seen.push(z)
+  }
+  return seen
+}
+
 export const DEFAULT_TILES: TableTile[] = [
-  { id: 'dt-T1',   tableNo: 'T1',   x: 40,  y: 40,  w: 120, h: 80,  shape: 'rect',  capacity: 4  },
-  { id: 'dt-T2',   tableNo: 'T2',   x: 200, y: 40,  w: 120, h: 80,  shape: 'rect',  capacity: 4  },
-  { id: 'dt-T3',   tableNo: 'T3',   x: 360, y: 40,  w: 120, h: 80,  shape: 'rect',  capacity: 4  },
-  { id: 'dt-T4',   tableNo: 'T4',   x: 520, y: 40,  w: 120, h: 80,  shape: 'rect',  capacity: 4  },
-  { id: 'dt-T5',   tableNo: 'T5',   x: 40,  y: 200, w: 160, h: 80,  shape: 'rect',  capacity: 6  },
-  { id: 'dt-T6',   tableNo: 'T6',   x: 240, y: 200, w: 160, h: 80,  shape: 'rect',  capacity: 6  },
-  { id: 'dt-VIP1', tableNo: 'VIP1', x: 600, y: 180, w: 120, h: 120, shape: 'round', capacity: 8  },
-  { id: 'dt-BAR',  tableNo: 'BAR',  x: 40,  y: 400, w: 280, h: 80,  shape: 'rect',  capacity: 10 },
+  { id: 'dt-T1',   tableNo: 'T1',   x: 40,  y: 40,  w: 120, h: 80,  shape: 'rect',  capacity: 4,  zone: 'Indoor' },
+  { id: 'dt-T2',   tableNo: 'T2',   x: 200, y: 40,  w: 120, h: 80,  shape: 'rect',  capacity: 4,  zone: 'Indoor' },
+  { id: 'dt-T3',   tableNo: 'T3',   x: 360, y: 40,  w: 120, h: 80,  shape: 'rect',  capacity: 4,  zone: 'Indoor' },
+  { id: 'dt-T4',   tableNo: 'T4',   x: 520, y: 40,  w: 120, h: 80,  shape: 'rect',  capacity: 4,  zone: 'Indoor' },
+  { id: 'dt-T5',   tableNo: 'T5',   x: 40,  y: 200, w: 160, h: 80,  shape: 'rect',  capacity: 6,  zone: 'Indoor' },
+  { id: 'dt-T6',   tableNo: 'T6',   x: 240, y: 200, w: 160, h: 80,  shape: 'rect',  capacity: 6,  zone: 'Indoor' },
+  { id: 'dt-VIP1', tableNo: 'VIP1', x: 600, y: 180, w: 120, h: 120, shape: 'round', capacity: 8,  zone: 'VIP'    },
+  { id: 'dt-BAR',  tableNo: 'BAR',  x: 40,  y: 400, w: 280, h: 80,  shape: 'rect',  capacity: 10, zone: 'Bar'    },
 ]
 
 export function loadFloorTiles(): TableTile[] {

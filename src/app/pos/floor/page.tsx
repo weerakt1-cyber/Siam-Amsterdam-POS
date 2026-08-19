@@ -4,7 +4,7 @@ import { authedFetch } from "@/lib/supabase-browser"
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { useAuth } from '@/lib/pos-auth'
-import { type TableTile, DEFAULT_TILES, loadFloorTiles, saveFloorTiles } from '@/lib/floor'
+import { type TableTile, DEFAULT_TILES, DEFAULT_ZONES, zonesFromTiles, loadFloorTiles, saveFloorTiles } from '@/lib/floor'
 import { pushFloorTiles } from '@/lib/settings-sync'
 import { usePosLang } from '@/lib/pos-i18n'
 import PosIcon from '@/components/pos/PosIcon'
@@ -143,6 +143,7 @@ export default function FloorPage() {
   const [newCap,   setNewCap]   = useState('4')
   const [newW,     setNewW]     = useState('120')
   const [newH,     setNewH]     = useState('80')
+  const [newZone,  setNewZone]  = useState('')
 
   // Pointer-drag state (works for mouse + touch via Pointer Events API)
   const dragRef = useRef<{
@@ -213,6 +214,7 @@ export default function FloorPage() {
       x, y, w, h,
       shape:    newShape,
       capacity: Math.max(1, parseInt(newCap) || 4),
+      zone:     newZone.trim() || undefined,
     }
     setTiles(p => [...p, t])
     setSelectedId(t.id)
@@ -259,6 +261,11 @@ export default function FloorPage() {
   }
 
   const selectedTile = tiles.find(t => t.id === selectedId)
+
+  // Zone suggestions for the datalist: defaults + whatever the shop already uses.
+  const zoneOptions = Array.from(
+    new Set([...DEFAULT_ZONES, ...zonesFromTiles(tiles).filter(Boolean)])
+  )
 
   // ── Render ───────────────────────────────────────────────────────────────────
 
@@ -440,6 +447,16 @@ export default function FloorPage() {
                     />
                   </Field>
 
+                  <Field label="Zone">
+                    <input
+                      list="floor-zones"
+                      value={newZone}
+                      onChange={e => setNewZone(e.target.value)}
+                      placeholder="Indoor / Outdoor / VIP…"
+                      className={INPUT}
+                    />
+                  </Field>
+
                   {addError && (
                     <p className="text-[10px] text-red-500 bg-red-50 rounded-lg px-2 py-1">{addError}</p>
                   )}
@@ -522,6 +539,18 @@ export default function FloorPage() {
                       />
                     </Field>
 
+                    <Field label="Zone">
+                      <input
+                        list="floor-zones"
+                        value={selectedTile.zone ?? ''}
+                        onChange={e => updateTile(selectedTile.id, {
+                          zone: e.target.value.trim() || undefined,
+                        })}
+                        placeholder="Indoor / Outdoor / VIP…"
+                        className={INPUT}
+                      />
+                    </Field>
+
                     <p className="text-[9px] text-stone-300 font-mono">
                       pos ({selectedTile.x}, {selectedTile.y}) · {selectedTile.w}×{selectedTile.h}
                     </p>
@@ -539,6 +568,10 @@ export default function FloorPage() {
                   </p>
                 )}
               </section>
+
+              <datalist id="floor-zones">
+                {zoneOptions.map(z => <option key={z} value={z} />)}
+              </datalist>
 
               <div className="flex-1" />
               <p className="text-[9px] text-stone-300 text-center pb-1">
