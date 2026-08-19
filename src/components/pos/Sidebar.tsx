@@ -13,6 +13,7 @@ const MANAGER_ROLES = new Set(['admin', 'manager'])
 const NAV: { href: string; icon: string; labelKey: PosStringKey; managerOnly?: boolean }[] = [
   { href: '/pos',            icon: '/nav-icons/pos.png',       labelKey: 'navPos'       },
   { href: '/pos/floor',      icon: '/nav-icons/floor.png',     labelKey: 'navFloor'     },
+  { href: '/pos/reservations', icon: '/nav-icons/members.png', labelKey: 'navReservations' },
   { href: '/pos/kitchen',    icon: '/nav-icons/kitchen.png',   labelKey: 'navKitchen'   },
   { href: '/pos/delivery',   icon: '/nav-icons/delivery.png',  labelKey: 'navDelivery'  },
   { href: '/pos/inventory',  icon: '/nav-icons/inventory.png', labelKey: 'navInventory' },

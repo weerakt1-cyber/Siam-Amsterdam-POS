@@ -26,6 +26,7 @@ const DICT = {
   navInventory: { en: 'Inventory',  th: 'สต๊อกสินค้า' },
   navItems:     { en: 'Items',      th: 'เมนูสินค้า' },
   navMembers:   { en: 'Members',    th: 'สมาชิก' },
+  navReservations: { en: 'Bookings', th: 'การจอง' },
   navCash:      { en: 'Cash',       th: 'เงินสด' },
   saveServerFailed: { en: 'Saved on this device, but could not save to the server. Make sure you are signed in as an admin and try again.', th: 'บันทึกในเครื่องแล้ว แต่บันทึกขึ้นเซิร์ฟเวอร์ไม่สำเร็จ กรุณาตรวจสอบว่าล็อกอินเป็นผู้ดูแล (admin) แล้วลองใหม่' },
   memberBenefitsTitle: { en: 'Member benefits', th: 'สิทธิประโยชน์สมาชิก' },
