@@ -144,7 +144,10 @@ function addHours(time: string, hours: number): string {
   return `${String(nh).padStart(2, '0')}:${String(nm).padStart(2, '0')}`
 }
 
-function todayISO() { return new Date().toISOString().slice(0, 10) }
+// The venue's local (Bangkok) calendar day — so the date picker's min and
+// default match the server's past-date guard, not the phone's UTC offset.
+// en-CA formats as YYYY-MM-DD.
+function todayISO() { return new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Bangkok' }) }
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (

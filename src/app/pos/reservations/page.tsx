@@ -99,9 +99,12 @@ const CO = {
 type Copy = Record<keyof typeof CO.en, string>
 type Tab = 'pending' | 'upcoming' | 'all'
 
-function todayISO() { return new Date().toISOString().slice(0, 10) }
+// Venue-local (Bangkok) calendar dates, so the Today/Tomorrow labels and the
+// Upcoming filter match the server's day. en-CA formats as YYYY-MM-DD.
+function todayISO() { return new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Bangkok' }) }
 function isoPlus(days: number) {
-  const d = new Date(); d.setDate(d.getDate() + days)
+  const d = new Date(`${todayISO()}T00:00:00Z`)
+  d.setUTCDate(d.getUTCDate() + days)
   return d.toISOString().slice(0, 10)
 }
 

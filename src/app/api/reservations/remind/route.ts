@@ -2,7 +2,7 @@ export const dynamic = 'force-dynamic'
 
 import { NextRequest, NextResponse } from 'next/server'
 import { getAllStoreIds } from '@/lib/store'
-import { getReservationsByDate, updateReservation } from '@/lib/reservations'
+import { getReservationsByDate, updateReservation, bangkokDate } from '@/lib/reservations'
 import { isTelegramConfigured, sendReservationReminder, type ReservationNotify } from '@/lib/telegram'
 
 // Day-before reminder digest. Meant to be hit once a day by Vercel Cron (see
@@ -12,14 +12,6 @@ import { isTelegramConfigured, sendReservationReminder, type ReservationNotify }
 //
 // Customer reminders are on-page only (per the chosen setup — no SMS); this
 // endpoint notifies the shop. Vercel Cron issues GET, so both verbs are handled.
-
-// "Tomorrow" in the venue's timezone (bookings are local calendar dates).
-function tomorrowBangkok(): string {
-  const todayBkk = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Bangkok' }) // YYYY-MM-DD
-  const d = new Date(`${todayBkk}T00:00:00Z`)
-  d.setUTCDate(d.getUTCDate() + 1)
-  return d.toISOString().slice(0, 10)
-}
 
 async function run(req: NextRequest) {
   // If a CRON_SECRET is set, require it (Vercel Cron sends it as a Bearer token).
@@ -35,7 +27,7 @@ async function run(req: NextRequest) {
     return NextResponse.json({ ok: false, error: 'Telegram not configured' }, { status: 400 })
   }
 
-  const date = tomorrowBangkok()
+  const date = bangkokDate(1)
   const storeIds = await getAllStoreIds()
   let totalReminded = 0
 

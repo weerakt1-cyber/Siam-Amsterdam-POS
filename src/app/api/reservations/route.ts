@@ -3,7 +3,7 @@ export const dynamic = 'force-dynamic'
 import { NextRequest, NextResponse } from 'next/server'
 import { resolveStoreId } from '@/lib/api-auth'
 import { getMemberByPhone } from '@/lib/store'
-import { createReservation, listReservations, takenTables, TableTakenError, type NewReservation, type Reservation } from '@/lib/reservations'
+import { createReservation, listReservations, takenTables, bangkokDate, TableTakenError, type NewReservation, type Reservation } from '@/lib/reservations'
 import { sendReservationRequest, type ReservationNotify } from '@/lib/telegram'
 
 // Map a stored reservation to the Telegram alert shape.
@@ -29,7 +29,7 @@ export async function GET(req: NextRequest) {
   if (!storeId) return NextResponse.json({ error: 'Store context required' }, { status: 400 })
   try {
     const fromParam = req.nextUrl.searchParams.get('from')
-    const fromDate = isDate(fromParam) ? fromParam : new Date().toISOString().slice(0, 10)
+    const fromDate = isDate(fromParam) ? fromParam : bangkokDate()
     const reservations = await listReservations(storeId, { fromDate })
     return NextResponse.json({ reservations })
   } catch (err) {
@@ -55,8 +55,8 @@ export async function POST(req: NextRequest) {
     if (body.endTime <= body.startTime) {
       return NextResponse.json({ error: 'End time must be after start time' }, { status: 400 })
     }
-    // Don't accept bookings in the past (compare date-only to avoid TZ edge cases).
-    const today = new Date().toISOString().slice(0, 10)
+    // Don't accept bookings before the venue's local (Bangkok) day.
+    const today = bangkokDate()
     if (body.reservedDate < today) {
       return NextResponse.json({ error: 'Cannot book a past date' }, { status: 400 })
     }

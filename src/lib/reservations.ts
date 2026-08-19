@@ -10,6 +10,17 @@ import { getStore, getSoleStoreId } from './store'
 
 const now = () => new Date().toISOString()
 
+// Local calendar date in the venue's timezone (Asia/Bangkok), optionally offset
+// by N days. Bookings are local calendar dates, so "today"/"tomorrow" must be
+// computed in the venue's day, not UTC. en-CA formats as YYYY-MM-DD.
+export function bangkokDate(offsetDays = 0): string {
+  const today = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Bangkok' })
+  if (offsetDays === 0) return today
+  const d = new Date(`${today}T00:00:00Z`)
+  d.setUTCDate(d.getUTCDate() + offsetDays)
+  return d.toISOString().slice(0, 10)
+}
+
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 export type ReservationStatus =
