@@ -44,6 +44,10 @@ create table if not exists reservations (
                                 'seated','completed','no_show','cancelled')),
   staff_reply   text,                    -- message the shop sends back on decision
   reminder_sent_at timestamptz,          -- day-before reminder fired once (cron)
+  -- Staff explicitly forced this booking onto an already-held table. Such rows
+  -- are exempt from the no-overlap exclusion constraint below (the human decided
+  -- to double-book on purpose); every normal booking keeps override = false.
+  override      boolean     not null default false,
 
   created_at    timestamptz not null default now(),
   updated_at    timestamptz not null default now()
@@ -58,6 +62,31 @@ create index if not exists idx_reservations_store_id
   on reservations(store_id);
 create index if not exists idx_reservations_store_date
   on reservations(store_id, reserved_date);
+
+-- ── No-overlap guarantee (atomic double-booking guard) ───────────────────────
+-- The app's availability check is a fast UX filter but is racy: two customers
+-- can both pass it and both insert. This exclusion constraint makes the database
+-- the source of truth — two bookings for the SAME store + SAME table whose
+-- [start,end) windows overlap on the same day cannot both exist. Scoped to rows
+-- that actually hold a table (active status, table set) and NOT overridden, so a
+-- staff force-override (override = true) is intentionally exempt.
+-- Requires btree_gist for the equality (=) columns alongside the range (&&).
+create extension if not exists btree_gist;
+
+do $$
+begin
+  if not exists (select 1 from pg_constraint where conname = 'reservations_no_overlap') then
+    alter table reservations add constraint reservations_no_overlap
+      exclude using gist (
+        store_id with =,
+        table_no with =,
+        tsrange((reserved_date + start_time), (reserved_date + end_time)) with &&
+      )
+      where (table_no is not null
+             and override = false
+             and status in ('pending','approved','seated'));
+  end if;
+end $$;
 
 -- keep updated_at fresh on any change
 create or replace function public.touch_reservations_updated_at()

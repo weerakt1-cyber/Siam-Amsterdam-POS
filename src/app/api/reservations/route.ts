@@ -3,7 +3,7 @@ export const dynamic = 'force-dynamic'
 import { NextRequest, NextResponse } from 'next/server'
 import { resolveStoreId } from '@/lib/api-auth'
 import { getMemberByPhone } from '@/lib/store'
-import { createReservation, listReservations, takenTables, type NewReservation, type Reservation } from '@/lib/reservations'
+import { createReservation, listReservations, takenTables, TableTakenError, type NewReservation, type Reservation } from '@/lib/reservations'
 import { sendReservationRequest, type ReservationNotify } from '@/lib/telegram'
 
 // Map a stored reservation to the Telegram alert shape.
@@ -107,6 +107,12 @@ export async function POST(req: NextRequest) {
       console.error('[reservations] request alert failed:', err))
     return NextResponse.json({ reservation }, { status: 201 })
   } catch (err) {
+    // The DB no-overlap constraint won the race even though the pre-check passed.
+    if (err instanceof TableTakenError) {
+      return NextResponse.json(
+        { error: 'table_taken', message: 'That table is already reserved for this time.' },
+        { status: 409 })
+    }
     console.error('[reservations] POST', err instanceof Error ? err.message : err)
     return NextResponse.json({ error: 'Failed to create reservation' }, { status: 500 })
   }

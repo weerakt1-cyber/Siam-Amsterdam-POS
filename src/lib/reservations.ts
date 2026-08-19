@@ -34,6 +34,7 @@ export type Reservation = {
   status: ReservationStatus
   staffReply?: string
   reminderSentAt?: string
+  override: boolean        // staff forced this onto an already-held table
   createdAt: string
   updatedAt: string
 }
@@ -54,6 +55,16 @@ export type NewReservation = {
 
 // Statuses that still hold a table (block the slot / show in availability).
 export const ACTIVE_STATUSES: ReservationStatus[] = ['pending', 'approved', 'seated']
+
+// Thrown when the DB's no-overlap exclusion constraint (migration 016) rejects a
+// write — i.e. the table+time is already held. Routes map this to HTTP 409.
+export class TableTakenError extends Error {
+  constructor() { super('table_taken'); this.name = 'TableTakenError' }
+}
+// Postgres SQLSTATE 23P01 = exclusion_violation.
+function isOverlapViolation(error: unknown): boolean {
+  return !!error && typeof error === 'object' && (error as { code?: string }).code === '23P01'
+}
 
 // ─── Mapper (snake_case DB → camelCase TS) ────────────────────────────────────
 
@@ -76,6 +87,7 @@ function map(row: Record<string, unknown>): Reservation {
     status:         (row.status as ReservationStatus) ?? 'pending',
     staffReply:     (row.staff_reply as string | null) ?? undefined,
     reminderSentAt: (row.reminder_sent_at as string | null) ?? undefined,
+    override:       Boolean(row.override),
     createdAt:      row.created_at as string,
     updatedAt:      row.updated_at as string,
   }
@@ -201,16 +213,20 @@ export async function createReservation(input: NewReservation, storeId: string):
     event_name:    input.eventName ?? null,
     requirements:  input.requirements ?? null,
     status:        'pending',
+    override:      false,
     created_at:    now(),
     updated_at:    now(),
   }).select().single()
-  if (error) throw error
+  if (error) {
+    if (isOverlapViolation(error)) throw new TableTakenError()
+    throw error
+  }
   return map(data)
 }
 
 export async function updateReservation(
   id: string,
-  patch: Partial<Pick<Reservation, 'status' | 'staffReply' | 'tableNo' | 'zone' | 'reminderSentAt'>>,
+  patch: Partial<Pick<Reservation, 'status' | 'staffReply' | 'tableNo' | 'zone' | 'reminderSentAt' | 'override'>>,
   storeId: string,
 ): Promise<Reservation | null> {
   const row: Record<string, unknown> = {}
@@ -219,12 +235,16 @@ export async function updateReservation(
   if (patch.tableNo        !== undefined) row.table_no         = patch.tableNo
   if (patch.zone           !== undefined) row.zone             = patch.zone
   if (patch.reminderSentAt !== undefined) row.reminder_sent_at = patch.reminderSentAt
+  if (patch.override       !== undefined) row.override         = patch.override
   if (Object.keys(row).length === 0) return getReservation(id, storeId).then(r => r ?? null)
 
   const { data, error } = await supabase
     .from('reservations').update(row)
     .eq('id', id).eq('store_id', storeId)
     .select().maybeSingle()
-  if (error) throw error
+  if (error) {
+    if (isOverlapViolation(error)) throw new TableTakenError()
+    throw error
+  }
   return data ? map(data) : null
 }

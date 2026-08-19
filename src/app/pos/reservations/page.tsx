@@ -26,6 +26,8 @@ const CO = {
     noTable: 'ให้ร้านจัดให้',
     phone: 'โทร',
     conflict: 'อาจชนกับการจองอื่น',
+    overrideNote: 'จองทับโต๊ะที่ชนกัน (บังคับ)',
+    errTaken: 'โต๊ะนี้ถูกจองในช่วงเวลานี้แล้ว — เปิด "จองทับ" เพื่อยืนยัน',
     approve: 'ยืนยัน',
     reject: 'ปฏิเสธ',
     seat: 'เช็คอิน',
@@ -66,6 +68,8 @@ const CO = {
     noTable: 'Venue assigns',
     phone: 'Tel',
     conflict: 'May conflict with another booking',
+    overrideNote: 'Force onto the conflicting table',
+    errTaken: 'That table is already booked for this time — turn on "force" to confirm',
     approve: 'Approve',
     reject: 'Reject',
     seat: 'Check in',
@@ -134,7 +138,7 @@ export default function ReservationsPage() {
   const [items, setItems] = useState<Reservation[]>([])
   const [tiles, setTiles] = useState<TableTile[]>([])
   const [tab, setTab] = useState<Tab>('pending')
-  const [modal, setModal] = useState<{ r: Reservation; action: 'approve' | 'reject' } | null>(null)
+  const [modal, setModal] = useState<{ r: Reservation; action: 'approve' | 'reject'; conflict: boolean } | null>(null)
 
   const fetchAll = useCallback(async () => {
     try {
@@ -154,7 +158,9 @@ export default function ReservationsPage() {
     return () => clearInterval(iv)
   }, [fetchAll])
 
-  async function patch(r: Reservation, body: Record<string, unknown>) {
+  // Returns true on success. On failure (e.g. 409 overlap without override) it
+  // resyncs from the server so the optimistic change is reverted.
+  async function patch(r: Reservation, body: Record<string, unknown>): Promise<boolean> {
     // optimistic update
     setItems(prev => prev.map(x => x.id === r.id ? { ...x, ...(body as Partial<Reservation>) } : x))
     try {
@@ -162,10 +168,14 @@ export default function ReservationsPage() {
         method: 'PATCH', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
       })
-      if (res.ok) { const d = await res.json(); if (d?.reservation) {
-        setItems(prev => prev.map(x => x.id === r.id ? d.reservation : x))
-      } }
-    } catch { fetchAll() }
+      if (res.ok) {
+        const d = await res.json()
+        if (d?.reservation) setItems(prev => prev.map(x => x.id === r.id ? d.reservation : x))
+        return true
+      }
+      await fetchAll()   // revert optimistic change
+      return false
+    } catch { await fetchAll(); return false }
   }
 
   const pending = items.filter(r => r.status === 'pending')
@@ -233,8 +243,8 @@ export default function ReservationsPage() {
                 <div className="flex flex-col gap-2.5">
                   {rows.map(r => (
                     <ReservationCard key={r.id} r={r} c={c} conflict={conflictsWith(r, items)}
-                      onApprove={() => setModal({ r, action: 'approve' })}
-                      onReject={() => setModal({ r, action: 'reject' })}
+                      onApprove={() => setModal({ r, action: 'approve', conflict: !!conflictsWith(r, items) })}
+                      onReject={() => setModal({ r, action: 'reject', conflict: false })}
                       onSeat={() => patch(r, { status: 'seated' })}
                       onComplete={() => patch(r, { status: 'completed' })}
                       onNoShow={() => patch(r, { status: 'no_show' })}
@@ -251,7 +261,7 @@ export default function ReservationsPage() {
       {modal && (
         <DecisionModal c={c} tiles={tiles} data={modal}
           onClose={() => setModal(null)}
-          onSubmit={async (body) => { await patch(modal.r, body); setModal(null) }}
+          onSubmit={(body) => patch(modal.r, body)}
         />
       )}
     </div>
@@ -350,24 +360,30 @@ function ActBtn({ tone, onClick, children }: { tone: 'primary' | 'danger' | 'blu
 // ─── Approve / Reject modal ───────────────────────────────────────────────────
 function DecisionModal({ c, tiles, data, onClose, onSubmit }: {
   c: Copy; tiles: TableTile[]
-  data: { r: Reservation; action: 'approve' | 'reject' }
+  data: { r: Reservation; action: 'approve' | 'reject'; conflict: boolean }
   onClose: () => void
-  onSubmit: (body: Record<string, unknown>) => Promise<void>
+  onSubmit: (body: Record<string, unknown>) => Promise<boolean>
 }) {
-  const { r, action } = data
+  const { r, action, conflict } = data
   const isApprove = action === 'approve'
   const [reply, setReply] = useState('')
   const [table, setTable] = useState(r.tableNo ?? '')
+  // Approving a flagged conflict defaults to forcing it (the staff saw the warning).
+  const [override, setOverride] = useState(conflict)
   const [busy, setBusy] = useState(false)
+  const [err, setErr] = useState('')
 
   async function go() {
-    setBusy(true)
+    setBusy(true); setErr('')
     const body: Record<string, unknown> = {
       status: isApprove ? 'approved' : 'rejected',
       staffReply: reply.trim() || undefined,
     }
     if (isApprove && table !== (r.tableNo ?? '')) body.tableNo = table || undefined
-    await onSubmit(body)
+    if (isApprove) body.override = override
+    const ok = await onSubmit(body)
+    if (ok) onClose()
+    else { setBusy(false); setErr(c.errTaken) }   // 409 overlap without override
   }
 
   return (
@@ -397,6 +413,16 @@ function DecisionModal({ c, tiles, data, onClose, onSubmit }: {
             placeholder={isApprove ? c.replyPhApprove : c.replyPhReject}
             className="w-full border border-stone-200 rounded-xl px-3 py-2.5 text-sm resize-none focus:outline-none focus:border-amber-400" />
         </div>
+
+        {isApprove && conflict && (
+          <label className="mt-3 flex items-start gap-2.5 bg-red-50 border border-red-100 rounded-xl px-3 py-2.5 cursor-pointer">
+            <input type="checkbox" checked={override} onChange={e => setOverride(e.target.checked)}
+              className="mt-0.5 w-4 h-4 accent-red-500 shrink-0" />
+            <span className="text-xs text-red-700 leading-snug">⚠ {c.overrideNote}</span>
+          </label>
+        )}
+
+        {err && <p className="mt-3 text-xs text-red-600 bg-red-50 rounded-xl px-3 py-2">{err}</p>}
 
         <div className="flex gap-2 mt-5">
           <button onClick={onClose} className="px-5 py-2.5 text-sm font-semibold text-stone-500 bg-stone-100 rounded-xl hover:bg-stone-200 transition active:scale-95">

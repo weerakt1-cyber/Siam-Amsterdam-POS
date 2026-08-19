@@ -2,7 +2,7 @@ export const dynamic = 'force-dynamic'
 
 import { NextRequest, NextResponse } from 'next/server'
 import { resolveStoreId } from '@/lib/api-auth'
-import { getReservation, updateReservation, type ReservationStatus } from '@/lib/reservations'
+import { getReservation, updateReservation, TableTakenError, type ReservationStatus } from '@/lib/reservations'
 import { sendReservationDecision } from '@/lib/telegram'
 
 const VALID_STATUSES: ReservationStatus[] = [
@@ -42,6 +42,9 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   if (typeof body.staffReply === 'string') patch.staffReply = body.staffReply.trim()
   if (typeof body.tableNo === 'string')    patch.tableNo    = body.tableNo.trim() || undefined
   if (typeof body.zone === 'string')       patch.zone       = body.zone.trim() || undefined
+  // Staff force-approving onto an already-held table: exempts this row from the
+  // DB no-overlap constraint (see migration 016).
+  if (typeof body.override === 'boolean')  patch.override   = body.override
 
   try {
     // Prior status, so we only alert on a real transition (not a repeat click).
@@ -69,6 +72,13 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
 
     return NextResponse.json({ reservation: updated })
   } catch (err) {
+    // Approving/assigning onto a table already held for an overlapping window,
+    // without override. Staff can retry with override:true to force it.
+    if (err instanceof TableTakenError) {
+      return NextResponse.json(
+        { error: 'table_taken', message: 'That table is already reserved for this time. Enable override to force it.' },
+        { status: 409 })
+    }
     console.error('[reservations/[id]] PATCH', err instanceof Error ? err.message : err)
     return NextResponse.json({ error: 'Failed to update reservation' }, { status: 500 })
   }
