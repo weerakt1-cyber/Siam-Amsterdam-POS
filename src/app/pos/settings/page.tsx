@@ -1057,6 +1057,14 @@ export default function SettingsPage() {
                 </div>
                 <p className="text-[11px] text-gray-400 ml-28 -mt-2.5">{tr('setHoursHint')}</p>
 
+                {/* Sales-day cutoff — for venues that trade past midnight */}
+                <div className="flex items-center gap-4">
+                  <label className="text-sm text-gray-500 w-24 shrink-0">{tr('setSalesDayCutoff')}</label>
+                  <input type="time" value={cfg.businessDayCutoff ?? '00:00'} onChange={e => updateCfg('businessDayCutoff', e.target.value)}
+                    className="flex-1 bg-white border border-gray-200 rounded-xl px-3 py-2.5 text-sm text-gray-900 focus:outline-none focus:border-amber-400 transition" />
+                </div>
+                <p className="text-[11px] text-gray-400 ml-28 -mt-2.5">{tr('setSalesDayCutoffHint')}</p>
+
                 <div className="pt-1">
                   <button
                     onClick={saveCfg}

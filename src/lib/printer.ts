@@ -30,6 +30,7 @@ export type BarSettings = {
   googleReviewUrl?:       string    // Google Maps review link printed on receipts; '' = omit the block
   openTime?:              string    // shop opening time "HH:MM" — bounds reservation start-time slots
   closeTime?:             string    // shop closing time "HH:MM" — bounds reservation end time
+  businessDayCutoff?:     string    // "HH:MM" sales-day reset — orders before this count as the previous day (for past-midnight trading); "00:00" = calendar day
 }
 
 export type PrinterDevice = {
@@ -56,6 +57,7 @@ export const DEFAULT_BAR_SETTINGS: BarSettings = {
   googleReviewUrl:        '',
   openTime:               '10:00',
   closeTime:              '23:00',
+  businessDayCutoff:      '00:00',
 }
 
 const LS_KEY = 'pos_bar_settings'

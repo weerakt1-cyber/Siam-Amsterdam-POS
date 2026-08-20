@@ -13,6 +13,7 @@ import type {
 } from './types'
 import type { CatEntry } from './categories'
 import { computePointsEarned, getTier } from './loyalty'
+import { businessDayOf, businessDayRange } from './business-day'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -520,14 +521,32 @@ export async function awardOrderPoints(orderId: string, storeId?: string): Promi
   await supabase.from('orders').update({ points_awarded: true }).eq('id', orderId).eq('store_id', sid)
 }
 
+// The store's sales-day reset time ("HH:MM"), from bar_settings; "00:00" default.
+async function getBusinessCutoff(storeId: string): Promise<string> {
+  const raw = await getConfig('bar_settings', storeId)
+  if (raw) {
+    try { const s = JSON.parse(raw); if (typeof s?.businessDayCutoff === 'string') return s.businessDayCutoff } catch { /* ignore */ }
+  }
+  return '00:00'
+}
+
+// The business day (YYYY-MM-DD) that "now" falls in for this store.
+export async function currentBusinessDay(storeId?: string): Promise<string> {
+  const sid = await requireStoreId(storeId)
+  return businessDayOf(new Date(), await getBusinessCutoff(sid))
+}
+
+// `date` is a business-day label; orders are matched to that store's business
+// day (cutoff-aware), so a past-midnight night's bills stay on one day.
 export async function getOrdersByDate(date: string, storeId?: string): Promise<Order[]> {
   const sid = await requireStoreId(storeId)
+  const { start, end } = businessDayRange(date, await getBusinessCutoff(sid))
   const { data, error } = await supabase
     .from('orders')
     .select('*, order_items(*)')
     .eq('store_id', sid)
-    .gte('created_at', `${date}T00:00:00`)
-    .lt('created_at', `${date}T23:59:59.999`)
+    .gte('created_at', start)
+    .lt('created_at', end)
     .order('created_at', { ascending: false })
   if (error) throw error
   return (data ?? []).map(mapOrder)

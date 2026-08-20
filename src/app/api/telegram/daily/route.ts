@@ -1,7 +1,7 @@
 ﻿export const dynamic = "force-dynamic"
 
 import { NextResponse } from 'next/server'
-import { getOrdersByDate, getReport } from '@/lib/store'
+import { getOrdersByDate, getReport, currentBusinessDay } from '@/lib/store'
 import { isTelegramConfigured, sendDailySummary, type EndOfDayData } from '@/lib/telegram'
 
 export async function POST() {
@@ -12,7 +12,7 @@ export async function POST() {
     )
   }
 
-  const today = new Date().toISOString().slice(0, 10) // YYYY-MM-DD (UTC)
+  const today = await currentBusinessDay()
 
   // Fetch orders and cash report in parallel
   let orders, report

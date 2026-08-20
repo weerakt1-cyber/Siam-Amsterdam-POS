@@ -7,6 +7,7 @@ import NumPad from '@/components/pos/NumPad'
 import { generateDailyReportPDF } from '@/lib/pdf-report'
 import { usePosLang } from '@/lib/pos-i18n'
 import { printReceipt, loadBarSettings, type ReceiptData } from '@/lib/printer'
+import { businessDayOf } from '@/lib/business-day'
 import { Skeleton, SkeletonList } from '@/components/pos/Skeleton'
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -15,8 +16,10 @@ function toDateStr(d: Date) {
   return d.toISOString().slice(0, 10)
 }
 
+// "Today" for cash reconciliation = the store's current business day, so a
+// night that runs past midnight counts as one day (matches the till count).
 function today() {
-  return toDateStr(new Date())
+  return businessDayOf(new Date(), loadBarSettings().businessDayCutoff)
 }
 
 function displayDate(date: string) {

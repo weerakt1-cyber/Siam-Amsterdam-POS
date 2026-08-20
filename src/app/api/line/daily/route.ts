@@ -1,7 +1,7 @@
 export const dynamic = 'force-dynamic'
 
 import { NextResponse } from 'next/server'
-import { getOrdersByDate, getReport } from '@/lib/store'
+import { getOrdersByDate, getReport, currentBusinessDay } from '@/lib/store'
 import { isLineConfigured, sendLineDailySummary, type EndOfDayData } from '@/lib/line'
 
 export async function POST() {
@@ -12,7 +12,7 @@ export async function POST() {
     )
   }
 
-  const today = new Date().toISOString().slice(0, 10)
+  const today = await currentBusinessDay()
 
   let orders, report
   try {
