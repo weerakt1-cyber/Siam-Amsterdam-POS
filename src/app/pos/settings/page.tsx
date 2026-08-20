@@ -978,6 +978,19 @@ export default function SettingsPage() {
                 <SettingInput label={tr('setPromptPay')}      value={cfg.promptpayNumber ?? ''} onChange={v => updateCfg('promptpayNumber', v)} placeholder="0812345678" />
                 <SettingInput label={tr('setGoogleReview')} value={cfg.googleReviewUrl ?? ''} onChange={v => updateCfg('googleReviewUrl', v)} placeholder="https://maps.app.goo.gl/..." />
 
+                {/* Opening hours — bounds the reservation start-time slots */}
+                <div className="flex items-center gap-4">
+                  <label className="text-sm text-gray-500 w-24 shrink-0">{tr('setOpenHours')}</label>
+                  <div className="flex-1 flex items-center gap-2">
+                    <input type="time" value={cfg.openTime ?? '10:00'} onChange={e => updateCfg('openTime', e.target.value)}
+                      className="flex-1 bg-white border border-gray-200 rounded-xl px-3 py-2.5 text-sm text-gray-900 focus:outline-none focus:border-amber-400 transition" />
+                    <span className="text-gray-400 font-bold">–</span>
+                    <input type="time" value={cfg.closeTime ?? '23:00'} onChange={e => updateCfg('closeTime', e.target.value)}
+                      className="flex-1 bg-white border border-gray-200 rounded-xl px-3 py-2.5 text-sm text-gray-900 focus:outline-none focus:border-amber-400 transition" />
+                  </div>
+                </div>
+                <p className="text-[11px] text-gray-400 ml-28 -mt-2.5">{tr('setHoursHint')}</p>
+
                 <div className="pt-1">
                   <button
                     onClick={saveCfg}

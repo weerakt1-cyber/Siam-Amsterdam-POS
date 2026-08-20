@@ -28,6 +28,8 @@ export type BarSettings = {
   weeklyRevenueTarget?:   number
   monthlyRevenueTarget?:  number
   googleReviewUrl?:       string    // Google Maps review link printed on receipts; '' = omit the block
+  openTime?:              string    // shop opening time "HH:MM" — bounds reservation start-time slots
+  closeTime?:             string    // shop closing time "HH:MM" — bounds reservation end time
 }
 
 export type PrinterDevice = {
@@ -52,6 +54,8 @@ export const DEFAULT_BAR_SETTINGS: BarSettings = {
   weeklyRevenueTarget:    0,
   monthlyRevenueTarget:   0,
   googleReviewUrl:        '',
+  openTime:               '10:00',
+  closeTime:              '23:00',
 }
 
 const LS_KEY = 'pos_bar_settings'
@@ -374,7 +378,7 @@ function layoutReceipt(ctx: CanvasRenderingContext2D, W: number, d: ReceiptData,
     const fit = (str: string) => ctx.measureText(str).width <= innerW
     const lines: string[] = []
     for (const word of s.split(/\s+/).filter(Boolean)) {
-      let cur = lines.length ? lines[lines.length - 1] : ''
+      const cur = lines.length ? lines[lines.length - 1] : ''
       const merged = cur ? cur + ' ' + word : word
       if (cur && fit(merged)) { lines[lines.length - 1] = merged; continue }
       // start the word on a new line; hard-break it if it alone is too wide
