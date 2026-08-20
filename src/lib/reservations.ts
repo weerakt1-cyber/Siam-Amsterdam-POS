@@ -44,6 +44,7 @@ export type Reservation = {
   requirements?: string
   status: ReservationStatus
   staffReply?: string
+  cancelReason?: string    // customer's reason when they cancel (shown to the shop)
   reminderSentAt?: string
   override: boolean        // staff forced this onto an already-held table
   createdAt: string
@@ -97,6 +98,7 @@ function map(row: Record<string, unknown>): Reservation {
     requirements:   (row.requirements as string | null) ?? undefined,
     status:         (row.status as ReservationStatus) ?? 'pending',
     staffReply:     (row.staff_reply as string | null) ?? undefined,
+    cancelReason:   (row.cancel_reason as string | null) ?? undefined,
     reminderSentAt: (row.reminder_sent_at as string | null) ?? undefined,
     override:       Boolean(row.override),
     createdAt:      row.created_at as string,
@@ -237,12 +239,13 @@ export async function createReservation(input: NewReservation, storeId: string):
 
 export async function updateReservation(
   id: string,
-  patch: Partial<Pick<Reservation, 'status' | 'staffReply' | 'tableNo' | 'zone' | 'reminderSentAt' | 'override'>>,
+  patch: Partial<Pick<Reservation, 'status' | 'staffReply' | 'cancelReason' | 'tableNo' | 'zone' | 'reminderSentAt' | 'override'>>,
   storeId: string,
 ): Promise<Reservation | null> {
   const row: Record<string, unknown> = {}
   if (patch.status         !== undefined) row.status           = patch.status
   if (patch.staffReply     !== undefined) row.staff_reply      = patch.staffReply
+  if (patch.cancelReason   !== undefined) row.cancel_reason    = patch.cancelReason
   if (patch.tableNo        !== undefined) row.table_no         = patch.tableNo
   if (patch.zone           !== undefined) row.zone             = patch.zone
   if (patch.reminderSentAt !== undefined) row.reminder_sent_at = patch.reminderSentAt

@@ -61,10 +61,18 @@ const T = {
     shopMessage: 'ข้อความจากร้าน',
     yourBooking: 'รายละเอียดการจอง',
     cancel: 'ยกเลิกการจอง',
-    cancelConfirm: 'ยืนยันยกเลิกการจองนี้?',
     newBooking: 'จองใหม่',
     people: 'คน',
     openHours: 'เวลาทำการ',
+    secWhen: 'วันและเวลา',
+    secWhere: 'จำนวนคน และโต๊ะ',
+    secDetails: 'ข้อมูลติดต่อ และรายละเอียด',
+    phoneHint: 'ใช้ติดต่อเพื่อยืนยันการจอง',
+    cancelTitle: 'ยกเลิกการจอง',
+    cancelReasonLabel: 'เหตุผลในการยกเลิก (เพื่อแจ้งให้ร้านทราบ)',
+    cancelReasonPh: 'เช่น เปลี่ยนแผน, จองผิดวัน, มาไม่ได้',
+    cancelSubmit: 'ยืนยันการยกเลิก',
+    keepBooking: 'ไม่ยกเลิก',
   },
   en: {
     brandTag: 'Table & Event Reservations',
@@ -115,10 +123,18 @@ const T = {
     shopMessage: 'Message from the venue',
     yourBooking: 'Your booking',
     cancel: 'Cancel booking',
-    cancelConfirm: 'Cancel this booking?',
     newBooking: 'New booking',
     people: 'people',
     openHours: 'Opening hours',
+    secWhen: 'Date & time',
+    secWhere: 'Party size & table',
+    secDetails: 'Contact & details',
+    phoneHint: 'Used to confirm your booking',
+    cancelTitle: 'Cancel booking',
+    cancelReasonLabel: 'Reason for cancelling (lets the venue know)',
+    cancelReasonPh: 'e.g. plans changed, wrong date, can’t make it',
+    cancelSubmit: 'Confirm cancellation',
+    keepBooking: 'Keep booking',
   },
   ru: {
     brandTag: 'Бронирование столов и мероприятий',
@@ -169,10 +185,18 @@ const T = {
     shopMessage: 'Сообщение от заведения',
     yourBooking: 'Ваше бронирование',
     cancel: 'Отменить бронь',
-    cancelConfirm: 'Отменить это бронирование?',
     newBooking: 'Новое бронирование',
     people: 'чел.',
     openHours: 'Часы работы',
+    secWhen: 'Дата и время',
+    secWhere: 'Гости и стол',
+    secDetails: 'Контакты и детали',
+    phoneHint: 'Нужен для подтверждения брони',
+    cancelTitle: 'Отменить бронь',
+    cancelReasonLabel: 'Причина отмены (чтобы заведение знало)',
+    cancelReasonPh: 'например, изменились планы, ошиблись датой',
+    cancelSubmit: 'Подтвердить отмену',
+    keepBooking: 'Оставить бронь',
   },
 } as const
 
@@ -220,6 +244,16 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
     <div>
       <label className="text-xs font-semibold text-gray-500 mb-1.5 block">{label}</label>
       {children}
+    </div>
+  )
+}
+
+// A titled group of fields — gives the booking form a clear top-to-bottom order.
+function Section({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <div className="border-t border-gray-100 pt-4 first:border-t-0 first:pt-0">
+      <p className="text-[11px] font-bold text-amber-600 uppercase tracking-wider mb-3">{title}</p>
+      <div className="flex flex-col gap-3.5">{children}</div>
     </div>
   )
 }
@@ -278,6 +312,9 @@ export default function ReservePage({ params }: { params: Promise<{ store: strin
 
   // ── Tracking ──
   const [reservation, setReservation] = useState<Reservation | null>(null)
+  const [showCancel, setShowCancel] = useState(false)
+  const [cancelReason, setCancelReason] = useState('')
+  const [cancelling, setCancelling] = useState(false)
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const activeKey = `reserve_${store}_active`
 
@@ -401,17 +438,19 @@ export default function ReservePage({ params }: { params: Promise<{ store: strin
     } catch { setError(t.errGeneric); setSubmitting(false) }
   }
 
-  async function cancelBooking() {
+  // Confirm cancellation with a reason (so the venue knows why), then submit.
+  async function confirmCancel() {
     if (!reservation) return
-    if (!confirm(t.cancelConfirm)) return
+    setCancelling(true)
     try {
       const r = await sfetch(`/api/reservations/${reservation.id}`, {
         method: 'PATCH', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status: 'cancelled' }),
+        body: JSON.stringify({ status: 'cancelled', cancelReason: cancelReason.trim() || undefined }),
       })
       const d = await r.json().catch(() => ({}))
       if (d?.reservation) setReservation(d.reservation)
-    } catch { /* ignore */ }
+      setShowCancel(false)
+    } catch { /* ignore */ } finally { setCancelling(false) }
   }
 
   function resetForNewBooking() {
@@ -492,7 +531,7 @@ export default function ReservePage({ params }: { params: Promise<{ store: strin
           </div>
 
           {(st === 'pending' || st === 'approved') && (
-            <button onClick={cancelBooking}
+            <button onClick={() => { setCancelReason(''); setShowCancel(true) }}
               className="w-full py-2.5 text-sm font-semibold text-red-600 bg-white border border-red-200 rounded-2xl hover:bg-red-50 transition active:scale-95 mb-2">
               {t.cancel}
             </button>
@@ -504,6 +543,34 @@ export default function ReservePage({ params }: { params: Promise<{ store: strin
             </button>
           )}
         </div>
+
+        {/* Cancel confirmation + reason */}
+        {showCancel && (
+          <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/40 p-4"
+            onClick={() => !cancelling && setShowCancel(false)}>
+            <div className="bg-white rounded-3xl w-full max-w-sm p-6 shadow-2xl" onClick={e => e.stopPropagation()}>
+              <p className="text-4xl text-center mb-2">🗑️</p>
+              <h2 className="text-lg font-black text-gray-900 text-center">{t.cancelTitle}</h2>
+              <p className="text-sm text-gray-400 text-center mt-1">{reservation.refCode}</p>
+              <div className="mt-4">
+                <label className="text-xs font-semibold text-gray-500 mb-1.5 block">{t.cancelReasonLabel}</label>
+                <textarea value={cancelReason} onChange={e => setCancelReason(e.target.value)} rows={3}
+                  placeholder={t.cancelReasonPh} autoFocus
+                  className={`${INPUT} resize-none`} style={{ userSelect: 'text' }} />
+              </div>
+              <div className="flex gap-2 mt-5">
+                <button onClick={() => setShowCancel(false)} disabled={cancelling}
+                  className="flex-1 py-2.5 text-sm font-semibold text-gray-500 bg-gray-100 rounded-2xl hover:bg-gray-200 transition active:scale-95 disabled:opacity-40">
+                  {t.keepBooking}
+                </button>
+                <button onClick={confirmCancel} disabled={cancelling}
+                  className="flex-1 py-2.5 text-sm font-bold text-white bg-red-600 rounded-2xl hover:bg-red-500 transition active:scale-95 disabled:opacity-40">
+                  {cancelling ? t.submitting : t.cancelSubmit}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     )
   }
@@ -579,87 +646,90 @@ export default function ReservePage({ params }: { params: Promise<{ store: strin
             <span className="text-xs text-gray-400">{displayName}</span>
           </div>
 
-          <div className="flex flex-col gap-4">
-            {/* Zone */}
-            {zones.length > 0 && (
-              <Field label={t.zone}>
-                <div className="flex flex-wrap gap-2">
-                  <ZoneChip active={zone === ''} onClick={() => { setZone(''); setTableNo('') }}>{t.zoneAny}</ZoneChip>
-                  {zones.map(z => (
-                    <ZoneChip key={z} active={zone === z} onClick={() => { setZone(z); setTableNo('') }}>{z}</ZoneChip>
-                  ))}
-                </div>
-              </Field>
-            )}
+          <div className="flex flex-col gap-6">
 
-            {/* Table */}
-            {zoneTables.length > 0 && (
-              <Field label={t.table}>
-                <div className="grid grid-cols-3 gap-2">
-                  <TableCard active={tableNo === ''} onClick={() => setTableNo('')} label={t.tableAny} sub="" />
-                  {zoneTables.map(tl => {
-                    const isTaken = taken.includes(tl.tableNo)
-                    return (
-                      <TableCard key={tl.id}
-                        active={tableNo === tl.tableNo}
-                        disabled={isTaken}
-                        onClick={() => !isTaken && setTableNo(tl.tableNo)}
-                        label={tl.tableNo}
-                        sub={isTaken ? t.tableTaken : `${tl.capacity} ${t.seats}`} />
-                    )
-                  })}
-                </div>
-              </Field>
-            )}
-
-            {/* Opening hours note */}
-            <div className="flex items-center gap-1.5 text-[11px] text-gray-400 -mb-1">
-              <span>🕒</span><span className="font-semibold text-gray-500">{t.openHours}:</span>
-              <span>{openTime} – {closeTime}</span>
-            </div>
-
-            {/* Date + time */}
-            <div className="grid grid-cols-2 gap-3">
-              <Field label={t.date}>
-                <input type="date" value={date} min={todayISO()} onChange={e => setDate(e.target.value)}
-                  className={INPUT} style={{ userSelect: 'text' }} />
-              </Field>
-              <Field label={t.startTime}>
-                <select value={startTime} onChange={e => setStartTime(e.target.value)} className={INPUT}>
-                  {slots.map(s => <option key={s} value={s}>{s}</option>)}
-                </select>
-              </Field>
-            </div>
-
-            <div className="grid grid-cols-2 gap-3">
+            {/* ── 1. WHEN — the primary decision ── */}
+            <Section title={t.secWhen}>
+              <div className="flex items-center gap-1.5 text-[11px] text-gray-400">
+                <span>🕒</span><span className="font-semibold text-gray-500">{t.openHours}:</span>
+                <span className="tabular-nums">{openTime} – {closeTime}</span>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <Field label={t.date}>
+                  <input type="date" value={date} min={todayISO()} onChange={e => setDate(e.target.value)}
+                    className={INPUT} style={{ userSelect: 'text' }} />
+                </Field>
+                <Field label={t.startTime}>
+                  <select value={startTime} onChange={e => setStartTime(e.target.value)} className={INPUT}>
+                    {slots.map(s => <option key={s} value={s}>{s}</option>)}
+                  </select>
+                </Field>
+              </div>
               <Field label={t.duration}>
                 <select value={durationH} onChange={e => setDurationH(Number(e.target.value))} className={INPUT}>
                   {DURATIONS.map(d => <option key={d} value={d}>{d} {t.hours} → {endFor(startTime, d, openTime, closeTime)}</option>)}
                 </select>
               </Field>
-              <Field label={t.ppl}>
-                <div className="flex items-center gap-2">
+            </Section>
+
+            {/* ── 2. WHO & WHERE — party size drives the table choice ── */}
+            <Section title={t.secWhere}>
+              <div className="flex items-center justify-between">
+                <label className="text-sm font-semibold text-gray-600">{t.ppl}</label>
+                <div className="flex items-center gap-3">
                   <Stepper onClick={() => setPartySize(p => Math.max(1, p - 1))}>−</Stepper>
-                  <span className="flex-1 text-center text-lg font-black text-gray-900">{partySize}</span>
+                  <span className="w-8 text-center text-lg font-black text-gray-900 tabular-nums">{partySize}</span>
                   <Stepper onClick={() => setPartySize(p => Math.min(99, p + 1))}>+</Stepper>
                 </div>
+              </div>
+
+              {zones.length > 0 && (
+                <Field label={t.zone}>
+                  <div className="flex flex-wrap gap-2">
+                    <ZoneChip active={zone === ''} onClick={() => { setZone(''); setTableNo('') }}>{t.zoneAny}</ZoneChip>
+                    {zones.map(z => (
+                      <ZoneChip key={z} active={zone === z} onClick={() => { setZone(z); setTableNo('') }}>{z}</ZoneChip>
+                    ))}
+                  </div>
+                </Field>
+              )}
+
+              {zoneTables.length > 0 && (
+                <Field label={t.table}>
+                  <div className="grid grid-cols-3 gap-2">
+                    <TableCard active={tableNo === ''} onClick={() => setTableNo('')} label={t.tableAny} sub="" />
+                    {zoneTables.map(tl => {
+                      const isTaken = taken.includes(tl.tableNo)
+                      return (
+                        <TableCard key={tl.id}
+                          active={tableNo === tl.tableNo}
+                          disabled={isTaken}
+                          onClick={() => !isTaken && setTableNo(tl.tableNo)}
+                          label={tl.tableNo}
+                          sub={isTaken ? t.tableTaken : `${tl.capacity} ${t.seats}`} />
+                      )
+                    })}
+                  </div>
+                </Field>
+              )}
+            </Section>
+
+            {/* ── 3. CONTACT & DETAILS ── */}
+            <Section title={t.secDetails}>
+              <Field label={t.phone}>
+                <input value={phone} onChange={e => setPhone(e.target.value)} placeholder={t.phonePh}
+                  inputMode="tel" type="tel" className={INPUT} style={{ userSelect: 'text' }} />
+                <p className="text-[11px] text-gray-400 mt-1">{t.phoneHint}</p>
               </Field>
-            </div>
-
-            <Field label={t.eventName}>
-              <input value={eventName} onChange={e => setEventName(e.target.value)} placeholder={t.eventNamePh}
-                className={INPUT} style={{ userSelect: 'text' }} />
-            </Field>
-
-            <Field label={t.phone}>
-              <input value={phone} onChange={e => setPhone(e.target.value)} placeholder={t.phonePh}
-                inputMode="tel" type="tel" className={INPUT} style={{ userSelect: 'text' }} />
-            </Field>
-
-            <Field label={t.requirements}>
-              <textarea value={requirements} onChange={e => setRequirements(e.target.value)} placeholder={t.requirementsPh}
-                rows={3} className={`${INPUT} resize-none`} style={{ userSelect: 'text' }} />
-            </Field>
+              <Field label={t.eventName}>
+                <input value={eventName} onChange={e => setEventName(e.target.value)} placeholder={t.eventNamePh}
+                  className={INPUT} style={{ userSelect: 'text' }} />
+              </Field>
+              <Field label={t.requirements}>
+                <textarea value={requirements} onChange={e => setRequirements(e.target.value)} placeholder={t.requirementsPh}
+                  rows={3} className={`${INPUT} resize-none`} style={{ userSelect: 'text' }} />
+              </Field>
+            </Section>
 
             {error && <p className="text-xs text-red-500 bg-red-50 rounded-xl px-3 py-2">{error}</p>}
 
