@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useRef } from 'react'
 import PosIcon from './PosIcon'
 
 type SplitPayMethod = 'cash' | 'card' | 'promptpay'
@@ -30,22 +30,25 @@ export default function SplitBillModal({ table, total, onConfirm, onClose, onCom
   const [method, setMethod] = useState<SplitPayMethod>('cash')
   const [confirming, setConfirming] = useState(false)
   const [isDone, setIsDone] = useState(false)
+  const confirmingRef = useRef(false)   // synchronous double-tap lock on the final pay
 
   const baseShare = Math.floor(total / splits)
   const remainder = total - baseShare * splits
   const currentShare = paidCount === splits - 1 ? baseShare + remainder : baseShare
 
   async function handlePay() {
-    if (confirming) return
+    if (confirming || confirmingRef.current) return
     if (paidCount < splits - 1) {
       setPaidCount(p => p + 1)
       return
     }
+    confirmingRef.current = true
     setConfirming(true)
     try {
       await onConfirm('split')
       setIsDone(true)
     } finally {
+      confirmingRef.current = false
       setConfirming(false)
     }
   }

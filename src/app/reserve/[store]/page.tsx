@@ -308,6 +308,7 @@ export default function ReservePage({ params }: { params: Promise<{ store: strin
   const endTime = endFor(startTime, durationH, openTime, closeTime)
 
   const [submitting, setSubmitting] = useState(false)
+  const submittingRef = useRef(false)   // synchronous double-tap lock
   const [error, setError] = useState('')
 
   // ── Tracking ──
@@ -412,6 +413,8 @@ export default function ReservePage({ params }: { params: Promise<{ store: strin
   async function submit() {
     setError('')
     if (!date || !startTime) { setError(t.errDate); return }
+    if (submittingRef.current) return          // ignore double-tap
+    submittingRef.current = true
     setSubmitting(true)
     try {
       const r = await sfetch('/api/reservations', {
@@ -430,12 +433,13 @@ export default function ReservePage({ params }: { params: Promise<{ store: strin
         }),
       })
       const d = await r.json().catch(() => ({}))
-      if (r.status === 409) { setError(t.errTaken); setSubmitting(false); return }
-      if (!r.ok || !d?.reservation) { setError(d.error || t.errGeneric); setSubmitting(false); return }
+      if (r.status === 409) { setError(t.errTaken); return }
+      if (!r.ok || !d?.reservation) { setError(d.error || t.errGeneric); return }
       setReservation(d.reservation)
       try { localStorage.setItem(activeKey, JSON.stringify({ id: d.reservation.id })) } catch { /* ignore */ }
       setPhase('tracking')
-    } catch { setError(t.errGeneric); setSubmitting(false) }
+    } catch { setError(t.errGeneric) }
+    finally { submittingRef.current = false; setSubmitting(false) }
   }
 
   // Confirm cancellation with a reason (so the venue knows why), then submit.

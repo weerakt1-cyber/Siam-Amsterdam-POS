@@ -15,6 +15,7 @@ import { FLOOR_LAYOUT_CHANGED_EVENT, loadFloorTables } from '@/lib/floor'
 import { getThaiGreeting, getDailyQuote } from '@/lib/greeting'
 import { usePosLang } from '@/lib/pos-i18n'
 import { useAuth } from '@/lib/pos-auth'
+import { useAsyncGuard } from '@/lib/use-async-guard'
 
 const ALL_CHIP: CatEntry = { value: 'all', label: 'All', color: 'bg-gray-200 text-gray-700', icon: '🍽️' }
 
@@ -37,6 +38,16 @@ const PI = {
 // `color` clipped to the icon's shape. This tints every icon to the exact same
 // yellow on any surface. Pass `color` to override (e.g. dark on an amber pill).
 const ICON_AMBER = '#f59e0b'
+// Small inline spinner for buttons in a pending (processing) state.
+function Spinner({ className = '' }: { className?: string }) {
+  return (
+    <svg className={`w-4 h-4 animate-spin ${className}`} viewBox="0 0 24 24" fill="none" aria-hidden>
+      <circle cx="12" cy="12" r="9" stroke="currentColor" strokeWidth="3" className="opacity-25" />
+      <path d="M21 12a9 9 0 0 0-9-9" stroke="currentColor" strokeWidth="3" strokeLinecap="round" />
+    </svg>
+  )
+}
+
 function Ic({ src, color = ICON_AMBER, className = 'w-4 h-4' }: { src: string; color?: string; className?: string }) {
   return (
     <span
@@ -139,6 +150,7 @@ export default function POSPage() {
   // so the tables you can ring up always match the room drawn on the floor plan.
   const { t, lang } = usePosLang()
   const { user } = useAuth()
+  const { pending, run } = useAsyncGuard()   // single-tap guard for async actions
   const [tables, setTables] = useState<string[]>(() => loadFloorTables())
   const [table, setTable] = useState(() => loadFloorTables()[0] ?? 'T1')
   const [tablePickerOpen, setTablePickerOpen] = useState(false)
@@ -453,7 +465,7 @@ export default function POSPage() {
     // If there's no signed-in user, fall back to a light confirm().
     if (user?.id) { setDrawerPinOpen(true); return }
     if (!confirm(t('posOpenDrawerConfirm'))) return
-    fireDrawer()
+    run('drawer', fireDrawer)
   }
 
   // Verify an entered PIN against the current user's login PIN; on success open
@@ -467,7 +479,7 @@ export default function POSPage() {
         body: JSON.stringify({ id: user.id, pin: entered }),
       })
       const d = await r.json()
-      if (d.valid) { setDrawerPinOpen(false); fireDrawer(); return true }
+      if (d.valid) { setDrawerPinOpen(false); run('drawer', fireDrawer); return true }
     } catch { /* fall through */ }
     return false
   }
@@ -907,10 +919,11 @@ export default function POSPage() {
                         voidConfirmId === o.id ? (
                           <div className="flex gap-1 mt-1.5 justify-end">
                             <button
-                              onClick={() => handleVoidOrder(o.id)}
-                              className="text-[10px] font-bold text-red-600 bg-red-50 border border-red-200 px-2 py-0.5 rounded-lg"
+                              onClick={() => run(`void-${o.id}`, () => handleVoidOrder(o.id))}
+                              disabled={pending[`void-${o.id}`]}
+                              className="text-[10px] font-bold text-red-600 bg-red-50 border border-red-200 px-2 py-0.5 rounded-lg disabled:opacity-50"
                             >
-                              Confirm Void
+                              {pending[`void-${o.id}`] ? '…' : 'Confirm Void'}
                             </button>
                             <button
                               onClick={() => setVoidConfirmId(null)}
@@ -1278,17 +1291,24 @@ export default function POSPage() {
             )}
           </div>
           <button
-            onClick={handleHoldBill}
-            disabled={!cart.some(c => !c.fromOrderId)}
+            onClick={() => run('hold', handleHoldBill)}
+            disabled={pending.hold || !cart.some(c => !c.fromOrderId)}
             className="border-2 border-amber-400 bg-amber-50 hover:bg-amber-100 disabled:opacity-40 disabled:cursor-not-allowed active:scale-95 text-amber-600 transition text-sm font-bold px-3 py-2 rounded-xl flex items-center gap-1.5"
           >
-            <Ic src={PI.hold} className="w-4 h-4" /> <span className="hidden sm:inline">{t('holdBill')}</span>
+            {pending.hold
+              ? <Spinner className="text-amber-500" />
+              : <Ic src={PI.hold} className="w-4 h-4" />}
+            <span className="hidden sm:inline">{t('holdBill')}</span>
           </button>
           <button
             onClick={openDrawer}
-            className="bg-stone-100 hover:bg-stone-200 active:scale-95 text-stone-700 transition text-sm font-semibold px-3 py-2 rounded-xl flex items-center gap-1.5"
+            disabled={pending.drawer}
+            className="bg-stone-100 hover:bg-stone-200 active:scale-95 disabled:opacity-40 text-stone-700 transition text-sm font-semibold px-3 py-2 rounded-xl flex items-center gap-1.5"
           >
-            <Ic src={PI.drawer} className="w-4 h-4" /> <span className="hidden sm:inline">{t('openDrawer')}</span>
+            {pending.drawer
+              ? <Spinner className="text-stone-500" />
+              : <Ic src={PI.drawer} className="w-4 h-4" />}
+            <span className="hidden sm:inline">{t('openDrawer')}</span>
           </button>
           <NotificationBell />
         </div>
@@ -1584,7 +1604,7 @@ export default function POSPage() {
                     value: c.code,
                     label: `${c.code} — ${c.name} (${c.type === 'percent' ? `${c.value}%` : `฿${c.value}`} off)`,
                   }))}
-                  onPick={code => applyCoupon(code)}
+                  onPick={code => run('coupon', () => applyCoupon(code))}
                 />
               )}
               {couponError && <p className="text-xs text-red-500 px-1">{couponError}</p>}
@@ -1667,8 +1687,8 @@ export default function POSPage() {
                     <div className="fixed inset-0 z-40" onClick={() => setShowMoreActions(false)} />
                     <div className="absolute bottom-full left-0 mb-2 z-50 w-44 bg-white rounded-2xl shadow-xl border border-stone-100 overflow-hidden">
                       <button
-                        onClick={() => { setShowMoreActions(false); handlePrintTicket() }}
-                        disabled={cart.length === 0}
+                        onClick={() => { setShowMoreActions(false); run('print', handlePrintTicket) }}
+                        disabled={cart.length === 0 || pending.print}
                         className="w-full flex items-center gap-2.5 px-4 py-3 text-sm font-semibold text-stone-700 hover:bg-stone-50 transition disabled:opacity-40 disabled:cursor-not-allowed"
                       >
                         <Ic src={PI.printCheck} className="w-4 h-4" /> {t('printCheckBill')}
