@@ -246,6 +246,9 @@ export default function CheckoutModal({
 
   // Auto-print when payment confirmed (step 3) — Bluetooth or LAN
   const autoPrintedRef = useRef(false)
+  // Synchronous re-entry lock — blocks a fast double-tap before the disabled
+  // state re-renders, so payment/order creation can never fire twice.
+  const confirmingRef = useRef(false)
   useEffect(() => {
     if (step !== 3 || autoPrintedRef.current) return
     autoPrintedRef.current = true
@@ -310,6 +313,8 @@ export default function CheckoutModal({
   async function handleConfirm(receivedOverride?: number) {
     const amt = receivedOverride ?? receivedNum
     if (payment === 'cash' && amt < total) return
+    if (confirmingRef.current) return          // already processing — ignore the extra tap
+    confirmingRef.current = true
     setIsConfirming(true)
     try {
       const id = await onConfirm(payment, payment === 'cash' ? amt : undefined)
@@ -318,6 +323,7 @@ export default function CheckoutModal({
       setStep(3)
       setBtStatus('idle')
     } catch { /* parent shows toast */ } finally {
+      confirmingRef.current = false
       setIsConfirming(false)
     }
   }
@@ -681,6 +687,8 @@ export default function CheckoutModal({
           paymentType={omiseType}
           total={total}
           onSuccess={async () => {
+            if (confirmingRef.current) return
+            confirmingRef.current = true
             setIsConfirming(true)
             try {
               const id = await onConfirm(omiseType)
@@ -688,6 +696,7 @@ export default function CheckoutModal({
               setStep(3)
               setBtStatus('idle')
             } catch { /* parent shows toast */ } finally {
+              confirmingRef.current = false
               setIsConfirming(false)
               setShowOmise(false)
             }
