@@ -39,9 +39,10 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     }
     patch.status = body.status
   }
-  if (typeof body.staffReply === 'string') patch.staffReply = body.staffReply.trim()
-  if (typeof body.tableNo === 'string')    patch.tableNo    = body.tableNo.trim() || undefined
-  if (typeof body.zone === 'string')       patch.zone       = body.zone.trim() || undefined
+  if (typeof body.staffReply === 'string')   patch.staffReply   = body.staffReply.trim()
+  if (typeof body.cancelReason === 'string') patch.cancelReason = body.cancelReason.trim() || undefined
+  if (typeof body.tableNo === 'string')      patch.tableNo      = body.tableNo.trim() || undefined
+  if (typeof body.zone === 'string')         patch.zone         = body.zone.trim() || undefined
   // Staff force-approving onto an already-held table: exempts this row from the
   // DB no-overlap constraint (see migration 016).
   if (typeof body.override === 'boolean')  patch.override   = body.override

@@ -26,6 +26,7 @@ const CO = {
     noTable: 'ให้ร้านจัดให้',
     phone: 'โทร',
     conflict: 'อาจชนกับการจองอื่น',
+    cancelReason: 'เหตุผลที่ลูกค้ายกเลิก',
     overrideNote: 'จองทับโต๊ะที่ชนกัน (บังคับ)',
     errTaken: 'โต๊ะนี้ถูกจองในช่วงเวลานี้แล้ว — เปิด "จองทับ" เพื่อยืนยัน',
     approve: 'ยืนยัน',
@@ -68,6 +69,7 @@ const CO = {
     noTable: 'Venue assigns',
     phone: 'Tel',
     conflict: 'May conflict with another booking',
+    cancelReason: 'Customer cancel reason',
     overrideNote: 'Force onto the conflicting table',
     errTaken: 'That table is already booked for this time — turn on "force" to confirm',
     approve: 'Approve',
@@ -312,6 +314,12 @@ function ReservationCard({ r, c, conflict, onApprove, onReject, onSeat, onComple
       {conflict && (
         <div className="mt-2 bg-red-50 border border-red-100 rounded-lg px-3 py-1.5 text-xs text-red-600 font-semibold">
           ⚠ {c.conflict} ({conflict.refCode} · {conflict.startTime}–{conflict.endTime})
+        </div>
+      )}
+
+      {r.status === 'cancelled' && r.cancelReason && (
+        <div className="mt-2 bg-stone-100 border border-stone-200 rounded-lg px-3 py-1.5 text-xs text-stone-600">
+          🚫 {c.cancelReason}: {r.cancelReason}
         </div>
       )}
 
