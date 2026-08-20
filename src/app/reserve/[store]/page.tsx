@@ -4,7 +4,7 @@ import { useState, useEffect, use, useCallback, useRef } from 'react'
 import { type TableTile, zonesFromTiles } from '@/lib/floor'
 import type { Reservation, ReservationStatus } from '@/lib/reservations'
 
-type Lang = 'th' | 'en'
+type Lang = 'th' | 'en' | 'ru'
 type Phase = 'info' | 'form' | 'tracking'
 
 // ─── Self-contained bilingual copy (stands alone from POS/order i18n) ─────────
@@ -64,6 +64,7 @@ const T = {
     cancelConfirm: 'ยืนยันยกเลิกการจองนี้?',
     newBooking: 'จองใหม่',
     people: 'คน',
+    openHours: 'เวลาทำการ',
   },
   en: {
     brandTag: 'Table & Event Reservations',
@@ -117,31 +118,96 @@ const T = {
     cancelConfirm: 'Cancel this booking?',
     newBooking: 'New booking',
     people: 'people',
+    openHours: 'Opening hours',
+  },
+  ru: {
+    brandTag: 'Бронирование столов и мероприятий',
+    infoTitle: 'Начать бронирование',
+    infoSubtitle: 'Войдите по номеру телефона участника или укажите имя как гость',
+    member: 'Участник',
+    guest: 'Гость',
+    memberPhone: 'Телефон участника',
+    phonePh: '08x-xxx-xxxx',
+    lookup: 'Проверить',
+    lookingUp: 'Проверка…',
+    memberFound: 'Добро пожаловать',
+    memberNotFound: 'Участник с этим номером не найден. Попробуйте снова или забронируйте как гость.',
+    guestName: 'Ваше имя',
+    guestNamePh: 'например, Иван',
+    continue: 'Далее',
+    formTitle: 'Детали бронирования',
+    zone: 'Зона',
+    zoneAny: 'Любая зона',
+    table: 'Стол',
+    tableAny: 'На усмотрение заведения',
+    tableTaken: 'Занят',
+    seats: 'мест',
+    date: 'Дата',
+    startTime: 'Время начала',
+    duration: 'Длительность',
+    ppl: 'Кол-во гостей',
+    eventName: 'Событие / повод (необязательно)',
+    eventNamePh: 'например, день рождения, корпоратив',
+    phone: 'Контактный номер',
+    requirements: 'Что подготовить (необязательно)',
+    requirementsPh: 'например, торт, столик у окна, детский стул',
+    submit: 'Отправить заявку',
+    submitting: 'Отправка…',
+    back: 'Назад',
+    hours: 'ч',
+    errDate: 'Пожалуйста, выберите дату и время',
+    errTaken: 'Этот стол уже забронирован на это время. Выберите другой стол или время.',
+    errGeneric: 'Что-то пошло не так. Попробуйте ещё раз.',
+    ref: 'Код бронирования',
+    statusPending: 'Ожидание подтверждения',
+    statusPendingBody: 'Мы отправили вашу заявку заведению. Эта страница обновится автоматически после подтверждения.',
+    statusApproved: 'Бронирование подтверждено!',
+    statusApprovedBody: 'Заведение подтвердило вашу бронь. До скорой встречи 🎉',
+    statusRejected: 'Бронирование недоступно',
+    statusRejectedBody: 'К сожалению, заведение не смогло принять эту бронь.',
+    statusCancelled: 'Бронирование отменено',
+    shopMessage: 'Сообщение от заведения',
+    yourBooking: 'Ваше бронирование',
+    cancel: 'Отменить бронь',
+    cancelConfirm: 'Отменить это бронирование?',
+    newBooking: 'Новое бронирование',
+    people: 'чел.',
+    openHours: 'Часы работы',
   },
 } as const
 
 // ─── Time helpers ─────────────────────────────────────────────────────────────
-const TIME_SLOTS = (() => {
-  const out: string[] = []
-  for (let h = 10; h <= 23; h++) for (const m of [0, 30]) {
-    out.push(`${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`)
-  }
-  return out
-})()
-
-const DURATIONS = [1, 1.5, 2, 3] as const
-
-// Add a duration and clamp to end-of-day (23:59). We clamp on total minutes —
-// NOT the hour alone — so a late+long booking yields an honest end time
-// (22:30 + 2h → 23:59), and the label the customer sees matches what's stored.
-// Bookings across midnight aren't supported.
+const DEFAULT_OPEN = '10:00'
+const DEFAULT_CLOSE = '23:00'
+const DURATIONS = [1, 1.5, 2, 3, 4, 5, 6, 8] as const   // hours, up to 8h max
 const END_OF_DAY_MIN = 23 * 60 + 59
-function addHours(time: string, hours: number): string {
-  const [h, m] = time.split(':').map(Number)
-  const total = Math.min(END_OF_DAY_MIN, h * 60 + m + Math.round(hours * 60))
-  const nh = Math.floor(total / 60)
-  const nm = total % 60
-  return `${String(nh).padStart(2, '0')}:${String(nm).padStart(2, '0')}`
+
+const isHHMM = (s: unknown): s is string => typeof s === 'string' && /^([01]\d|2[0-3]):[0-5]\d$/.test(s)
+function toMin(t: string): number { const [h, m] = t.split(':').map(Number); return h * 60 + m }
+function fromMin(x: number): string {
+  const m = Math.max(0, Math.min(END_OF_DAY_MIN, Math.round(x)))
+  return `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`
+}
+
+// Effective closing minute for a same-day booking model. If close ≤ open (shop
+// runs past midnight), we can't store an end past 23:59, so we cap there.
+function effectiveCloseMin(open: string, close: string): number {
+  const o = toMin(open), c = toMin(close)
+  return c > o ? c : END_OF_DAY_MIN
+}
+
+// 30-min start slots from open up to 30 min before (effective) close.
+function startSlots(open: string, close: string): string[] {
+  const o = toMin(open), c = effectiveCloseMin(open, close)
+  const out: string[] = []
+  for (let m = o; m <= c - 30; m += 30) out.push(fromMin(m))
+  return out.length ? out : [open]
+}
+
+// End time = start + duration, clamped to (effective) closing time — so a long
+// booking near closing shows/stores an honest end that matches what's shown.
+function endFor(start: string, hours: number, open: string, close: string): string {
+  return fromMin(Math.min(effectiveCloseMin(open, close), toMin(start) + Math.round(hours * 60)))
 }
 
 // The venue's local (Bangkok) calendar day — so the date picker's min and
@@ -189,18 +255,23 @@ export default function ReservePage({ params }: { params: Promise<{ store: strin
   // ── Floor tiles / zones ──
   const [tiles, setTiles] = useState<TableTile[]>([])
 
+  // ── Shop opening hours (from Settings; bounds the start-time slots) ──
+  const [openTime, setOpenTime] = useState(DEFAULT_OPEN)
+  const [closeTime, setCloseTime] = useState(DEFAULT_CLOSE)
+  const slots = startSlots(openTime, closeTime)
+
   // ── Booking form ──
   const [zone, setZone] = useState('')
   const [tableNo, setTableNo] = useState('')          // '' = let venue assign
   const [date, setDate] = useState(todayISO())
-  const [startTime, setStartTime] = useState('18:00')
+  const [startTime, setStartTime] = useState(slots[0])
   const [durationH, setDurationH] = useState<number>(2)
   const [partySize, setPartySize] = useState(2)
   const [eventName, setEventName] = useState('')
   const [phone, setPhone] = useState('')
   const [requirements, setRequirements] = useState('')
   const [taken, setTaken] = useState<string[]>([])
-  const endTime = addHours(startTime, durationH)
+  const endTime = endFor(startTime, durationH, openTime, closeTime)
 
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState('')
@@ -215,7 +286,12 @@ export default function ReservePage({ params }: { params: Promise<{ store: strin
     sfetch('/api/store').then(r => r.ok ? r.json() : null)
       .then(d => { if (d?.store) setStoreName(d.store.name) }).catch(() => {})
     sfetch('/api/settings').then(r => r.ok ? r.json() : null)
-      .then(d => { if (Array.isArray(d?.floorTiles)) setTiles(d.floorTiles) }).catch(() => {})
+      .then(d => {
+        if (Array.isArray(d?.floorTiles)) setTiles(d.floorTiles)
+        const bs = d?.barSettings
+        if (bs && isHHMM(bs.openTime)) setOpenTime(bs.openTime)
+        if (bs && isHHMM(bs.closeTime)) setCloseTime(bs.closeTime)
+      }).catch(() => {})
 
     try {
       const saved = localStorage.getItem(activeKey)
@@ -230,6 +306,12 @@ export default function ReservePage({ params }: { params: Promise<{ store: strin
       }
     } catch { /* ignore */ }
   }, [sfetch, activeKey])
+
+  // Keep the selected start time inside the shop's hours once they load/change.
+  useEffect(() => {
+    setStartTime(cur => slots.includes(cur) ? cur : slots[0])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [openTime, closeTime])
 
   // Availability: refresh taken tables whenever date/time changes on the form.
   // If the table the customer already picked has become taken for the new
@@ -342,10 +424,10 @@ export default function ReservePage({ params }: { params: Promise<{ store: strin
   // ─── Language toggle ──
   const LangToggle = (
     <div className="flex justify-center gap-2 mb-4">
-      {(['th', 'en'] as Lang[]).map(l => (
+      {(['th', 'en', 'ru'] as Lang[]).map(l => (
         <button key={l} onClick={() => setLang(l)}
           className={`px-3 py-1.5 rounded-xl text-xs font-semibold border transition ${lang === l ? 'bg-gray-900 text-white border-gray-900' : 'bg-white text-gray-500 border-gray-200'}`}>
-          {l === 'th' ? '🇹🇭 ไทย' : '🇬🇧 EN'}
+          {l === 'th' ? '🇹🇭 ไทย' : l === 'en' ? '🇬🇧 EN' : '🇷🇺 RU'}
         </button>
       ))}
     </div>
@@ -530,6 +612,12 @@ export default function ReservePage({ params }: { params: Promise<{ store: strin
               </Field>
             )}
 
+            {/* Opening hours note */}
+            <div className="flex items-center gap-1.5 text-[11px] text-gray-400 -mb-1">
+              <span>🕒</span><span className="font-semibold text-gray-500">{t.openHours}:</span>
+              <span>{openTime} – {closeTime}</span>
+            </div>
+
             {/* Date + time */}
             <div className="grid grid-cols-2 gap-3">
               <Field label={t.date}>
@@ -538,7 +626,7 @@ export default function ReservePage({ params }: { params: Promise<{ store: strin
               </Field>
               <Field label={t.startTime}>
                 <select value={startTime} onChange={e => setStartTime(e.target.value)} className={INPUT}>
-                  {TIME_SLOTS.map(s => <option key={s} value={s}>{s}</option>)}
+                  {slots.map(s => <option key={s} value={s}>{s}</option>)}
                 </select>
               </Field>
             </div>
@@ -546,7 +634,7 @@ export default function ReservePage({ params }: { params: Promise<{ store: strin
             <div className="grid grid-cols-2 gap-3">
               <Field label={t.duration}>
                 <select value={durationH} onChange={e => setDurationH(Number(e.target.value))} className={INPUT}>
-                  {DURATIONS.map(d => <option key={d} value={d}>{d} {t.hours} → {addHours(startTime, d)}</option>)}
+                  {DURATIONS.map(d => <option key={d} value={d}>{d} {t.hours} → {endFor(startTime, d, openTime, closeTime)}</option>)}
                 </select>
               </Field>
               <Field label={t.ppl}>
