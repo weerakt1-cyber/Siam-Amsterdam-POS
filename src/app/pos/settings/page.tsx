@@ -733,6 +733,8 @@ export default function SettingsPage() {
   const [qrBaseUrl,   setQrBaseUrl]   = useState('')
   const [qrAutoPrint, setQrAutoPrint] = useState(true)  // auto-print incoming QR orders on THIS device
   const [memberQr,    setMemberQr]    = useState('')    // QR image for the member sign-up link
+  const [reserveQr,   setReserveQr]   = useState('')    // QR image for the table-reservation link
+  const [reserveCopied, setReserveCopied] = useState(false)
   const [linkCopied,  setLinkCopied]  = useState(false)
   const [benefits,    setBenefits]    = useState<{ icon: string; text: string }[]>([])
   const [benefitsSaved, setBenefitsSaved] = useState(false)
@@ -815,6 +817,70 @@ export default function SettingsPage() {
       setLinkCopied(true)
       setTimeout(() => setLinkCopied(false), 1800)
     } catch { /* ignore */ }
+  }
+
+  // ── Table-reservation link + QR (customers scan to book) ──
+  const reserveUrl = `${qrBaseUrl || (typeof window !== 'undefined' ? window.location.origin : '')}/reserve/${storeSlug}`
+  useEffect(() => {
+    if (!storeSlug) { setReserveQr(''); return }
+    QRCode.toDataURL(reserveUrl, { width: 300, margin: 2, color: { dark: '#111111', light: '#FFFFFF' } })
+      .then(setReserveQr).catch(() => setReserveQr(''))
+  }, [reserveUrl, storeSlug])
+
+  function copyReserveLink() {
+    try {
+      navigator.clipboard?.writeText(reserveUrl)
+      setReserveCopied(true)
+      setTimeout(() => setReserveCopied(false), 1800)
+    } catch { /* ignore */ }
+  }
+
+  // Open a ready-to-print A4 poster ("สแกนเพื่อจองโต๊ะ") for the shopfront / social.
+  async function printReservePoster() {
+    if (!storeSlug) return
+    const qr = await QRCode.toDataURL(reserveUrl, {
+      width: 1000, margin: 1, errorCorrectionLevel: 'H', color: { dark: '#1B1712', light: '#FFFFFF' },
+    }).catch(() => '')
+    const name = (cfg?.barName || 'SIAM AMSTERDAM').toUpperCase()
+    const win = window.open('', '_blank', 'width=800,height=1000')
+    if (!win) return
+    win.document.write(`<!DOCTYPE html><html lang="th"><head><meta charset="utf-8"><title>Reservation Poster — ${name}</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,600;1,9..144,500&family=Kanit:wght@300;500;700&display=swap">
+<style>
+  *{margin:0;padding:0;box-sizing:border-box}
+  html,body{height:100%}
+  body{font-family:"Kanit",system-ui,sans-serif;background:#140F0A;color:#F7F0E4;display:flex;align-items:center;justify-content:center;padding:20px}
+  .p{width:100%;max-width:520px;aspect-ratio:210/297;position:relative;overflow:hidden;border-radius:20px;
+     background:radial-gradient(78% 46% at 50% 40%,rgba(245,163,16,.16),transparent 62%),#140F0A;border:1px solid #3A2E20;
+     display:flex;flex-direction:column;padding:38px 34px 30px;text-align:center}
+  .kick{color:#F5A310;font-size:12px;letter-spacing:.4em;text-transform:uppercase;font-weight:500}
+  .name{font-family:"Fraunces",serif;font-weight:600;font-size:38px;line-height:1;margin-top:10px}
+  .sub{color:#B39A7C;font-size:11px;letter-spacing:.3em;text-transform:uppercase;margin-top:8px}
+  .cta{font-weight:700;font-size:46px;line-height:1.02;margin-top:auto;background:linear-gradient(180deg,#F7F0E4 30%,#F2D6A6);-webkit-background-clip:text;background-clip:text;color:transparent}
+  .en{font-family:"Fraunces",serif;font-style:italic;color:#FBC24B;font-size:19px;margin-top:6px}
+  .ru{color:#B39A7C;font-size:12px;font-weight:300;margin-top:2px}
+  .qr{width:210px;margin:22px auto 0;background:#FCFAF4;border-radius:18px;padding:14px}
+  .qr img{width:100%;display:block}
+  .url{margin:14px auto 0;width:max-content;max-width:100%;font-size:12px;border:1px solid #3A2E20;border-radius:999px;padding:7px 15px}
+  .url b{color:#F5A310}
+  .foot{margin-top:auto;padding-top:18px;border-top:1px solid #3A2E20;color:#B39A7C;font-size:11px;letter-spacing:.14em;text-transform:uppercase}
+  .foot b{color:#F5A310;margin:0 6px}
+  @page{size:210mm 297mm;margin:0}
+  @media print{body{padding:0;background:#140F0A}.p{max-width:none;width:100%;height:100vh;aspect-ratio:auto;border:0;border-radius:0}}
+</style></head><body>
+  <div class="p">
+    <div><div class="kick">Reservations</div><div class="name">${name}</div><div class="sub">จองโต๊ะ · จองอีเวนต์ · Booking</div></div>
+    <div class="cta">สแกนเพื่อ<br>จองโต๊ะ</div>
+    <div class="en">Scan to book a table</div>
+    <div class="ru">Отсканируйте, чтобы забронировать столик</div>
+    <div class="qr"><img src="${qr}" alt="QR"></div>
+    <div class="url">${reserveUrl.replace(/^https?:\/\//,'')}</div>
+    <div class="foot">Cocktails<b>•</b>Events<b>•</b>Good times</div>
+  </div>
+  <script>window.addEventListener('load',function(){setTimeout(function(){window.print()},600)})<\/script>
+</body></html>`)
+    win.document.close()
+    win.focus()
   }
 
   function toggleQrAutoPrint() {
@@ -1926,6 +1992,37 @@ export default function SettingsPage() {
                       {tr('downloadQr')}
                     </button>
                   )}
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Table-reservation link + QR + printable poster */}
+          <div className="bg-white border border-gray-100 rounded-2xl p-5 shadow-sm flex flex-col gap-4 mt-4">
+            <div>
+              <h3 className="font-bold text-gray-900">{tr('reserveLinkTitle')}</h3>
+              <p className="text-sm text-gray-500 mt-1 leading-snug">{tr('reserveLinkDesc')}</p>
+            </div>
+            <div className="flex flex-col sm:flex-row gap-4 items-start">
+              {reserveQr && <img src={reserveQr} alt="Reservation QR" className="w-32 h-32 rounded-xl border border-gray-100 shrink-0" />}
+              <div className="flex-1 min-w-0 w-full flex flex-col gap-2">
+                <p className="text-[11px] text-gray-500 font-mono break-all bg-gray-50 rounded-lg px-2 py-1.5">{reserveUrl}</p>
+                <div className="flex flex-wrap gap-2">
+                  <button onClick={copyReserveLink}
+                    className="flex-1 min-w-[90px] text-xs py-2 rounded-lg bg-gray-900 hover:bg-gray-700 text-white font-semibold transition active:scale-95">
+                    {reserveCopied ? tr('linkCopied') : tr('copyLink')}
+                  </button>
+                  {reserveQr && (
+                    <button
+                      onClick={() => { const a = document.createElement('a'); a.href = reserveQr; a.download = 'reservation-qr.png'; a.click() }}
+                      className="flex-1 min-w-[90px] text-xs py-2 rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-600 font-semibold transition active:scale-95">
+                      {tr('downloadQr')}
+                    </button>
+                  )}
+                  <button onClick={printReservePoster}
+                    className="flex-1 min-w-[90px] text-xs py-2 rounded-lg bg-amber-500 hover:bg-amber-400 text-black font-bold transition active:scale-95">
+                    {tr('printPoster')}
+                  </button>
                 </div>
               </div>
             </div>
