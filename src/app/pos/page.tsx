@@ -193,6 +193,7 @@ export default function POSPage() {
   const [showCheckout, setShowCheckout] = useState(false)
   const [showSplitBill, setShowSplitBill] = useState(false)
   const [showOpenTickets, setShowOpenTickets] = useState(false)
+  const [showMergeBill, setShowMergeBill] = useState(false)
   const [showMoreActions, setShowMoreActions] = useState(false)
   const [payingTicket, setPayingTicket] = useState<Order | null>(null)
   const [pointsToRedeem, setPointsToRedeem] = useState(0)
@@ -479,6 +480,21 @@ export default function POSPage() {
   )
   // Subset that haven't been pulled into the cart yet (for badge count)
   const pendingTableOrders = allOpenTableOrders.filter(o => !mergedOrderIds.has(o.id))
+
+  // Merge Bill: open tickets from OTHER tables (a customer from another table
+  // orders more at the counter). The checkout settles pulled-in orders by id
+  // regardless of table, so merging across tables "just works".
+  const otherOpenOrders = orders.filter(o =>
+    o.tableNo !== table &&
+    ['pending', 'accepted', 'ready', 'delivered'].includes(o.status),
+  )
+  const otherOpenByTable = (() => {
+    const m = new Map<string, Order[]>()
+    for (const o of otherOpenOrders) { const a = m.get(o.tableNo) ?? []; a.push(o); m.set(o.tableNo, a) }
+    return Array.from(m.entries()).sort((a, b) => a[0].localeCompare(b[0]))
+  })()
+  const otherUnmergedCount = otherOpenOrders.filter(o => !mergedOrderIds.has(o.id)).length
+  const orderById = (id: string) => orders.find(o => o.id === id)
 
   const subtotal = cart.reduce((s, c) => s + itemEffectiveTotal(c), 0)
 
@@ -1098,6 +1114,103 @@ export default function POSPage() {
         </div>
       )}
 
+      {/* ── Merge Bill: pull open bills from OTHER tables into this bill ── */}
+      {showMergeBill && (
+        <div className="fixed inset-0 z-40 bg-black/60 flex items-center justify-center p-4"
+          onClick={() => setShowMergeBill(false)}>
+          <div className="bg-white rounded-2xl w-full max-w-lg max-h-[85vh] flex flex-col shadow-2xl"
+            onClick={e => e.stopPropagation()}>
+            {/* Header */}
+            <div className="flex items-start justify-between px-5 py-4 border-b border-stone-100 shrink-0">
+              <div className="pr-3">
+                <h2 className="text-lg font-bold text-stone-900">{t('mergeBillTitle')}</h2>
+                <p className="text-xs text-stone-400 mt-0.5">{t('mergeBillDesc')}</p>
+                <p className="text-[11px] text-stone-500 mt-1 font-semibold">→ {t('coTable')} {table}</p>
+              </div>
+              <button onClick={() => setShowMergeBill(false)}
+                className="text-stone-400 hover:text-stone-700 text-3xl leading-none w-10 h-10 flex items-center justify-center shrink-0">×</button>
+            </div>
+
+            {/* Grouped by table */}
+            <div className="flex-1 min-h-0 overflow-y-auto p-4 flex flex-col gap-4">
+              {otherOpenByTable.length === 0 ? (
+                <div className="py-12 text-center text-stone-300 flex flex-col items-center">
+                  <Ic src={PI.openTickets} className="w-12 h-12 mb-3 opacity-25" />
+                  <p className="text-sm">{t('mergeBillEmpty')}</p>
+                </div>
+              ) : (
+                otherOpenByTable.map(([tbl, tblOrders]) => {
+                  const tblUnmerged = tblOrders.filter(o => !mergedOrderIds.has(o.id))
+                  const tblTotal = tblOrders.reduce((s, o) => s + o.total, 0)
+                  return (
+                    <div key={tbl} className="rounded-xl border border-stone-200 overflow-hidden">
+                      <div className="flex items-center justify-between px-4 py-2.5 bg-stone-50 border-b border-stone-100">
+                        <span className="flex items-center gap-1.5 text-sm font-bold text-stone-800">
+                          <Ic src={PI.table} className="w-4 h-4 opacity-70" /> {t('coTable')} {tbl}
+                          <span className="text-xs font-semibold text-stone-400">· {baht(tblTotal)}</span>
+                        </span>
+                        {tblUnmerged.length > 0 && (
+                          <button onClick={() => tblUnmerged.forEach(o => mergeQrOrder(o))}
+                            className="text-xs font-bold px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-500 text-white transition active:scale-95">
+                            {t('mergeAllFrom')}
+                          </button>
+                        )}
+                      </div>
+                      <div className="flex flex-col divide-y divide-stone-100">
+                        {tblOrders.map(o => {
+                          const isMerged = mergedOrderIds.has(o.id)
+                          return (
+                            <div key={o.id} className="px-4 py-3">
+                              <div className="flex items-center justify-between gap-2">
+                                <div className="flex items-center gap-2 flex-wrap min-w-0">
+                                  <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full ${o.source === 'qr' ? 'bg-teal-100 text-teal-700' : 'bg-blue-100 text-blue-700'}`}>
+                                    {o.source === 'qr' ? 'QR' : 'POS'}
+                                  </span>
+                                  <span className="text-xs font-mono text-stone-400">#{o.id.slice(-6)}</span>
+                                  {o.customerName && (
+                                    <span className="flex items-center gap-1 text-xs font-semibold text-stone-700 truncate"><Ic src={PI.member} className="w-3 h-3 opacity-70" /> {o.customerName}</span>
+                                  )}
+                                </div>
+                                <span className="font-bold text-amber-600 shrink-0">{baht(o.total)}</span>
+                              </div>
+                              <div className="mt-1.5 text-xs text-stone-500 leading-snug">
+                                {o.items.map(i => `${i.name}×${i.qty}`).join(' · ')}
+                              </div>
+                              <div className="mt-2">
+                                {isMerged ? (
+                                  <div className="flex items-center justify-between">
+                                    <span className="text-[11px] font-bold text-amber-700">✓ {t('mergeInBill')}</span>
+                                    <button onClick={() => unmergeQrOrder(o.id)}
+                                      className="text-[11px] font-semibold text-stone-400 hover:text-red-600 transition">{t('remove')}</button>
+                                  </div>
+                                ) : (
+                                  <button onClick={() => mergeQrOrder(o)}
+                                    className="w-full text-xs font-bold py-2 rounded-lg border-2 border-blue-500 text-blue-700 hover:bg-blue-50 transition active:scale-95">
+                                    + {t('mergeAddToBill')}
+                                  </button>
+                                )}
+                              </div>
+                            </div>
+                          )
+                        })}
+                      </div>
+                    </div>
+                  )
+                })
+              )}
+            </div>
+
+            {/* Footer */}
+            <div className="px-5 py-4 border-t border-stone-100 shrink-0 flex justify-end">
+              <button onClick={() => setShowMergeBill(false)}
+                className="px-5 py-2.5 rounded-xl bg-stone-900 text-white font-bold text-sm transition active:scale-95">
+                {mergedOrderIds.size > 0 ? `${t('mergeInBill')} · ${baht(finalTotal)}` : 'Done'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* ── Header ── */}
       <div className="flex items-center gap-2 px-3 py-2.5 bg-white border-b border-stone-200 shrink-0 shadow-sm">
         {/* Greeting + daily power quote (replaces the old table-tab strip) */}
@@ -1363,13 +1476,17 @@ export default function POSPage() {
                 const lineFinal = itemEffectiveTotal(item) - (promoLine?.amount ?? 0)
                 const showStrike = hasDiscount || !!promoLine
                 const isQr = !!item.fromOrderId
+                const srcTable = item.fromOrderId ? orderById(item.fromOrderId)?.tableNo : undefined
+                const fromOtherTable = !!srcTable && srcTable !== table
                 return (
                   <div key={key} className="flex items-center gap-1.5 py-2 border-b border-stone-100">
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-1.5">
                         <p className="text-sm font-medium leading-snug text-stone-800 truncate">{item.name}</p>
                         {isQr && (
-                          <span className="text-[9px] bg-amber-100 text-amber-700 px-1 py-0.5 rounded font-bold shrink-0">QR</span>
+                          fromOtherTable
+                            ? <span className="text-[9px] bg-blue-100 text-blue-700 px-1 py-0.5 rounded font-bold shrink-0">{t('fromTable')} {srcTable}</span>
+                            : <span className="text-[9px] bg-amber-100 text-amber-700 px-1 py-0.5 rounded font-bold shrink-0">QR</span>
                         )}
                       </div>
                       {item.variantLabel && (
@@ -1571,6 +1688,17 @@ export default function POSPage() {
                         {pendingTableOrders.length > 0 && (
                           <span className="bg-red-500 text-white text-[10px] font-black min-w-[18px] h-[18px] rounded-full flex items-center justify-center px-1">
                             {pendingTableOrders.length}
+                          </span>
+                        )}
+                      </button>
+                      <button
+                        onClick={() => { setShowMoreActions(false); setShowMergeBill(true) }}
+                        className="w-full flex items-center justify-between gap-2.5 px-4 py-3 text-sm font-semibold text-stone-700 hover:bg-stone-50 transition border-t border-stone-100"
+                      >
+                        <span className="flex items-center gap-2.5"><Ic src={PI.openTickets} className="w-4 h-4" /> {t('mergeBill')}</span>
+                        {otherUnmergedCount > 0 && (
+                          <span className="bg-blue-500 text-white text-[10px] font-black min-w-[18px] h-[18px] rounded-full flex items-center justify-center px-1">
+                            {otherUnmergedCount}
                           </span>
                         )}
                       </button>
