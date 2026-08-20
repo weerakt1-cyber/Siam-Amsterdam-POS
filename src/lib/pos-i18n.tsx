@@ -72,6 +72,14 @@ const DICT = {
   printCheckBill:  { en: 'Print check bill', th: 'พิมพ์ใบเช็คบิล' },
   splitBill:       { en: 'Split Bill',      th: 'แยกบิล' },
   openTickets:     { en: 'Open Tickets',    th: 'บิลที่เปิดอยู่' },
+  mergeBill:       { en: 'Merge Bill',      th: 'รวมบิล' },
+  mergeBillTitle:  { en: 'Merge a bill from another table', th: 'รวมบิลจากโต๊ะอื่น' },
+  mergeBillDesc:   { en: 'Pull an open bill from another table into this bill — e.g. a customer moves to the counter to order more. Everything is settled together at checkout.', th: 'ดึงบิลที่เปิดอยู่จากโต๊ะอื่นมารวมกับบิลนี้ เช่น ลูกค้าเดินมาสั่งเพิ่มที่แคชเชียร์ แล้วเก็บเงินรวมทีเดียวตอนเช็คเอาต์' },
+  mergeBillEmpty:  { en: 'No open bills at other tables', th: 'ไม่มีบิลเปิดอยู่ที่โต๊ะอื่น' },
+  mergeAddToBill:  { en: 'Merge into this bill', th: 'รวมเข้าบิลนี้' },
+  mergeAllFrom:    { en: 'Merge all', th: 'รวมทั้งโต๊ะ' },
+  mergeInBill:     { en: 'In this bill', th: 'อยู่ในบิลแล้ว' },
+  fromTable:       { en: 'from', th: 'จากโต๊ะ' },
   remove:          { en: 'Remove',          th: 'ลบ' },
 
   // ── Settings ──
