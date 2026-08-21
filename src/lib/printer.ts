@@ -336,6 +336,24 @@ function stripEmoji(s: string): string {
     .trim()
 }
 
+// Merge identical receipt lines (same name + same unit price) into one line with
+// the quantities summed — so ordering the same item several times separately
+// prints as "Beer x3", not three "Beer x1" lines. First-seen order is preserved;
+// lines with a different unit price (e.g. an item-level discount) stay separate.
+function consolidateReceiptItems(
+  items: { name: string; qty: number; price: number }[],
+): { name: string; qty: number; price: number }[] {
+  const out: { name: string; qty: number; price: number }[] = []
+  const seen = new Map<string, number>()
+  for (const it of items) {
+    const key = `${it.name}::${it.price}`
+    const at = seen.get(key)
+    if (at === undefined) { seen.set(key, out.length); out.push({ ...it }) }
+    else out[at].qty += it.qty
+  }
+  return out
+}
+
 // Lay the receipt out on a canvas 2d context. Runs twice: once to measure
 // (draw=false) to compute total height, once to actually paint. y-advances must
 // be identical in both passes, so every y increment lives outside `if (draw)`.
@@ -495,8 +513,8 @@ function layoutReceipt(ctx: CanvasRenderingContext2D, W: number, d: ReceiptData,
   if (d.memberName) row(L.member, d.memberName, 15, true)
   hr(dashed)
 
-  // ── Items ──
-  for (const item of d.items) {
+  // ── Items (identical lines merged, quantities summed) ──
+  for (const item of consolidateReceiptItems(d.items)) {
     itemRow(item.name, 'x' + item.qty + '  ฿' + (item.price * item.qty).toLocaleString(), 16)
   }
   hr(dashed)
