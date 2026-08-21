@@ -669,6 +669,7 @@ interface NativeThermalPrinter {
   disconnect(): Promise<void>
   begin(opts?: Record<string, never>): Promise<void>
   raw(opts: { data: string }): Promise<void>
+  openDrawer(opts?: Record<string, never>): Promise<void>   // native drawer kick, no paper feed
   write(opts?: Record<string, never>): Promise<void>
 }
 
@@ -716,8 +717,23 @@ export async function printReceiptBluetooth(d: ReceiptData, cfg: BarSettings): P
 }
 
 export async function openCashDrawerBluetooth(): Promise<void> {
-  // ESC p 0 25ms 250ms — kick cash drawer via RJ11/RJ12
-  await reconnectAndWrite(new Uint8Array([0x1B, 0x70, 0x00, 0x19, 0xFA]))
+  // Standalone "Open Drawer" (no sale): use the plugin's native openDrawer()
+  // content-action instead of writing raw ESC/POS bytes as a print job. Sending
+  // the kick as a print job made the printer feed a short blank slip to the tear
+  // bar when the job finalised (write()); the native drawer command pops the
+  // till without any paper. (At checkout the kick is still bundled into the
+  // receipt bytes — see buildReceiptBytes — so the till pops with the bill.)
+  const native = getNativePrinter()
+  if (!native) throw new Error('เครื่องพิมพ์ใช้ได้เฉพาะใน Android app')
+  const saved = await loadPrinterDevice()
+  if (!saved) throw new Error('ยังไม่ได้ตั้งค่าปริ้นเตอร์ — ไปที่ Settings → Printer')
+  await native.disconnect().catch(() => {})
+  await new Promise(res => setTimeout(res, 350)) // let RFCOMM release the DLCI
+  const device = await native.connect({ address: saved.address })
+  if (!device) throw new Error('เชื่อมต่อปริ้นเตอร์ไม่สำเร็จ — ตรวจสอบว่าเปิดเครื่องพิมพ์และอยู่ใกล้')
+  await native.begin({})
+  await native.openDrawer({})
+  await native.write({})
 }
 
 // ─── LAN: send raw bytes via /api/printer/send (TCP proxy) ───────────────────
