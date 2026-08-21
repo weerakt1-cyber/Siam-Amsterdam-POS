@@ -1255,17 +1255,38 @@ export default function POSPage() {
 
                       {/* Action */}
                       <div className="px-4 pb-3" onClick={e => e.stopPropagation()}>
-                        {isMerged ? (
+                        {voidConfirmId === o.id ? (
+                          <div className="flex items-center gap-2 bg-red-50 border border-red-200 rounded-xl px-3 py-2">
+                            <span className="text-[11px] text-red-700 font-semibold flex-1 leading-snug">{t('cancelBillConfirm')}</span>
+                            <button
+                              onClick={() => run(`void-${o.id}`, () => voidHeldOrder(o.id))}
+                              disabled={pending[`void-${o.id}`]}
+                              className="text-xs font-bold text-white bg-red-600 hover:bg-red-500 px-3 py-1.5 rounded-lg transition active:scale-95 disabled:opacity-50 shrink-0"
+                            >
+                              {pending[`void-${o.id}`] ? '…' : t('cancelBill')}
+                            </button>
+                            <button onClick={() => setVoidConfirmId(null)}
+                              className="text-xs text-stone-400 hover:text-stone-600 font-medium px-1 shrink-0">{t('keepBillBtn')}</button>
+                          </div>
+                        ) : isMerged ? (
                           <div className="flex items-center justify-between">
                             <span className="text-[11px] font-bold text-amber-700">✓ {t('mergeInBill')}</span>
-                            <button onClick={() => unmergeQrOrder(o.id)}
-                              className="text-[11px] font-semibold text-stone-400 hover:text-red-600 transition">{t('remove')}</button>
+                            <div className="flex items-center gap-3">
+                              <button onClick={() => unmergeQrOrder(o.id)}
+                                className="text-[11px] font-semibold text-stone-400 hover:text-stone-600 transition">{t('remove')}</button>
+                              <button onClick={() => setVoidConfirmId(o.id)} title={t('cancelBill')}
+                                className="text-xs text-stone-300 hover:text-red-600 transition">🗑</button>
+                            </div>
                           </div>
                         ) : (
-                          <button onClick={() => mergeQrOrder(o)}
-                            className="w-full text-xs font-bold py-2 rounded-lg border-2 border-blue-500 text-blue-700 hover:bg-blue-50 transition active:scale-95">
-                            + {t('mergeAddToBill')}
-                          </button>
+                          <div className="flex gap-2">
+                            <button onClick={() => mergeQrOrder(o)}
+                              className="flex-1 text-xs font-bold py-2 rounded-lg border-2 border-blue-500 text-blue-700 hover:bg-blue-50 transition active:scale-95">
+                              + {t('mergeAddToBill')}
+                            </button>
+                            <button onClick={() => setVoidConfirmId(o.id)} title={t('cancelBill')}
+                              className="w-10 shrink-0 rounded-lg bg-stone-100 hover:bg-red-50 text-stone-400 hover:text-red-600 font-bold transition active:scale-95 flex items-center justify-center">🗑</button>
+                          </div>
                         )}
                       </div>
                     </div>
