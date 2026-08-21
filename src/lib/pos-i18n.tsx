@@ -83,6 +83,9 @@ const DICT = {
   mergeInBill:     { en: 'In this bill', th: 'อยู่ในบิลแล้ว' },
   fromTable:       { en: 'from', th: 'จากโต๊ะ' },
   remove:          { en: 'Remove',          th: 'ลบ' },
+  cancelBill:      { en: 'Cancel bill',     th: 'ยกเลิกบิล' },
+  cancelBillConfirm: { en: 'Permanently cancel this bill? It will be removed and not counted in sales.', th: 'ยกเลิกบิลนี้ถาวร? บิลจะถูกลบและไม่ถูกนับในยอดขาย' },
+  keepBillBtn:     { en: 'Keep',            th: 'ไม่ลบ' },
 
   // ── Settings ──
   language:     { en: 'Language',              th: 'ภาษา' },

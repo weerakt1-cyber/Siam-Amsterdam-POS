@@ -421,6 +421,15 @@ export default function POSPage() {
     setVoidConfirmId(null)
   }
 
+  // Cancel a still-open (held / QR / pending) ticket from the Open Tickets list —
+  // e.g. a duplicate double-tap or a bill already settled elsewhere. Drops it
+  // from the current cart first (if it was pulled in) so checkout can't try to
+  // re-settle a cancelled order, then voids it.
+  async function voidHeldOrder(orderId: string) {
+    unmergeQrOrder(orderId)
+    await handleVoidOrder(orderId)
+  }
+
   function setItemDiscountForItem(key: string, discount: number | undefined) {
     setCart(prev => prev.map(c => cartKey(c) === key ? { ...c, itemDiscount: discount } : c))
   }
@@ -1063,15 +1072,39 @@ export default function POSPage() {
 
                       {/* Action */}
                       <div className="px-4 pb-3" onClick={e => e.stopPropagation()}>
-                        {isMerged ? (
+                        {voidConfirmId === o.id ? (
+                          <div className="flex items-center gap-2 bg-red-50 border border-red-200 rounded-xl px-3 py-2">
+                            <span className="text-[11px] text-red-700 font-semibold flex-1 leading-snug">{t('cancelBillConfirm')}</span>
+                            <button
+                              onClick={() => run(`void-${o.id}`, () => voidHeldOrder(o.id))}
+                              disabled={pending[`void-${o.id}`]}
+                              className="text-xs font-bold text-white bg-red-600 hover:bg-red-500 px-3 py-1.5 rounded-lg transition active:scale-95 disabled:opacity-50 shrink-0"
+                            >
+                              {pending[`void-${o.id}`] ? '…' : t('cancelBill')}
+                            </button>
+                            <button onClick={() => setVoidConfirmId(null)}
+                              className="text-xs text-stone-400 hover:text-stone-600 font-medium px-1 shrink-0">
+                              {t('keepBillBtn')}
+                            </button>
+                          </div>
+                        ) : isMerged ? (
                           <div className="flex items-center justify-between">
                             <span className="text-xs text-amber-700 font-semibold">✓ Added to current bill</span>
-                            <button
-                              onClick={() => unmergeQrOrder(o.id)}
-                              className="text-xs text-stone-400 hover:text-red-500 transition font-medium"
-                            >
-                              Remove
-                            </button>
+                            <div className="flex items-center gap-3">
+                              <button
+                                onClick={() => unmergeQrOrder(o.id)}
+                                className="text-xs text-stone-400 hover:text-stone-600 transition font-medium"
+                              >
+                                Remove
+                              </button>
+                              <button
+                                onClick={() => setVoidConfirmId(o.id)}
+                                title={t('cancelBill')}
+                                className="text-xs text-stone-300 hover:text-red-600 transition"
+                              >
+                                🗑
+                              </button>
+                            </div>
                           </div>
                         ) : (
                           <div className="flex gap-2">
@@ -1086,6 +1119,13 @@ export default function POSPage() {
                               className="flex-1 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 active:scale-95 text-black font-bold text-sm transition"
                             >
                               + Add to Bill
+                            </button>
+                            <button
+                              onClick={() => setVoidConfirmId(o.id)}
+                              title={t('cancelBill')}
+                              className="w-10 shrink-0 rounded-xl bg-stone-100 hover:bg-red-50 text-stone-400 hover:text-red-600 font-bold transition active:scale-95 flex items-center justify-center"
+                            >
+                              🗑
                             </button>
                           </div>
                         )}
