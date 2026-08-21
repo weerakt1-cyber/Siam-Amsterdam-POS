@@ -128,10 +128,16 @@ export async function POST(req: NextRequest) {
       total:          order.total,
       paymentMethod:  order.paymentMethod ?? 'cash',
     }
-    sendOrderAlert(notifyPayload)
-      .catch((err) => console.error('[Orders API] Telegram notify failed:', err))
-    sendLineOrderAlert(notifyPayload)
-      .catch((err) => console.error('[Orders API] LINE notify failed:', err))
+    // Only QR self-orders send a Telegram/LINE alert — that's the case staff
+    // need to see (a customer ordered from their phone). Orders rung up at the
+    // POS are already in front of the cashier and printed as a receipt, so they
+    // must NOT notify (it flooded the channels).
+    if (order.source === 'qr') {
+      sendOrderAlert(notifyPayload)
+        .catch((err) => console.error('[Orders API] Telegram notify failed:', err))
+      sendLineOrderAlert(notifyPayload)
+        .catch((err) => console.error('[Orders API] LINE notify failed:', err))
+    }
 
     return NextResponse.json({ order, memberLinked: !!linkedMemberId, memberName: linkedMemberName }, { status: 201 })
   } catch {
