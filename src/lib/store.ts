@@ -1147,7 +1147,8 @@ export type { UserRole }
 
 // ─── Analytics ────────────────────────────────────────────────────────────────
 
-export async function getAnalyticsData(period: '7d' | '30d' | 'all' = '7d') {
+export async function getAnalyticsData(period: '7d' | '30d' | 'all' = '7d', storeId?: string) {
+  const sid = await requireStoreId(storeId)
   // Bangkok timezone offset (UTC+7)
   const BKK_MS = 7 * 60 * 60 * 1000
 
@@ -1162,6 +1163,7 @@ export async function getAnalyticsData(period: '7d' | '30d' | 'all' = '7d') {
   let ordersQ = supabase
     .from('orders')
     .select('*, order_items(*)')
+    .eq('store_id', sid)
     .eq('status', 'paid')
     .order('created_at', { ascending: false })
 
@@ -1172,7 +1174,7 @@ export async function getAnalyticsData(period: '7d' | '30d' | 'all' = '7d') {
   // Fetch orders + menu categories in parallel
   const [{ data: ordersData, error: ordersErr }, { data: menuData }] = await Promise.all([
     ordersQ,
-    supabase.from('menu_items').select('id, category'),
+    supabase.from('menu_items').select('id, category').eq('store_id', sid),
   ])
   if (ordersErr) throw ordersErr
 
@@ -1304,7 +1306,8 @@ export async function getAnalyticsData(period: '7d' | '30d' | 'all' = '7d') {
 
 // ─── Month-over-Month Analytics ───────────────────────────────────────────────
 
-export async function getMomAnalyticsData() {
+export async function getMomAnalyticsData(storeId?: string) {
+  const sid = await requireStoreId(storeId)
   const BKK_MS = 7 * 60 * 60 * 1000
 
   function toBkkDate(isoStr: string): string {
@@ -1326,10 +1329,11 @@ export async function getMomAnalyticsData() {
     supabase
       .from('orders')
       .select('*, order_items(*)')
+      .eq('store_id', sid)
       .eq('status', 'paid')
       .gte('created_at', prevMonthStartUtc)
       .order('created_at', { ascending: false }),
-    supabase.from('menu_items').select('id, category'),
+    supabase.from('menu_items').select('id, category').eq('store_id', sid),
   ])
   if (ordersErr) throw ordersErr
 
