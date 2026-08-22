@@ -19,6 +19,7 @@ import type { OrderItem } from '@/lib/types'
 //   ?sinceDays=N — orders from the last N days (default 2 to cover past-midnight
 //                  service; capped at 90 to prevent an unbounded scan)
 //   ?status=a,b  — restrict to these statuses (the kitchen/floor active set)
+//   ?fields=list — slim projection (board columns only) instead of the full order
 const VALID_STATUSES = new Set(['pending', 'accepted', 'ready', 'delivered', 'cancelled', 'paid'])
 const MAX_SINCE_DAYS = 90
 
@@ -48,7 +49,9 @@ export async function GET(req: NextRequest) {
     }
   }
 
-  const orders = await getOrders(storeId, { sinceDays, statuses })
+  const fields = sp.get('fields') === 'list' ? 'list' as const : undefined
+
+  const orders = await getOrders(storeId, { sinceDays, statuses, fields })
   return NextResponse.json({ orders })
 }
 

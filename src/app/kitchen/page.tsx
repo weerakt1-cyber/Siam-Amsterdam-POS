@@ -32,8 +32,9 @@ export default function KitchenDisplay() {
   useEffect(() => {
     const fetch_ = async () => {
       try {
-        // Only the active statuses the board shows — filtered server-side.
-        const res = await authedFetch(`/api/orders?status=${ACTIVE.join(',')}`)
+        // Only the active statuses the board shows, slim columns only — both
+        // filtered/projected server-side.
+        const res = await authedFetch(`/api/orders?status=${ACTIVE.join(',')}&fields=list`)
         if (res.ok) {
           const data = await res.json()
           setOrders(data.orders ?? [])

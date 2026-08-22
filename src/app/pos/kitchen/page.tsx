@@ -182,8 +182,8 @@ export default function KitchenPage() {
 
   const fetchOrders = useCallback(async () => {
     try {
-      // Active statuses filtered server-side; today's cut kept client-side.
-      const r = await authedFetch(`/api/orders?status=${ACTIVE_STATUSES.join(',')}`)
+      // Active statuses + slim columns server-side; today's cut kept client-side.
+      const r = await authedFetch(`/api/orders?status=${ACTIVE_STATUSES.join(',')}&fields=list`)
       if (r.ok) {
         const d = await r.json()
         const active = (d.orders as Order[]).filter(o =>

@@ -374,14 +374,56 @@ export async function deleteMenuItem(id: string, storeId?: string): Promise<bool
 // up. Callers pass a window:
 //   • sinceDays — only orders created within the last N days (via created_at)
 //   • statuses  — only these order statuses (e.g. the active kitchen set)
-// Omit both only when you genuinely need full history (and expect a big payload).
-export type GetOrdersOpts = { sinceDays?: number; statuses?: string[] }
+//   • fields    — 'list' fetches ONLY the columns the kitchen/floor boards
+//                 render (much smaller rows); 'full' (default) keeps everything
+//                 for checkout/receipt paths that need the whole order.
+// Omit the window only when you genuinely need full history (and a big payload).
+export type GetOrdersOpts = { sinceDays?: number; statuses?: string[]; fields?: 'list' | 'full' }
+
+// Slim projection for the polling boards — exactly what the kitchen/floor views
+// draw (order header + item name/qty/variant), and nothing else (no subtotal,
+// discount, payment, points, timestamps beyond created_at).
+const ORDER_LIST_SELECT =
+  'id, table_no, status, source, order_type, channel, platform_code, created_at, total, note, ' +
+  'customer_name, member_name, order_items(name, name_th, qty, variant_label)'
+
+// Map a slim ORDER_LIST_SELECT row to an Order. Fields the boards never read are
+// filled with harmless defaults so the shape still satisfies the Order type.
+function mapOrderListRow(row: Record<string, unknown>): Order {
+  const rawItems = (row.order_items as Record<string, unknown>[] | null) ?? []
+  const createdAt = row.created_at as string
+  return {
+    id:           row.id as string,
+    tableNo:      row.table_no as string,
+    items:        rawItems.map(i => ({
+      menuId:       '',
+      name:         i.name as string,
+      nameTh:       (i.name_th as string) ?? '',
+      qty:          Number(i.qty),
+      price:        0,
+      variantLabel: i.variant_label as string | undefined,
+    })),
+    note:         (row.note as string) ?? '',
+    status:       row.status as OrderStatus,
+    source:       row.source as OrderSource,
+    subtotal:     Number(row.total),   // not selected in list mode; mirror total
+    total:        Number(row.total),
+    memberName:   (row.member_name as string | null) ?? undefined,
+    customerName: (row.customer_name as string | null) ?? undefined,
+    orderType:    (row.order_type as OrderType | null) ?? 'dine-in',
+    channel:      (row.channel as DeliveryChannel | null) ?? undefined,
+    platformCode: (row.platform_code as string | null) ?? undefined,
+    createdAt,
+    updatedAt:    createdAt,           // not selected in list mode
+  }
+}
 
 export async function getOrders(storeId?: string, opts: GetOrdersOpts = {}): Promise<Order[]> {
   const sid = await requireStoreId(storeId)
+  const slim = opts.fields === 'list'
   let q = supabase
     .from('orders')
-    .select('*, order_items(*)')
+    .select(slim ? ORDER_LIST_SELECT : '*, order_items(*)')
     .eq('store_id', sid)
   if (opts.sinceDays != null) {
     q = q.gte('created_at', new Date(Date.now() - opts.sinceDays * 86400000).toISOString())
@@ -391,7 +433,10 @@ export async function getOrders(storeId?: string, opts: GetOrdersOpts = {}): Pro
   }
   const { data, error } = await q.order('created_at', { ascending: false })
   if (error) throw error
-  return (data ?? []).map(mapOrder)
+  // The select string is chosen at runtime, so PostgREST can't infer the row
+  // type — cast to the shape our mappers expect.
+  const rows = (data ?? []) as unknown as Record<string, unknown>[]
+  return rows.map(slim ? mapOrderListRow : mapOrder)
 }
 
 export async function getOrder(id: string, storeId?: string): Promise<Order | undefined> {

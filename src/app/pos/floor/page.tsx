@@ -160,7 +160,7 @@ export default function FloorPage() {
 
   const poll = useCallback(async () => {
     try {
-      const r = await authedFetch(`/api/orders?status=${ACTIVE_STATUSES.join(',')}`)
+      const r = await authedFetch(`/api/orders?status=${ACTIVE_STATUSES.join(',')}&fields=list`)
       if (r.ok) setOrders((await r.json()).orders ?? [])
     } catch { /* ignore */ }
   }, [])
