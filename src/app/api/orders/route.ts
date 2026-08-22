@@ -2,7 +2,7 @@
 
 import { NextRequest, NextResponse } from 'next/server'
 import { getOrders, getMenu, createOrder, recordCouponUse, getMemberByPhone } from '@/lib/store'
-import { resolveStoreId } from '@/lib/api-auth'
+import { resolveStoreId, resolveStaffStoreId } from '@/lib/api-auth'
 import { appendOrderToSheet } from '@/lib/sheets'
 import { sendOrderAlert } from '@/lib/telegram'
 import { sendLineOrderAlert } from '@/lib/line'
@@ -11,9 +11,11 @@ import { fireWebhook } from '@/lib/webhooks'
 import { isDeliveryChannel, DELIVERY_CHANNELS } from '@/lib/delivery'
 import type { OrderItem } from '@/lib/types'
 
+// GET — full order history: staff-only. A public store hint must NOT unlock it
+// (store slugs are public), so it resolves the store from the session alone.
 export async function GET(req: NextRequest) {
-  const storeId = await resolveStoreId(req)
-  if (!storeId) return NextResponse.json({ error: 'Store context required' }, { status: 400 })
+  const storeId = await resolveStaffStoreId(req)
+  if (!storeId) return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
   const orders = await getOrders(storeId)
   return NextResponse.json({ orders })
 }

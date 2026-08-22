@@ -2,7 +2,7 @@ export const dynamic = "force-dynamic"
 
 import { NextRequest, NextResponse } from 'next/server'
 import { adjustStock, getAdjustments } from '@/lib/store'
-import { resolveStoreId } from '@/lib/api-auth'
+import { resolveStaffStoreId } from '@/lib/api-auth'
 import type { AdjustReason } from '@/lib/types'
 
 const VALID_REASONS: AdjustReason[] = ['restock', 'usage', 'manual', 'waste']
@@ -10,8 +10,8 @@ const VALID_REASONS: AdjustReason[] = ['restock', 'usage', 'manual', 'waste']
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
   try {
-    const storeId = await resolveStoreId(req)
-    if (!storeId) return NextResponse.json({ error: 'Store context required' }, { status: 400 })
+    const storeId = await resolveStaffStoreId(req)
+    if (!storeId) return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
     const body = await req.json()
     const { delta, reason, note } = body
 
@@ -31,7 +31,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
 export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
-  const storeId = await resolveStoreId(req)
-  if (!storeId) return NextResponse.json({ error: 'Store context required' }, { status: 400 })
+  const storeId = await resolveStaffStoreId(req)
+  if (!storeId) return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
   return NextResponse.json({ adjustments: await getAdjustments(id, storeId) })
 }

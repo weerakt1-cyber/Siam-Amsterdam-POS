@@ -2,9 +2,10 @@
 
 import { NextRequest, NextResponse } from 'next/server'
 import { getMenu, createMenuItem, getCategories } from '@/lib/store'
-import { resolveStoreId } from '@/lib/api-auth'
+import { resolveStoreId, resolveStaffStoreId } from '@/lib/api-auth'
 import type { MenuCategory } from '@/lib/types'
 
+// GET — public: the QR ordering page reads the menu via the store hint.
 export async function GET(req: NextRequest) {
   const storeId = await resolveStoreId(req)
   if (!storeId) return NextResponse.json({ error: 'Store context required' }, { status: 400 })
@@ -12,10 +13,11 @@ export async function GET(req: NextRequest) {
   return NextResponse.json({ menu })
 }
 
+// POST — create a menu item: staff-only (session required).
 export async function POST(req: NextRequest) {
   try {
-    const storeId = await resolveStoreId(req)
-    if (!storeId) return NextResponse.json({ error: 'Store context required' }, { status: 400 })
+    const storeId = await resolveStaffStoreId(req)
+    if (!storeId) return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
 
     const body = await req.json()
     const { name, nameTh, price, category } = body

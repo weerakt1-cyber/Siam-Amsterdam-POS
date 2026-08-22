@@ -1,7 +1,7 @@
 export const dynamic = 'force-dynamic'
 
 import { NextRequest, NextResponse } from 'next/server'
-import { resolveStoreId } from '@/lib/api-auth'
+import { resolveStoreId, resolveStaffStoreId } from '@/lib/api-auth'
 import { getMemberByPhone } from '@/lib/store'
 import { createReservation, listReservations, takenTables, bangkokDate, TableTakenError, type NewReservation, type Reservation } from '@/lib/reservations'
 import { sendReservationRequest, type ReservationNotify } from '@/lib/telegram'
@@ -25,8 +25,8 @@ const isDate = (s: unknown): s is string => typeof s === 'string' && /^\d{4}-\d{
 // Store-scoped (same trust model as /api/orders). `?from=YYYY-MM-DD` limits the
 // window; defaults to today so the list stays bounded.
 export async function GET(req: NextRequest) {
-  const storeId = await resolveStoreId(req)
-  if (!storeId) return NextResponse.json({ error: 'Store context required' }, { status: 400 })
+  const storeId = await resolveStaffStoreId(req)
+  if (!storeId) return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
   try {
     const fromParam = req.nextUrl.searchParams.get('from')
     const fromDate = isDate(fromParam) ? fromParam : bangkokDate()

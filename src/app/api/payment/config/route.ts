@@ -2,7 +2,7 @@ export const dynamic = 'force-dynamic'
 
 import { NextRequest, NextResponse } from 'next/server'
 import { getConfigMany, setConfig } from '@/lib/store'
-import { getSessionProfile, requireRole, resolveStoreId } from '@/lib/api-auth'
+import { getSessionProfile, requireRole, resolveStoreId, resolveStaffStoreId } from '@/lib/api-auth'
 
 const PUBLIC_KEY = 'omise_public_key'
 const SECRET_KEY = 'omise_secret_key'
@@ -49,7 +49,7 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   const auth = await requireRole(req, ['admin'])
   if (!auth.ok) return auth.res
-  const storeId = auth.profile.store_id ?? (await resolveStoreId(req))
+  const storeId = auth.profile.store_id ?? (await resolveStaffStoreId(req))
   if (!storeId) return NextResponse.json({ error: 'Store context required' }, { status: 400 })
   try {
     const body = await req.json()

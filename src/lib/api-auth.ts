@@ -54,6 +54,36 @@ export async function resolveStoreId(req: NextRequest): Promise<string | null> {
 }
 
 /**
+ * Resolve the store for a STAFF-only (tenant-scoped) route — orders list,
+ * reports, members/users/inventory CRUD, etc. Unlike resolveStoreId(), this
+ * NEVER trusts an unauthenticated store hint (`x-store-id` / `?store=`).
+ *
+ * Store slugs are public — they appear in the register/reserve QR links — so
+ * honouring a hint here would let anyone with a slug read another tenant's
+ * order history, daily cash reports, customer list, and so on. Callers must
+ * 401 when this returns null.
+ *
+ * Rule (the sole-store fallback is allowed ONLY behind a valid session):
+ *   • No valid session              → null   (caller returns 401)
+ *   • Session with a store_id       → that store
+ *   • Session, profile has no store → the sole store, else null once ≥2 exist
+ *     (single-tenant convenience for an owner whose profile predates the
+ *     multi-store column — still gated behind a real session)
+ *
+ * We deliberately do NOT expose the sole store to a hintless *unauthenticated*
+ * request: on a single-store install (our first customer) that would leave
+ * orders and cash reports readable with no auth at all — the very hole Task 1
+ * closes. When in doubt, require the session.
+ */
+export async function resolveStaffStoreId(req: NextRequest): Promise<string | null> {
+  const profile = await getSessionProfile(req)
+  if (!profile) return null
+  if (profile.store_id) return profile.store_id
+  // Authenticated but unassigned → single-tenant fallback (null once ≥2 stores).
+  return await getSoleStoreId()
+}
+
+/**
  * Guard for API routes. Returns `{ ok: true, profile }` when the caller's role
  * is in `allowed`, otherwise `{ ok: false, res }` with a 401/403 to return.
  *

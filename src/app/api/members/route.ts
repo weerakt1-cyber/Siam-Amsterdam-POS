@@ -2,21 +2,22 @@
 
 import { NextRequest, NextResponse } from 'next/server'
 import { getMembers, createMember } from '@/lib/store'
-import { getSessionProfile, resolveStoreId } from '@/lib/api-auth'
+import { resolveStaffStoreId } from '@/lib/api-auth'
 
 // The full member list (names + phones) is staff-only — require an authenticated
 // session, not just a store hint, so the public can't enumerate customers.
 export async function GET(req: NextRequest) {
-  const profile = await getSessionProfile(req)
-  if (!profile?.store_id) return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
-  const members = await getMembers(profile.store_id)
+  const storeId = await resolveStaffStoreId(req)
+  if (!storeId) return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
+  const members = await getMembers(storeId)
   return NextResponse.json({ members })
 }
 
+// POST — staff add-member (the public sign-up flow uses /api/register instead).
 export async function POST(req: NextRequest) {
   try {
-    const storeId = await resolveStoreId(req)
-    if (!storeId) return NextResponse.json({ error: 'Store context required' }, { status: 400 })
+    const storeId = await resolveStaffStoreId(req)
+    if (!storeId) return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
 
     const body = await req.json()
     const { name, phone, contact, birthday, notes } = body
