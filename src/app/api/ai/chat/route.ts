@@ -3,6 +3,7 @@ export const dynamic = 'force-dynamic'
 import { NextRequest, NextResponse } from 'next/server'
 import Anthropic from '@anthropic-ai/sdk'
 import { supabase } from '@/lib/supabase'
+import { requireStaff } from '@/lib/api-auth'
 import { AI_NAME, AI_MODEL } from '@/lib/ai-brand'
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY! })
@@ -123,6 +124,8 @@ ${content}
 // ─── POST handler ─────────────────────────────────────────────────────────────
 
 export async function POST(req: NextRequest) {
+  const gate = await requireStaff(req)
+  if (!gate.ok) return gate.res
   if (!process.env.ANTHROPIC_API_KEY) {
     return NextResponse.json({ error: 'AI ยังไม่ได้ตั้งค่า ANTHROPIC_API_KEY' }, { status: 503 })
   }

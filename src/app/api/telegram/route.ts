@@ -1,10 +1,13 @@
 ﻿export const dynamic = "force-dynamic"
 
-import { NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 import { isTelegramConfigured, getBotInfo, sendOrderAlert } from '@/lib/telegram'
+import { requireStaff } from '@/lib/api-auth'
 
 // GET â€” à¸•à¸£à¸§à¸ˆà¸ªà¸­à¸š config + bot status
-export async function GET() {
+export async function GET(req: NextRequest) {
+  const gate = await requireStaff(req)
+  if (!gate.ok) return gate.res
   const configured = isTelegramConfigured()
   if (!configured) {
     return NextResponse.json({
@@ -24,7 +27,9 @@ export async function GET() {
 }
 
 // POST â€” à¸ªà¹ˆà¸‡ test message
-export async function POST() {
+export async function POST(req: NextRequest) {
+  const gate = await requireStaff(req)
+  if (!gate.ok) return gate.res
   if (!isTelegramConfigured()) {
     return NextResponse.json(
       { ok: false, error: 'à¸¢à¸±à¸‡à¹„à¸¡à¹ˆà¹„à¸”à¹‰à¸•à¸±à¹‰à¸‡à¸„à¹ˆà¸² TELEGRAM_BOT_TOKEN à¹à¸¥à¸° TELEGRAM_CHAT_ID' },

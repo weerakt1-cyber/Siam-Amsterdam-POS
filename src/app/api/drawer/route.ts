@@ -2,6 +2,7 @@
 
 import { NextRequest, NextResponse } from 'next/server'
 import net from 'net'
+import { requireStaff } from '@/lib/api-auth'
 
 export const runtime = 'nodejs'
 
@@ -35,7 +36,9 @@ function sendToNetworkPrinter(host: string, port: number, data: Buffer): Promise
 }
 
 // GET â€” à¸•à¸£à¸§à¸ˆà¸ªà¸­à¸šà¸§à¹ˆà¸² PRINTER_HOST à¸–à¸¹à¸ configure à¸«à¸£à¸·à¸­à¹„à¸¡à¹ˆ
-export async function GET() {
+export async function GET(req: NextRequest) {
+  const gate = await requireStaff(req)
+  if (!gate.ok) return gate.res
   const host = process.env.PRINTER_HOST
   const port = process.env.PRINTER_PORT ?? '9100'
   return NextResponse.json({
@@ -47,6 +50,8 @@ export async function GET() {
 
 // POST â€” à¸ªà¹ˆà¸‡à¸„à¸³à¸ªà¸±à¹ˆà¸‡ kick drawer à¹„à¸›à¸¢à¸±à¸‡ network printer
 export async function POST(req: NextRequest) {
+  const gate = await requireStaff(req)
+  if (!gate.ok) return gate.res
   const host = process.env.PRINTER_HOST
   const port = Number(process.env.PRINTER_PORT ?? 9100)
 

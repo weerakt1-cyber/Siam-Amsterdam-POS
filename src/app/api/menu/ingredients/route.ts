@@ -1,9 +1,12 @@
 export const dynamic = "force-dynamic"
 
-import { NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 import { getAllMenuIngredients } from '@/lib/store'
+import { requireStaff } from '@/lib/api-auth'
 
-export async function GET() {
+export async function GET(req: NextRequest) {
+  const gate = await requireStaff(req)
+  if (!gate.ok) return gate.res
   try {
     const ingredients = await getAllMenuIngredients()
     return NextResponse.json({ ingredients })

@@ -3,6 +3,7 @@
 // LAN/Wi-Fi: TCP port 9100 via /api/printer/send (browser + Android APK)
 
 import type { PluginListenerHandle } from '@capacitor/core'
+import { authedFetch } from '@/lib/supabase-browser'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -739,7 +740,7 @@ export async function openCashDrawerBluetooth(): Promise<void> {
 // ─── LAN: send raw bytes via /api/printer/send (TCP proxy) ───────────────────
 
 export async function sendBytesViaLan(bytes: Uint8Array, ip: string, port = 9100): Promise<void> {
-  const res = await fetch('/api/printer/send', {
+  const res = await authedFetch('/api/printer/send', {
     method:  'POST',
     headers: { 'Content-Type': 'application/json' },
     body:    JSON.stringify({ ip, port, bytes: Array.from(bytes) }),

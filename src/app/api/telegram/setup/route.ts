@@ -1,11 +1,14 @@
 ﻿export const dynamic = "force-dynamic"
 
-import { NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 import { getLatestChatId } from '@/lib/telegram'
+import { requireStaff } from '@/lib/api-auth'
 
 // GET â€” à¸”à¸¶à¸‡ Chat ID à¸ˆà¸²à¸à¸‚à¹‰à¸­à¸„à¸§à¸²à¸¡à¸¥à¹ˆà¸²à¸ªà¸¸à¸”à¸—à¸µà¹ˆà¸ªà¹ˆà¸‡à¸¡à¸²à¸«à¸² Bot
 // à¸§à¸´à¸˜à¸µà¹ƒà¸Šà¹‰: à¸ªà¹ˆà¸‡à¸‚à¹‰à¸­à¸„à¸§à¸²à¸¡à¸­à¸°à¹„à¸£à¸à¹‡à¹„à¸”à¹‰à¹„à¸›à¸—à¸µà¹ˆ Bot à¹à¸¥à¹‰à¸§à¹€à¸£à¸µà¸¢à¸ endpoint à¸™à¸µà¹‰
-export async function GET() {
+export async function GET(req: NextRequest) {
+  const gate = await requireStaff(req)
+  if (!gate.ok) return gate.res
   if (!process.env.TELEGRAM_BOT_TOKEN) {
     return NextResponse.json(
       { ok: false, error: 'à¸¢à¸±à¸‡à¹„à¸¡à¹ˆà¹„à¸”à¹‰à¸•à¸±à¹‰à¸‡à¸„à¹ˆà¸² TELEGRAM_BOT_TOKEN' },

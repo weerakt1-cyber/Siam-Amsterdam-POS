@@ -104,6 +104,22 @@ export async function requireRole(
   return { ok: true, profile }
 }
 
+// Every staff role — the app's four profile roles. Used to gate operational
+// endpoints that need "a logged-in staff member" without caring which role.
+export const STAFF_ROLES = ['admin', 'manager', 'bartender', 'staff']
+
+/**
+ * Guard for operational routes that just need an authenticated staff session
+ * (any role) — e.g. printer/drawer control, AI, analytics, notification setup.
+ * Thin wrapper over requireRole with the full role set; returns the same
+ * `{ ok, profile } | { ok: false, res }` shape so callers `return gate.res`.
+ */
+export async function requireStaff(
+  req: NextRequest,
+): Promise<{ ok: true; profile: SessionProfile } | { ok: false; res: NextResponse }> {
+  return requireRole(req, STAFF_ROLES)
+}
+
 async function sha256Hex(input: string): Promise<string> {
   const encoded = new TextEncoder().encode(input)
   const hashBuf = await crypto.subtle.digest('SHA-256', encoded)

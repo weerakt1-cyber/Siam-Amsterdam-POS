@@ -1,10 +1,13 @@
 export const dynamic = 'force-dynamic'
 
-import { NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 import { isLineConfigured, getTokenPreview, sendLineMessage } from '@/lib/line'
+import { requireStaff } from '@/lib/api-auth'
 
 // GET — config status
-export async function GET() {
+export async function GET(req: NextRequest) {
+  const gate = await requireStaff(req)
+  if (!gate.ok) return gate.res
   return NextResponse.json({
     configured:   isLineConfigured(),
     hasToken:     !!process.env.LINE_CHANNEL_ACCESS_TOKEN,
@@ -15,7 +18,9 @@ export async function GET() {
 }
 
 // POST — send test message
-export async function POST() {
+export async function POST(req: NextRequest) {
+  const gate = await requireStaff(req)
+  if (!gate.ok) return gate.res
   if (!isLineConfigured()) {
     return NextResponse.json(
       { ok: false, error: 'LINE_CHANNEL_ACCESS_TOKEN and LINE_TARGET_ID are required' },

@@ -2,8 +2,11 @@ export const dynamic = "force-dynamic"
 
 import { NextRequest, NextResponse } from 'next/server'
 import { getAnalyticsData, getMomAnalyticsData } from '@/lib/store'
+import { requireStaff } from '@/lib/api-auth'
 
 export async function GET(req: NextRequest) {
+  const gate = await requireStaff(req)
+  if (!gate.ok) return gate.res
   const { searchParams } = new URL(req.url)
   const period = searchParams.get('period') ?? '7d'
   const validPeriods = ['7d', '30d', 'all', 'mom']
