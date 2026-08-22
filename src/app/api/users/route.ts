@@ -2,19 +2,19 @@
 
 import { NextRequest, NextResponse } from 'next/server'
 import { getStaff, createStaffMember } from '@/lib/store'
-import { resolveStoreId } from '@/lib/api-auth'
+import { resolveStaffStoreId } from '@/lib/api-auth'
 
 export async function GET(req: NextRequest) {
-  const storeId = await resolveStoreId(req)
-  if (!storeId) return NextResponse.json({ error: 'Store context required' }, { status: 400 })
+  const storeId = await resolveStaffStoreId(req)
+  if (!storeId) return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
   const users = await getStaff(storeId)
   return NextResponse.json({ users })
 }
 
 export async function POST(req: NextRequest) {
   try {
-    const storeId = await resolveStoreId(req)
-    if (!storeId) return NextResponse.json({ error: 'Store context required' }, { status: 400 })
+    const storeId = await resolveStaffStoreId(req)
+    if (!storeId) return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
     const body = await req.json()
     const { name, role, pin, color } = body
     if (!name?.trim()) return NextResponse.json({ error: 'Name required' }, { status: 400 })

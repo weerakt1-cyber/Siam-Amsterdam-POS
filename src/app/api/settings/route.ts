@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getConfigMany, setConfig } from '@/lib/store'
-import { requireRole, resolveStoreId } from '@/lib/api-auth'
+import { requireRole, resolveStoreId, resolveStaffStoreId } from '@/lib/api-auth'
 
 // Bar settings (shop name, receipt config, Google review URL, printer, …) and
 // the floor layout (tables) used to live only in the browser's localStorage, so
@@ -9,8 +9,9 @@ import { requireRole, resolveStoreId } from '@/lib/api-auth'
 const K_BAR   = 'bar_settings'
 const K_FLOOR = 'floor_layout'
 
-// GET — readable by any authenticated staff (shop name/tables aren't secret and
-// are needed across the POS). Returns null for a key that was never saved.
+// GET — public via the store hint: the shop name, opening hours and table layout
+// (floor tiles) aren't secret and are read unauthenticated by the customer
+// /reserve booking page, as well as by the POS. Returns null for an unset key.
 export async function GET(req: NextRequest) {
   try {
     const storeId = await resolveStoreId(req)
@@ -30,7 +31,7 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   const gate = await requireRole(req, ['admin', 'manager'])
   if (!gate.ok) return gate.res
-  const storeId = gate.profile.store_id ?? (await resolveStoreId(req))
+  const storeId = gate.profile.store_id ?? (await resolveStaffStoreId(req))
   if (!storeId) return NextResponse.json({ error: 'Store context required' }, { status: 400 })
   try {
     const body = await req.json()

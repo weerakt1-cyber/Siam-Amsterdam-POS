@@ -2,20 +2,21 @@ export const dynamic = "force-dynamic"
 
 import { NextRequest, NextResponse } from 'next/server'
 import { getReport, setOpeningCash, addCashIn, removeCashIn, addExpense, removeExpense, getOrdersByDate } from '@/lib/store'
-import { resolveStoreId } from '@/lib/api-auth'
+import { resolveStaffStoreId } from '@/lib/api-auth'
 
+// Daily cash report + orders — staff-only (a public store hint must not unlock it).
 export async function GET(req: NextRequest, { params }: { params: Promise<{ date: string }> }) {
   const { date } = await params
-  const storeId = await resolveStoreId(req)
-  if (!storeId) return NextResponse.json({ error: 'Store context required' }, { status: 400 })
+  const storeId = await resolveStaffStoreId(req)
+  if (!storeId) return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
   const [report, orders] = await Promise.all([getReport(date, storeId), getOrdersByDate(date, storeId)])
   return NextResponse.json({ report, orders })
 }
 
 export async function PUT(req: NextRequest, { params }: { params: Promise<{ date: string }> }) {
   const { date } = await params
-  const storeId = await resolveStoreId(req)
-  if (!storeId) return NextResponse.json({ error: 'Store context required' }, { status: 400 })
+  const storeId = await resolveStaffStoreId(req)
+  if (!storeId) return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
   try {
     const body = await req.json()
     const { action } = body

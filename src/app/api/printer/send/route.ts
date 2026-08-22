@@ -1,12 +1,16 @@
-import { NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 import net from 'node:net'
+import { requireStaff } from '@/lib/api-auth'
 
 // POST /api/printer/send
 // Body: { ip: string, port?: number, bytes: number[] }
 // Opens TCP socket server-side → writes ESC/POS bytes → printer (port 9100)
-// Works from both browser and Android APK (capacitor server mode)
+// Works from both browser and Android APK (capacitor server mode). The caller
+// (printer.ts → sendBytesViaLan) sends the staff Bearer token via authedFetch.
 
-export async function POST(req: Request) {
+export async function POST(req: NextRequest) {
+  const gate = await requireStaff(req)
+  if (!gate.ok) return gate.res
   try {
     const body = await req.json() as { ip?: string; port?: number; bytes?: number[] }
     const { ip, port = 9100, bytes = [] } = body

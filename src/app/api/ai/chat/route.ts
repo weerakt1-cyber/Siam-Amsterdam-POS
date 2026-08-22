@@ -3,6 +3,7 @@ export const dynamic = 'force-dynamic'
 import { NextRequest, NextResponse } from 'next/server'
 import Anthropic from '@anthropic-ai/sdk'
 import { supabase } from '@/lib/supabase'
+import { requireStaff, resolveStaffStoreId } from '@/lib/api-auth'
 import { AI_NAME, AI_MODEL } from '@/lib/ai-brand'
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY! })
@@ -17,7 +18,7 @@ const PLAN_MONTHS: Record<string, number> = {
 
 // ─── Business context from Supabase ──────────────────────────────────────────
 
-async function buildBusinessContext(): Promise<string> {
+async function buildBusinessContext(storeId: string): Promise<string> {
   const now = new Date()
   const todayStart = new Date(now)
   todayStart.setHours(0, 0, 0, 0)
@@ -29,11 +30,11 @@ async function buildBusinessContext(): Promise<string> {
     { count: memberCount },
     { data: inventory },
   ] = await Promise.all([
-    supabase.from('orders').select('*').gte('created_at', todayStart.toISOString()),
-    supabase.from('orders').select('*').in('status', ['pending', 'accepted', 'ready', 'delivered']).order('created_at', { ascending: false }),
-    supabase.from('menu_items').select('id,name,name_th,price,category,available').eq('available', true).order('sort_order', { ascending: true }),
-    supabase.from('members').select('*', { count: 'exact', head: true }),
-    supabase.from('inventory_items').select('name,unit,current_stock,low_stock_threshold'),
+    supabase.from('orders').select('*').eq('store_id', storeId).gte('created_at', todayStart.toISOString()),
+    supabase.from('orders').select('*').eq('store_id', storeId).in('status', ['pending', 'accepted', 'ready', 'delivered']).order('created_at', { ascending: false }),
+    supabase.from('menu_items').select('id,name,name_th,price,category,available').eq('store_id', storeId).eq('available', true).order('sort_order', { ascending: true }),
+    supabase.from('members').select('*', { count: 'exact', head: true }).eq('store_id', storeId),
+    supabase.from('inventory_items').select('name,unit,current_stock,low_stock_threshold').eq('store_id', storeId),
   ])
 
   const paid = (todayOrders ?? []).filter(o => o.status === 'paid')
@@ -123,6 +124,10 @@ ${content}
 // ─── POST handler ─────────────────────────────────────────────────────────────
 
 export async function POST(req: NextRequest) {
+  const gate = await requireStaff(req)
+  if (!gate.ok) return gate.res
+  const storeId = gate.profile.store_id ?? (await resolveStaffStoreId(req))
+  if (!storeId) return NextResponse.json({ error: 'Store context required' }, { status: 400 })
   if (!process.env.ANTHROPIC_API_KEY) {
     return NextResponse.json({ error: 'AI ยังไม่ได้ตั้งค่า ANTHROPIC_API_KEY' }, { status: 503 })
   }
@@ -143,7 +148,7 @@ export async function POST(req: NextRequest) {
 
   try {
     const [businessContext, fileContext] = await Promise.all([
-      buildBusinessContext(),
+      buildBusinessContext(storeId),
       Promise.resolve(file ? buildFileContext(file, plan) : ''),
     ])
 

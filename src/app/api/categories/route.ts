@@ -2,7 +2,7 @@ export const dynamic = 'force-dynamic'
 
 import { NextRequest, NextResponse } from 'next/server'
 import { getCategories, saveCategories } from '@/lib/store'
-import { resolveStoreId } from '@/lib/api-auth'
+import { resolveStoreId, resolveStaffStoreId } from '@/lib/api-auth'
 
 export async function GET(req: NextRequest) {
   try {
@@ -16,11 +16,12 @@ export async function GET(req: NextRequest) {
   }
 }
 
-// Full-replace — body.categories is the complete, ordered list.
+// Full-replace — body.categories is the complete, ordered list. Staff-only
+// (the public QR page only reads the category list via GET).
 export async function POST(req: NextRequest) {
   try {
-    const storeId = await resolveStoreId(req)
-    if (!storeId) return NextResponse.json({ error: 'Store context required' }, { status: 400 })
+    const storeId = await resolveStaffStoreId(req)
+    if (!storeId) return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
     const body = await req.json()
     const categories = Array.isArray(body.categories) ? body.categories : []
     const saved = await saveCategories(categories, storeId)

@@ -2,14 +2,14 @@ export const dynamic = "force-dynamic"
 
 import { NextRequest, NextResponse } from 'next/server'
 import { getMember, updateMember, deleteMember } from '@/lib/store'
-import { resolveStoreId } from '@/lib/api-auth'
+import { resolveStaffStoreId } from '@/lib/api-auth'
 import { getTier } from '@/lib/loyalty'
 import { sendTierUpgrade } from '@/lib/telegram'
 
 export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
-  const storeId = await resolveStoreId(req)
-  if (!storeId) return NextResponse.json({ error: 'Store context required' }, { status: 400 })
+  const storeId = await resolveStaffStoreId(req)
+  if (!storeId) return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
   const member = await getMember(id, storeId)
   if (!member) return NextResponse.json({ error: 'Not found' }, { status: 404 })
   return NextResponse.json({ member })
@@ -18,8 +18,8 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
 export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
   try {
-    const storeId = await resolveStoreId(req)
-    if (!storeId) return NextResponse.json({ error: 'Store context required' }, { status: 400 })
+    const storeId = await resolveStaffStoreId(req)
+    if (!storeId) return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
     const body = await req.json()
     const updated = await updateMember(id, body, storeId)
     if (!updated) return NextResponse.json({ error: 'Not found' }, { status: 404 })
@@ -33,8 +33,8 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
   try {
-    const storeId = await resolveStoreId(req)
-    if (!storeId) return NextResponse.json({ error: 'Store context required' }, { status: 400 })
+    const storeId = await resolveStaffStoreId(req)
+    if (!storeId) return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
     const body = await req.json()
     const { pointsDelta } = body as { pointsDelta?: number }
     if (typeof pointsDelta !== 'number') {
@@ -70,8 +70,8 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
 
 export async function DELETE(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
-  const storeId = await resolveStoreId(req)
-  if (!storeId) return NextResponse.json({ error: 'Store context required' }, { status: 400 })
+  const storeId = await resolveStaffStoreId(req)
+  if (!storeId) return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
   const ok = await deleteMember(id, storeId)
   if (!ok) return NextResponse.json({ error: 'Not found' }, { status: 404 })
   return NextResponse.json({ ok: true })

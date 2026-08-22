@@ -1,10 +1,15 @@
 ﻿export const dynamic = "force-dynamic"
 
-import { NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 import { getOrdersByDate, getReport, currentBusinessDay } from '@/lib/store'
 import { isTelegramConfigured, sendDailySummary, type EndOfDayData } from '@/lib/telegram'
+import { requireStaff } from '@/lib/api-auth'
 
-export async function POST() {
+// POST — staff "send daily summary now" button (Settings). Not a Vercel Cron
+// (the only cron is /api/reservations/remind), so a staff session is required.
+export async function POST(req: NextRequest) {
+  const gate = await requireStaff(req)
+  if (!gate.ok) return gate.res
   if (!isTelegramConfigured()) {
     return NextResponse.json(
       { ok: false, error: 'TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID are not configured' },

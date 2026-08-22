@@ -1,10 +1,14 @@
 export const dynamic = 'force-dynamic'
 
-import { NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 import { getOrdersByDate, getReport, currentBusinessDay } from '@/lib/store'
 import { isLineConfigured, sendLineDailySummary, type EndOfDayData } from '@/lib/line'
+import { requireStaff } from '@/lib/api-auth'
 
-export async function POST() {
+// POST — staff "send daily summary now" button (Settings); not a cron endpoint.
+export async function POST(req: NextRequest) {
+  const gate = await requireStaff(req)
+  if (!gate.ok) return gate.res
   if (!isLineConfigured()) {
     return NextResponse.json(
       { ok: false, error: 'LINE_NOTIFY_TOKEN is not configured' },

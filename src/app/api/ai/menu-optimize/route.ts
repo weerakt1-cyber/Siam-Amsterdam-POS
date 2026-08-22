@@ -1,8 +1,9 @@
 export const dynamic = 'force-dynamic'
 
-import { NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 import Anthropic from '@anthropic-ai/sdk'
 import { supabase } from '@/lib/supabase'
+import { requireStaff, resolveStaffStoreId } from '@/lib/api-auth'
 import { AI_MODEL } from '@/lib/ai-brand'
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY! })
@@ -27,7 +28,11 @@ type Suggestion = {
   expectedImpact: string
 }
 
-export async function GET() {
+export async function GET(req: NextRequest) {
+  const gate = await requireStaff(req)
+  if (!gate.ok) return gate.res
+  const storeId = gate.profile.store_id ?? (await resolveStaffStoreId(req))
+  if (!storeId) return NextResponse.json({ error: 'Store context required' }, { status: 400 })
   if (!process.env.ANTHROPIC_API_KEY) {
     return NextResponse.json({ error: 'ANTHROPIC_API_KEY not configured' }, { status: 503 })
   }
@@ -36,6 +41,7 @@ export async function GET() {
   const { data: menuRows, error: menuErr } = await supabase
     .from('menu_items')
     .select('id, name, price, cost, category, available')
+    .eq('store_id', storeId)
     .eq('available', true)
     .order('category')
 
@@ -45,9 +51,11 @@ export async function GET() {
   const since = new Date()
   since.setDate(since.getDate() - 30)
 
+  // order_items has no store_id of its own — scope via the joined orders row.
   const { data: orderItemRows, error: ordErr } = await supabase
     .from('order_items')
-    .select('menu_id, qty, price, orders!inner(created_at, status)')
+    .select('menu_id, qty, price, orders!inner(created_at, status, store_id)')
+    .eq('orders.store_id', storeId)
     .gte('orders.created_at', since.toISOString())
     .eq('orders.status', 'paid')
 

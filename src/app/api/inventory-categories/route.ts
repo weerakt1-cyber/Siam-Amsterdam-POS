@@ -2,7 +2,7 @@ export const dynamic = 'force-dynamic'
 
 import { NextRequest, NextResponse } from 'next/server'
 import { getConfig, setConfig } from '@/lib/store'
-import { resolveStoreId } from '@/lib/api-auth'
+import { resolveStaffStoreId } from '@/lib/api-auth'
 
 const CONFIG_KEY = 'inventory_categories'
 
@@ -10,8 +10,8 @@ type InvCat = { value: string; label: string }
 
 export async function GET(req: NextRequest) {
   try {
-    const storeId = await resolveStoreId(req)
-    if (!storeId) return NextResponse.json({ categories: [], error: 'Store context required' }, { status: 400 })
+    const storeId = await resolveStaffStoreId(req)
+    if (!storeId) return NextResponse.json({ categories: [], error: 'Authentication required' }, { status: 401 })
     const raw = await getConfig(CONFIG_KEY, storeId)
     const categories: InvCat[] = raw ? JSON.parse(raw) : []
     return NextResponse.json({ categories: Array.isArray(categories) ? categories : [] })
@@ -24,8 +24,8 @@ export async function GET(req: NextRequest) {
 // Full-replace — body.categories is the complete list.
 export async function POST(req: NextRequest) {
   try {
-    const storeId = await resolveStoreId(req)
-    if (!storeId) return NextResponse.json({ error: 'Store context required' }, { status: 400 })
+    const storeId = await resolveStaffStoreId(req)
+    if (!storeId) return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
     const body = await req.json()
     const categories: InvCat[] = Array.isArray(body.categories)
       ? body.categories

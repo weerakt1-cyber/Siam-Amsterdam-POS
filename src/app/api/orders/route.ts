@@ -2,7 +2,7 @@
 
 import { NextRequest, NextResponse } from 'next/server'
 import { getOrders, getMenu, createOrder, recordCouponUse, getMemberByPhone } from '@/lib/store'
-import { resolveStoreId } from '@/lib/api-auth'
+import { resolveStoreId, resolveStaffStoreId } from '@/lib/api-auth'
 import { appendOrderToSheet } from '@/lib/sheets'
 import { sendOrderAlert } from '@/lib/telegram'
 import { sendLineOrderAlert } from '@/lib/line'
@@ -11,10 +11,47 @@ import { fireWebhook } from '@/lib/webhooks'
 import { isDeliveryChannel, DELIVERY_CHANNELS } from '@/lib/delivery'
 import type { OrderItem } from '@/lib/types'
 
+// GET — recent orders: staff-only. A public store hint must NOT unlock it
+// (store slugs are public), so it resolves the store from the session alone.
+//
+// Bounded by default so the boards that poll this every few seconds don't drag
+// an ever-growing payload:
+//   ?sinceDays=N — orders from the last N days (default 2 to cover past-midnight
+//                  service; capped at 90 to prevent an unbounded scan)
+//   ?status=a,b  — restrict to these statuses (the kitchen/floor active set)
+//   ?fields=list — slim projection (board columns only) instead of the full order
+const VALID_STATUSES = new Set(['pending', 'accepted', 'ready', 'delivered', 'cancelled', 'paid'])
+const MAX_SINCE_DAYS = 90
+
 export async function GET(req: NextRequest) {
-  const storeId = await resolveStoreId(req)
-  if (!storeId) return NextResponse.json({ error: 'Store context required' }, { status: 400 })
-  const orders = await getOrders(storeId)
+  const storeId = await resolveStaffStoreId(req)
+  if (!storeId) return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
+
+  const sp = req.nextUrl.searchParams
+
+  let sinceDays = 2
+  const sinceRaw = sp.get('sinceDays')
+  if (sinceRaw !== null) {
+    const n = Number(sinceRaw)
+    if (!Number.isFinite(n) || n <= 0) {
+      return NextResponse.json({ error: 'sinceDays must be a positive number' }, { status: 400 })
+    }
+    sinceDays = Math.min(n, MAX_SINCE_DAYS)
+  }
+
+  let statuses: string[] | undefined
+  const statusRaw = sp.get('status')
+  if (statusRaw !== null) {
+    statuses = statusRaw.split(',').map(s => s.trim()).filter(Boolean)
+    const bad = statuses.find(s => !VALID_STATUSES.has(s))
+    if (bad) {
+      return NextResponse.json({ error: `Invalid status "${bad}"` }, { status: 400 })
+    }
+  }
+
+  const fields = sp.get('fields') === 'list' ? 'list' as const : undefined
+
+  const orders = await getOrders(storeId, { sinceDays, statuses, fields })
   return NextResponse.json({ orders })
 }
 

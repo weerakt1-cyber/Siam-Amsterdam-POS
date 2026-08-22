@@ -26,6 +26,9 @@ const GRID     = 40
 const CANVAS_W = 800
 const CANVAS_H = 520
 const INACTIVE = new Set(['paid', 'cancelled', 'delivered'])
+// The complement of INACTIVE — the only statuses the floor board renders; sent
+// to the API so it filters server-side instead of shipping every paid order.
+const ACTIVE_STATUSES = ['pending', 'accepted', 'ready']
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -157,7 +160,7 @@ export default function FloorPage() {
 
   const poll = useCallback(async () => {
     try {
-      const r = await authedFetch('/api/orders')
+      const r = await authedFetch(`/api/orders?status=${ACTIVE_STATUSES.join(',')}&fields=list`)
       if (r.ok) setOrders((await r.json()).orders ?? [])
     } catch { /* ignore */ }
   }, [])

@@ -2,8 +2,11 @@ export const dynamic = "force-dynamic"
 
 import { NextRequest, NextResponse } from 'next/server'
 import { getMenuIngredients, upsertMenuIngredients } from '@/lib/store'
+import { requireStaff } from '@/lib/api-auth'
 
-export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const gate = await requireStaff(req)
+  if (!gate.ok) return gate.res
   const { id } = await params
   try {
     const ingredients = await getMenuIngredients(id)
@@ -14,6 +17,8 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
 }
 
 export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const gate = await requireStaff(req)
+  if (!gate.ok) return gate.res
   const { id } = await params
   try {
     const { ingredients } = await req.json()
