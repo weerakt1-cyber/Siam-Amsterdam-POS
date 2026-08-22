@@ -369,13 +369,27 @@ export async function deleteMenuItem(id: string, storeId?: string): Promise<bool
 
 // ─── Orders ───────────────────────────────────────────────────────────────────
 
-export async function getOrders(storeId?: string): Promise<Order[]> {
+// The live boards poll this every few seconds, so it must stay bounded — an
+// unfiltered `select('*, order_items(*)')` grows without limit as history piles
+// up. Callers pass a window:
+//   • sinceDays — only orders created within the last N days (via created_at)
+//   • statuses  — only these order statuses (e.g. the active kitchen set)
+// Omit both only when you genuinely need full history (and expect a big payload).
+export type GetOrdersOpts = { sinceDays?: number; statuses?: string[] }
+
+export async function getOrders(storeId?: string, opts: GetOrdersOpts = {}): Promise<Order[]> {
   const sid = await requireStoreId(storeId)
-  const { data, error } = await supabase
+  let q = supabase
     .from('orders')
     .select('*, order_items(*)')
     .eq('store_id', sid)
-    .order('created_at', { ascending: false })
+  if (opts.sinceDays != null) {
+    q = q.gte('created_at', new Date(Date.now() - opts.sinceDays * 86400000).toISOString())
+  }
+  if (opts.statuses && opts.statuses.length > 0) {
+    q = q.in('status', opts.statuses)
+  }
+  const { data, error } = await q.order('created_at', { ascending: false })
   if (error) throw error
   return (data ?? []).map(mapOrder)
 }

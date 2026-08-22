@@ -16,7 +16,9 @@ export async function GET(req: NextRequest) {
     const storeId = await resolveStaffStoreId(req)
     if (!storeId) return NextResponse.json({ alerts: [], error: 'Authentication required' }, { status: 401 })
     const [orders, inventory, menu, ingredients] = await Promise.all([
-      getOrders(storeId),
+      // Alerts need ~60 days of sales velocity — bound the query to that window
+      // (it was already filtered to 60 days in-memory below).
+      getOrders(storeId, { sinceDays: 60 }),
       getInventory(storeId),
       getMenu(storeId),
       // Ingredient links power the sales-velocity / variance suggestions but are

@@ -412,6 +412,9 @@ export default function DeliveryPage() {
 
   const fetchAll = useCallback(async () => {
     try {
+      // No ?status= filter here: the per-channel day summary below counts
+      // picked-up/paid orders too, so we need all of today's statuses (the
+      // API's default 2-day window already bounds the payload).
       const [ro, rm] = await Promise.all([authedFetch('/api/orders'), authedFetch('/api/menu')])
       if (ro.ok) {
         const d = await ro.json()

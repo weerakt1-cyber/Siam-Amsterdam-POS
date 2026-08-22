@@ -120,7 +120,9 @@ export default function MembersPage() {
     try {
       const [mr, or] = await Promise.all([
         authedFetch('/api/members').then((r) => r.json()),
-        authedFetch('/api/orders').then((r) => r.json()),
+        // Member visit/spend stats want history — request the widest window the
+        // API allows (90 days; the default of 2 would truncate lifetime totals).
+        authedFetch('/api/orders?sinceDays=90').then((r) => r.json()),
       ])
       setMembers(mr.members ?? [])
       setOrders(or.orders ?? [])

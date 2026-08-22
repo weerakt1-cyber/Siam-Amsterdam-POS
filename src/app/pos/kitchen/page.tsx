@@ -182,11 +182,11 @@ export default function KitchenPage() {
 
   const fetchOrders = useCallback(async () => {
     try {
-      const r = await authedFetch('/api/orders')
+      // Active statuses filtered server-side; today's cut kept client-side.
+      const r = await authedFetch(`/api/orders?status=${ACTIVE_STATUSES.join(',')}`)
       if (r.ok) {
         const d = await r.json()
         const active = (d.orders as Order[]).filter(o =>
-          ACTIVE_STATUSES.includes(o.status) &&
           new Date(o.createdAt).toDateString() === todayStr
         )
         setOrders(active)
