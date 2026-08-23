@@ -6,6 +6,7 @@ import StaffGate from '@/components/pos/StaffGate'
 import PrinterAutoConnect from '@/components/pos/PrinterAutoConnect'
 import QrOrderAutoPrint from '@/components/pos/QrOrderAutoPrint'
 import SettingsSync from '@/components/pos/SettingsSync'
+import SubscriptionBanner from '@/components/pos/SubscriptionBanner'
 import { PosAuthProvider } from '@/lib/pos-auth'
 import { PosLangProvider } from '@/lib/pos-i18n'
 
@@ -22,6 +23,7 @@ export default function POSLayout({ children }: { children: React.ReactNode }) {
         <div className="h-screen flex bg-[#FAF8F4] overflow-hidden">
           <Sidebar />
           <main className="flex-1 overflow-hidden flex flex-col pb-16 sm:pb-0">
+            <SubscriptionBanner />
             {children}
           </main>
         </div>

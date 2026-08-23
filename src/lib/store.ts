@@ -232,6 +232,24 @@ export async function getStore(storeId: string): Promise<StoreInfo | null> {
   return data ? { id: data.id as string, name: data.name as string, slug: (data.slug as string | null) ?? null } : null
 }
 
+// Per-store subscription (Phase 0 — manual billing; see migration 019). Read-only
+// here; the owner extends `subscription_until` by hand after collecting payment.
+export type StoreSubscription = { plan: string; status: string; until: string | null }
+export async function getStoreSubscription(storeId?: string): Promise<StoreSubscription | null> {
+  const sid = await requireStoreId(storeId)
+  const { data } = await supabase
+    .from('stores')
+    .select('plan, subscription_status, subscription_until')
+    .eq('id', sid)
+    .maybeSingle()
+  if (!data) return null
+  return {
+    plan:   (data.plan as string) ?? 'starter',
+    status: (data.subscription_status as string) ?? 'trial',
+    until:  (data.subscription_until as string | null) ?? null,
+  }
+}
+
 export async function getCategories(storeId?: string): Promise<CatEntry[]> {
   const sid = await requireStoreId(storeId)
   const { data, error } = await supabase
