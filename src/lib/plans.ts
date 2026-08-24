@@ -37,6 +37,16 @@ export const YEARLY_FIRST_YEAR_DISCOUNT = 600           // −฿600 off the fir
 
 // AI add-on — credit model (Phase 1.5). 1 credit = ฿1 of real Claude API cost.
 export const AI_ADDON = { monthly: 300, yearly: 3000, monthlyCredit: 300 }
+export const AI_TOPUP_MIN = 20   // ฿ — minimum custom top-up
+
+// Backing model (claude-sonnet-5) price, USD per 1M tokens. Standard (non-intro)
+// rates so a credit reliably covers cost even after the intro window; adjust if
+// Anthropic pricing changes. FX is a rough THB rate — tune as needed.
+export const AI_COST = { inputUsdPerMTok: 3, outputUsdPerMTok: 15, usdToThb: 36 }
+export function aiCostThb(inputTokens: number, outputTokens: number): number {
+  const usd = (inputTokens / 1e6) * AI_COST.inputUsdPerMTok + (outputTokens / 1e6) * AI_COST.outputUsdPerMTok
+  return usd * AI_COST.usdToThb
+}
 
 // Payment-processing share on Omise transactions (Phase 2).
 export const PAYMENT_SHARE_PCT = { min: 0.3, max: 0.5 }

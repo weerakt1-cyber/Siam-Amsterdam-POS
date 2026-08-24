@@ -4,7 +4,15 @@ import { NextRequest, NextResponse } from 'next/server'
 import Anthropic from '@anthropic-ai/sdk'
 import { supabase } from '@/lib/supabase'
 import { requireStaff, resolveStaffStoreId } from '@/lib/api-auth'
+import { checkAiAllowed, debitAiCredit } from '@/lib/store'
 import { AI_NAME, AI_MODEL } from '@/lib/ai-brand'
+
+// AI add-on gate messages (Phase 1.5) — keyed by checkAiAllowed reason.
+const AI_BLOCK_MSG: Record<string, string> = {
+  no_subscription: 'ยังไม่ได้สมัคร AI add-on — ไปที่หน้าแพ็คเกจเพื่อเปิดใช้งาน',
+  expired:         'AI add-on หมดอายุแล้ว — กรุณาต่ออายุ',
+  no_credit:       'เครดิต AI หมดแล้ว — เติมเครดิตหรือรอรอบรีเซ็ต',
+}
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY! })
 
@@ -131,6 +139,11 @@ export async function POST(req: NextRequest) {
   if (!process.env.ANTHROPIC_API_KEY) {
     return NextResponse.json({ error: 'AI ยังไม่ได้ตั้งค่า ANTHROPIC_API_KEY' }, { status: 503 })
   }
+  // AI add-on credit gate — must have an active add-on with credit remaining.
+  const chk = await checkAiAllowed(storeId)
+  if (!chk.allowed) {
+    return NextResponse.json({ error: AI_BLOCK_MSG[chk.reason ?? ''] ?? 'AI ไม่พร้อมใช้งาน', reason: chk.reason }, { status: 402 })
+  }
 
   let messages: { role: string; content: string }[]
   let file: { name: string; ext: string; content: string } | undefined
@@ -192,6 +205,11 @@ ${fileContext}
         } catch {
           controller.enqueue(enc.encode(`data: ${JSON.stringify({ error: 'stream error' })}\n\n`))
         }
+        // Debit the actual token cost from the store's AI credit (best-effort).
+        try {
+          const final = await stream.finalMessage()
+          await debitAiCredit(storeId, 'chat', final.usage.input_tokens, final.usage.output_tokens)
+        } catch { /* don't fail the response over metering */ }
         controller.enqueue(enc.encode('data: [DONE]\n\n'))
         controller.close()
       },

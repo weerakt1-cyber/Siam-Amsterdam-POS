@@ -172,9 +172,11 @@ export default function SuperAdminPage() {
 
 type Payment = {
   id: string; storeName?: string; storeSlug?: string | null
-  plan: string; cycle: string; amount: number; status: string
+  kind: string; plan: string; cycle: string; amount: number; status: string
   createdAt: string; slipSignedUrl: string | null
 }
+const paymentLabel = (p: Payment) =>
+  p.kind === 'ai' ? `AI · ${p.cycle}` : p.kind === 'ai_topup' ? 'เติมเครดิต AI' : `${p.plan} · ${p.cycle}`
 
 function PaymentsPanel({ onChange, onError }: { onChange: () => void; onError: (m: string) => void }) {
   const [payments, setPayments] = useState<Payment[] | null>(null)
@@ -210,7 +212,7 @@ function PaymentsPanel({ onChange, onError }: { onChange: () => void; onError: (
             <div key={p.id} className="flex flex-wrap items-center justify-between gap-3 p-4">
               <div>
                 <div className="font-bold text-gray-900">{p.storeName ?? '—'} <span className="text-[11px] text-gray-400">/{p.storeSlug}</span></div>
-                <div className="text-xs text-gray-400">{p.plan} · {p.cycle} · {p.createdAt.slice(0, 10)}</div>
+                <div className="text-xs text-gray-400">{paymentLabel(p)} · {p.createdAt.slice(0, 10)}</div>
               </div>
               <div className="flex items-center gap-3">
                 <span className="font-black text-gray-900">฿{p.amount.toLocaleString()}</span>
