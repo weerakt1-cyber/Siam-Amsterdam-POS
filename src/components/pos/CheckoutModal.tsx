@@ -13,7 +13,15 @@ import { usePosLang } from '@/lib/pos-i18n'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-export type CartItem    = { menuId: string; name: string; qty: number; price: number }
+export type CartItem    = { menuId: string; name: string; qty: number; price: number; itemDiscount?: number }
+
+// Unit price after the per-item % discount (rounds the unit, matching the POS
+// cart and the stored order). Without this the checkout ignored line discounts.
+function effUnit(c: CartItem): number {
+  return c.itemDiscount && c.itemDiscount > 0
+    ? Math.round(c.price * (1 - c.itemDiscount / 100))
+    : c.price
+}
 export type PaymentMethod = 'cash' | 'card' | 'promptpay' | 'credit_card' | 'promptpay_qr' | 'wechat_pay'
 export type DiscountInfo  = { type: 'percent' | 'fixed'; value: number; amount: number; couponCode?: string }
 
@@ -263,7 +271,7 @@ export default function CheckoutModal({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [step])
 
-  const subtotal    = cart.reduce((s, c) => s + c.price * c.qty, 0)
+  const subtotal    = cart.reduce((s, c) => s + effUnit(c) * c.qty, 0)
   const total       = Math.max(0, subtotal - discount.amount)
   const vatIncluded = Math.round(total * 7 / 107)
   const receivedNum = parseFloat(received) || 0
@@ -281,7 +289,7 @@ export default function CheckoutModal({
       orderId: orderRef, tableNo: table, createdAt: new Date().toISOString(),
       staffName: staffName || undefined, memberName: memberName || undefined,
       couponCode: discount.couponCode,
-      items: cart.map(c => ({ name: c.name, qty: c.qty, price: c.price })),
+      items: cart.map(c => ({ name: c.name, qty: c.qty, price: effUnit(c) })),
       subtotal, discountAmount: discount.amount, total, vatIncluded,
       paymentMethod: payment,
       received:  payment === 'cash' ? receivedNum : undefined,
@@ -388,8 +396,18 @@ export default function CheckoutModal({
                         {item.qty}
                       </span>
                       <span className="text-sm text-stone-700 truncate">{item.name}</span>
+                      {item.itemDiscount && item.itemDiscount > 0 ? (
+                        <span className="shrink-0 text-[10px] font-bold text-emerald-600 bg-emerald-50 rounded px-1">-{item.itemDiscount}%</span>
+                      ) : null}
                     </div>
-                    <span className="text-sm font-bold text-stone-900 shrink-0 ml-3">{baht(item.price * item.qty)}</span>
+                    <span className="text-sm font-bold text-stone-900 shrink-0 ml-3 text-right">
+                      {item.itemDiscount && item.itemDiscount > 0 ? (
+                        <>
+                          <span className="text-[11px] text-stone-300 line-through mr-1">{baht(item.price * item.qty)}</span>
+                          {baht(effUnit(item) * item.qty)}
+                        </>
+                      ) : baht(item.price * item.qty)}
+                    </span>
                   </div>
                 ))}
               </div>
