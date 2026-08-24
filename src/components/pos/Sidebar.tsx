@@ -10,7 +10,7 @@ import { usePosLang, type PosStringKey } from '@/lib/pos-i18n'
 
 const MANAGER_ROLES = new Set(['admin', 'manager'])
 
-const NAV: { href: string; icon: string; labelKey: PosStringKey; managerOnly?: boolean }[] = [
+const NAV: { href: string; icon: string; labelKey: PosStringKey; managerOnly?: boolean; adminOnly?: boolean; superAdminOnly?: boolean }[] = [
   { href: '/pos',            icon: '/nav-icons/pos.png',       labelKey: 'navPos'       },
   { href: '/pos/floor',      icon: '/nav-icons/floor.png',     labelKey: 'navFloor'     },
   { href: '/pos/reservations', icon: '/nav-icons/members.png', labelKey: 'navReservations' },
@@ -24,6 +24,8 @@ const NAV: { href: string; icon: string; labelKey: PosStringKey; managerOnly?: b
   { href: '/pos/analytics',  icon: '/nav-icons/analytics.png', labelKey: 'navAnalytics', managerOnly: true },
   { href: '/pos/users',      icon: '/nav-icons/users.png',     labelKey: 'navUsers',     managerOnly: true },
   { href: '/pos/settings',   icon: '/nav-icons/settings.png',  labelKey: 'navSettings',  managerOnly: true },
+  { href: '/pos/billing',    icon: '/nav-icons/cash.png',      labelKey: 'navBilling',   adminOnly: true },
+  { href: '/super-admin',    icon: '/nav-icons/users.png',     labelKey: 'navSuperAdmin', superAdminOnly: true },
 ]
 
 const BOTTOM_NAV: { href: string; icon: string; labelKey: PosStringKey; managerOnly?: boolean }[] = [
@@ -68,6 +70,29 @@ export default function Sidebar() {
   const [showSwitcher, setShowSwitcher] = useState(false)
   const [logoSrc, setLogoSrc] = useState('/logo.png')
   const [expanded, setExpanded] = useState(false)
+  const [isSuperAdmin, setIsSuperAdmin] = useState(false)
+
+  // Only the platform operator sees the Super-admin link. The allow-list is
+  // exposed to the client via NEXT_PUBLIC_SUPER_ADMIN_EMAILS (the API still
+  // enforces the real check server-side); unset → nobody sees the link.
+  useEffect(() => {
+    const allow = (process.env.NEXT_PUBLIC_SUPER_ADMIN_EMAILS ?? '')
+      .split(',').map(s => s.trim().toLowerCase()).filter(Boolean)
+    if (!allow.length) return
+    getSupabaseBrowser().auth.getUser().then(({ data }) => {
+      const email = data.user?.email?.toLowerCase() ?? ''
+      if (email && allow.includes(email)) setIsSuperAdmin(true)
+    }).catch(() => {})
+  }, [])
+
+  // Sidebar visibility (UI only — every route is still guarded server-side).
+  const role = activeUser?.role ?? ''
+  const visible = (item: { managerOnly?: boolean; adminOnly?: boolean; superAdminOnly?: boolean }) => {
+    if (item.superAdminOnly) return isSuperAdmin
+    if (item.adminOnly)      return role === 'admin'
+    if (item.managerOnly)    return MANAGER_ROLES.has(role)
+    return true
+  }
 
   // Auto-collapse the expanded drawer whenever the route changes (i.e. after picking a page).
   useEffect(() => {
@@ -178,7 +203,7 @@ export default function Sidebar() {
           </div>
           <div className="border-t border-stone-800 mb-1" />
 
-          {NAV.filter(item => !item.managerOnly || MANAGER_ROLES.has(activeUser?.role ?? '')).map((item) => {
+          {NAV.filter(visible).map((item) => {
             const active = isActive(item.href)
             return (
               <Link
@@ -226,7 +251,7 @@ export default function Sidebar() {
         className="sm:hidden fixed bottom-0 left-0 right-0 z-30 bg-white border-t border-stone-200 flex items-stretch"
         style={{ boxShadow: '0 -2px 12px rgba(0,0,0,0.08)' }}
       >
-        {BOTTOM_NAV.filter(item => !item.managerOnly || MANAGER_ROLES.has(activeUser?.role ?? '')).map((item) => {
+        {BOTTOM_NAV.filter(visible).map((item) => {
           const active = isActive(item.href)
           return (
             <Link

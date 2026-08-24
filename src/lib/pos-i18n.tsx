@@ -54,6 +54,8 @@ const DICT = {
   navUsers:     { en: 'Users',      th: 'ผู้ใช้งาน' },
   navSettings:  { en: 'Settings',   th: 'ตั้งค่า' },
   navStats:     { en: 'Stats',      th: 'สถิติ' },
+  navBilling:   { en: 'Billing',    th: 'แพ็คเกจ' },
+  navSuperAdmin:{ en: 'Super-admin', th: 'ผู้ดูแลระบบ' },
   menu:         { en: 'Menu',       th: 'เมนู' },
   login:        { en: 'Login',      th: 'เข้าสู่ระบบ' },
   switchUser:   { en: 'switch user', th: 'สลับผู้ใช้' },
