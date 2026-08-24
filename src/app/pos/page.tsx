@@ -139,10 +139,14 @@ function cartKey(c: { menuId: string; variantLabel?: string; fromOrderId?: strin
 }
 
 // คำนวณราคารวมหลังหักส่วนลดของ item นั้นๆ
+// Effective line total after the per-item % discount. Rounds the UNIT price
+// (not the line), so it matches exactly what checkout stores/charges per unit.
+function itemEffectiveUnit(c: CartItem): number {
+  if (!c.itemDiscount || c.itemDiscount <= 0) return c.price
+  return Math.round(c.price * (1 - c.itemDiscount / 100))
+}
 function itemEffectiveTotal(c: CartItem): number {
-  const gross = c.price * c.qty
-  if (!c.itemDiscount || c.itemDiscount <= 0) return gross
-  return Math.round(gross * (1 - c.itemDiscount / 100))
+  return itemEffectiveUnit(c) * c.qty
 }
 
 
@@ -573,7 +577,7 @@ export default function POSPage() {
         createdAt:      new Date().toISOString(),
         memberName:     memberName || undefined,
         couponCode:     appliedCoupon?.code,
-        items:          cart.map(c => ({ name: c.name, qty: c.qty, price: c.price })),
+        items:          cart.map(c => ({ name: c.name, qty: c.qty, price: itemEffectiveUnit(c) })),
         subtotal,
         discountAmount: discountAmount + actualPointsDiscount,
         total:          finalTotal,
@@ -615,7 +619,7 @@ export default function POSPage() {
             menuId: c.menuId,
             name: c.name,
             qty: c.qty,
-            price: c.itemDiscount ? Math.round(c.price * (1 - c.itemDiscount / 100)) : c.price,
+            price: itemEffectiveUnit(c),
             variantLabel: c.variantLabel,
           })),
           paymentMethod: method,
@@ -679,7 +683,7 @@ export default function POSPage() {
             menuId: c.menuId,
             name: c.name,
             qty: c.qty,
-            price: c.itemDiscount ? Math.round(c.price * (1 - c.itemDiscount / 100)) : c.price,
+            price: itemEffectiveUnit(c),
             variantLabel: c.variantLabel,
           })),
         }),
