@@ -2,6 +2,8 @@ import type { NextConfig } from "next";
 import path from "path";
 
 const nextConfig: NextConfig = {
+  // Compile the TS source of our internal workspace packages (M1+).
+  transpilePackages: ["@baze/db", "@baze/config"],
   // Monorepo: pin the workspace root to the repo root (two levels up), where the
   // hoisted node_modules (incl. next) live. Without this Next mis-infers the root
   // from apps/pos and can't resolve the hoisted next package / file tracing.
