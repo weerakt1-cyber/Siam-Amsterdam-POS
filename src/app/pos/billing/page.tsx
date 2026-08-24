@@ -1,0 +1,172 @@
+'use client'
+
+import { useEffect, useState, useCallback } from 'react'
+import { authedFetch } from '@/lib/supabase-browser'
+import type { BillingCycle } from '@/lib/plans'
+
+type Sub = { plan: string; status: string; until: string | null; cycle: string | null; lockedPrice: number | null }
+type Plan = { id: string; label: string; monthly: number; yearly: number; features: string[] }
+type Payment = { id: string; plan: string; cycle: string; amount: number; status: string; createdAt: string }
+type RenewResp = { payment: { id: string }; amount: number; months: number; qrDataUrl: string; promptpayId: string }
+
+const todayStr = () => new Date(Date.now() + 7 * 3600 * 1000).toISOString().slice(0, 10)
+function daysLeft(until: string | null): number | null {
+  if (!until) return null
+  return Math.round((Date.parse(until) - Date.parse(todayStr())) / 86400000)
+}
+const baht = (n: number) => '฿' + n.toLocaleString()
+
+export default function BillingPage() {
+  const [sub, setSub] = useState<Sub | null>(null)
+  const [plans, setPlans] = useState<Plan[]>([])
+  const [payments, setPayments] = useState<Payment[]>([])
+  const [ppConfigured, setPpConfigured] = useState(true)
+  const [denied, setDenied] = useState(false)
+  const [loading, setLoading] = useState(true)
+  const [err, setErr] = useState('')
+
+  const [cycle, setCycle] = useState<BillingCycle>('monthly')
+  const [renew, setRenew] = useState<RenewResp | null>(null)
+  const [busy, setBusy] = useState(false)
+  const [slipDone, setSlipDone] = useState(false)
+
+  const load = useCallback(async () => {
+    const r = await authedFetch('/api/billing')
+    if (r.status === 401 || r.status === 403) { setDenied(true); setLoading(false); return }
+    if (!r.ok) { setErr('โหลดข้อมูลไม่สำเร็จ'); setLoading(false); return }
+    const d = await r.json()
+    setSub(d.subscription); setPlans(d.plans ?? []); setPayments(d.payments ?? [])
+    setPpConfigured(!!d.promptpayConfigured); setLoading(false)
+  }, [])
+  useEffect(() => { load() }, [load])
+
+  async function startRenew() {
+    setErr(''); setBusy(true); setSlipDone(false); setRenew(null)
+    try {
+      const r = await authedFetch('/api/billing/renew', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ plan: 'pro', cycle }),
+      })
+      const d = await r.json()
+      if (!r.ok) { setErr(d.error || 'เริ่มต่ออายุไม่สำเร็จ'); return }
+      setRenew(d)
+    } finally { setBusy(false) }
+  }
+
+  async function uploadSlip(file: File) {
+    if (!renew) return
+    setErr(''); setBusy(true)
+    try {
+      const fd = new FormData(); fd.set('slip', file)
+      const r = await authedFetch(`/api/billing/${renew.payment.id}/slip`, { method: 'POST', body: fd })
+      const d = await r.json().catch(() => ({}))
+      if (!r.ok) { setErr(d.error || 'อัปโหลดสลิปไม่สำเร็จ'); return }
+      setSlipDone(true); await load()
+    } finally { setBusy(false) }
+  }
+
+  if (denied) return <Centered emoji="🔒" title="เฉพาะเจ้าของร้าน" body="หน้าเรียกเก็บเงินเปิดให้เฉพาะผู้ใช้สิทธิ์ admin ของร้าน" />
+  if (loading) return <div className="p-6 text-gray-400">กำลังโหลด…</div>
+
+  const dl = daysLeft(sub?.until ?? null)
+  const pro = plans.find(p => p.id === 'pro')
+
+  return (
+    <div className="p-6 overflow-y-auto">
+      <div className="max-w-2xl mx-auto">
+        <h1 className="text-2xl font-black text-gray-900 mb-1">แพ็คเกจ & การต่ออายุ</h1>
+        <p className="text-sm text-gray-400 mb-5">ต่ออายุผ่าน PromptPay แล้วแนบสลิป — ผู้ดูแลจะยืนยันให้</p>
+
+        {err && <p className="text-sm text-red-500 mb-3">{err}</p>}
+
+        {/* Current status */}
+        <div className="bg-white rounded-2xl border border-gray-100 p-5 mb-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-[11px] font-bold text-gray-400 uppercase tracking-widest">แพ็คเกจปัจจุบัน</p>
+              <p className="text-xl font-black text-gray-900 mt-0.5">{sub?.plan ?? '—'} · <span className={sub?.status === 'active' ? 'text-emerald-600' : 'text-amber-600'}>{sub?.status}</span></p>
+            </div>
+            <div className="text-right">
+              <p className="text-[11px] text-gray-400">หมดอายุ</p>
+              <p className="font-bold text-gray-900">{sub?.until ?? '—'}</p>
+              {dl != null && <p className={`text-xs ${dl < 0 ? 'text-red-500' : 'text-gray-400'}`}>{dl < 0 ? `เลย ${-dl} วัน` : `เหลือ ${dl} วัน`}</p>}
+            </div>
+          </div>
+        </div>
+
+        {/* Renew */}
+        {!ppConfigured && <p className="text-sm text-amber-600 mb-3">⚠️ ผู้ให้บริการยังไม่ได้ตั้งค่า PromptPay — ต่ออายุออนไลน์ยังไม่พร้อม</p>}
+        <div className="bg-white rounded-2xl border border-gray-100 p-5 mb-4">
+          <p className="font-black text-gray-900 mb-3">ต่ออายุ Pro</p>
+          <div className="flex gap-2 mb-4">
+            {(['monthly', 'yearly'] as BillingCycle[]).map(c => (
+              <button key={c} onClick={() => setCycle(c)}
+                className={`flex-1 py-3 rounded-xl border-2 text-sm font-bold transition ${cycle === c ? 'border-gray-900 bg-gray-900 text-white' : 'border-gray-200 text-gray-600'}`}>
+                {c === 'monthly' ? `รายเดือน ${pro ? baht(pro.monthly) : ''}` : `รายปี ${pro ? baht(pro.yearly) : ''}`}
+                {c === 'yearly' && <span className="block text-[10px] font-normal opacity-70">ปีแรกมีส่วนลด</span>}
+              </button>
+            ))}
+          </div>
+          <button disabled={busy || !ppConfigured} onClick={startRenew}
+            className="w-full py-3.5 rounded-2xl bg-amber-500 text-black font-black disabled:opacity-40">
+            {busy && !renew ? 'กำลังสร้าง QR…' : 'สร้าง QR ชำระเงิน'}
+          </button>
+
+          {renew && (
+            <div className="mt-5 border-t border-gray-100 pt-5 text-center">
+              <p className="text-sm text-gray-500">โอน <span className="font-black text-gray-900">{baht(renew.amount)}</span> ไปที่ PromptPay</p>
+              <p className="text-xs text-gray-400 mb-3">{renew.promptpayId}</p>
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={renew.qrDataUrl} alt="PromptPay QR" className="w-56 h-56 mx-auto" />
+              {slipDone ? (
+                <p className="mt-4 text-sm font-bold text-emerald-600">✓ ส่งสลิปแล้ว — รอผู้ดูแลยืนยัน</p>
+              ) : (
+                <div className="mt-4">
+                  <p className="text-sm text-gray-500 mb-2">โอนแล้วแนบสลิปที่นี่</p>
+                  <label className="inline-block px-4 py-2.5 rounded-xl bg-gray-900 text-white text-sm font-bold cursor-pointer">
+                    {busy ? 'กำลังอัปโหลด…' : 'เลือกสลิป'}
+                    <input type="file" accept="image/*,application/pdf" className="hidden"
+                      onChange={e => { const f = e.target.files?.[0]; if (f) uploadSlip(f) }} disabled={busy} />
+                  </label>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+
+        {/* History */}
+        <div className="bg-white rounded-2xl border border-gray-100 p-5">
+          <p className="font-black text-gray-900 mb-3">ประวัติการชำระ</p>
+          {payments.length === 0 ? <p className="text-sm text-gray-400">ยังไม่มีรายการ</p> : (
+            <div className="flex flex-col divide-y divide-gray-50">
+              {payments.map(p => (
+                <div key={p.id} className="flex items-center justify-between py-2.5 text-sm">
+                  <div>
+                    <span className="font-semibold text-gray-900">{p.plan} · {p.cycle}</span>
+                    <span className="text-gray-400 ml-2 text-xs">{p.createdAt.slice(0, 10)}</span>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <span className="text-gray-900 font-bold">{baht(p.amount)}</span>
+                    <span className={`text-[11px] font-bold px-2 py-1 rounded-lg ${p.status === 'confirmed' ? 'bg-emerald-50 text-emerald-700' : p.status === 'rejected' ? 'bg-red-50 text-red-600' : 'bg-amber-50 text-amber-700'}`}>{p.status}</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function Centered({ emoji, title, body }: { emoji: string; title: string; body: string }) {
+  return (
+    <div className="flex-1 flex items-center justify-center p-6">
+      <div className="max-w-sm text-center">
+        <p className="text-4xl mb-3">{emoji}</p>
+        <h1 className="text-xl font-black text-gray-900">{title}</h1>
+        <p className="text-sm text-gray-500 mt-2">{body}</p>
+      </div>
+    </div>
+  )
+}
