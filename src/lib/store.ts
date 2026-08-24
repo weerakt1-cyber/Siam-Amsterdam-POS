@@ -14,6 +14,7 @@ import type {
 import type { CatEntry } from './categories'
 import { computePointsEarned, getTier } from './loyalty'
 import { businessDayOf, businessDayRange } from './business-day'
+import { AI_ADDON, aiCostThb } from './plans'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -319,7 +320,7 @@ export async function updateStoreBilling(storeId: string, patch: {
 
 // ── Subscription payments ledger (Phase 1) ───────────────────────────────────
 export type StorePayment = {
-  id: string; storeId: string; plan: string; cycle: string
+  id: string; storeId: string; kind: string; plan: string; cycle: string
   amount: number; months: number; status: string
   slipUrl: string | null; note: string | null
   createdAt: string; confirmedBy: string | null; confirmedAt: string | null
@@ -331,6 +332,7 @@ function mapPayment(r: Record<string, unknown>): StorePayment {
   return {
     id:          r.id as string,
     storeId:     r.store_id as string,
+    kind:        (r.kind as string) ?? 'subscription',
     plan:        r.plan as string,
     cycle:       r.cycle as string,
     amount:      Number(r.amount),
@@ -354,11 +356,12 @@ export async function hasConfirmedPayment(storeId: string): Promise<boolean> {
 }
 
 export async function createStorePayment(input: {
-  storeId: string; plan: string; cycle: string; amount: number; months: number
+  storeId: string; plan: string; cycle: string; amount: number; months: number; kind?: string
 }): Promise<StorePayment> {
   const { data, error } = await supabase.from('store_payments').insert({
     store_id: input.storeId, plan: input.plan, cycle: input.cycle,
     amount: input.amount, months: input.months, status: 'pending',
+    kind: input.kind ?? 'subscription',
   }).select('*').single()
   if (error) throw error
   return mapPayment(data)
@@ -397,21 +400,29 @@ export async function confirmStorePayment(id: string, by: string): Promise<Store
   const payment = await getStorePayment(id)
   if (!payment || payment.status !== 'pending') return null
 
-  const sub = await getStoreSubscription(payment.storeId)
-  const today = new Date(Date.now() + 7 * 3600 * 1000).toISOString().slice(0, 10)
-  const base = sub?.until && sub.until > today ? sub.until : today
-  const d = new Date(base + 'T00:00:00Z')
-  d.setUTCMonth(d.getUTCMonth() + payment.months)
-  const newUntil = d.toISOString().slice(0, 10)
+  if (payment.kind === 'ai') {
+    // AI add-on subscription: monthly/yearly (cycle) starts/renews the credit.
+    await activateAiSubscription(payment.storeId, payment.cycle === 'yearly' ? 'yearly' : 'monthly')
+  } else if (payment.kind === 'ai_topup') {
+    await addAiCredit(payment.storeId, payment.amount)
+  } else {
+    // Subscription renewal: extend from the later of today / current expiry.
+    const sub = await getStoreSubscription(payment.storeId)
+    const today = new Date(Date.now() + 7 * 3600 * 1000).toISOString().slice(0, 10)
+    const base = sub?.until && sub.until > today ? sub.until : today
+    const d = new Date(base + 'T00:00:00Z')
+    d.setUTCMonth(d.getUTCMonth() + payment.months)
+    const newUntil = d.toISOString().slice(0, 10)
 
-  // Lock the ongoing base price (not the promo amount) if not already locked.
-  const cur = await supabase.from('stores').select('locked_price').eq('id', payment.storeId).maybeSingle()
-  const lockedPrice = cur.data?.locked_price ?? null
+    // Lock the ongoing base price (not the promo amount) if not already locked.
+    const cur = await supabase.from('stores').select('locked_price').eq('id', payment.storeId).maybeSingle()
+    const lockedPrice = cur.data?.locked_price ?? null
 
-  await updateStoreBilling(payment.storeId, {
-    plan: payment.plan, status: 'active', until: newUntil, cycle: payment.cycle,
-    lockedPrice: lockedPrice != null ? Number(lockedPrice) : undefined,
-  })
+    await updateStoreBilling(payment.storeId, {
+      plan: payment.plan, status: 'active', until: newUntil, cycle: payment.cycle,
+      lockedPrice: lockedPrice != null ? Number(lockedPrice) : undefined,
+    })
+  }
 
   const { data, error } = await supabase.from('store_payments')
     .update({ status: 'confirmed', confirmed_by: by, confirmed_at: new Date().toISOString() })
@@ -447,6 +458,80 @@ export async function uploadPaymentSlip(storeId: string, paymentId: string, byte
 export async function signedSlipUrl(path: string): Promise<string | null> {
   const { data } = await supabase.storage.from(SLIP_BUCKET).createSignedUrl(path, 3600)
   return data?.signedUrl ?? null
+}
+
+// ── AI add-on credits (Phase 1.5) ────────────────────────────────────────────
+export type AiCreditState = {
+  status: string; balance: number; allowance: number
+  resetDay: number | null; nextReset: string | null; until: string | null
+}
+
+const bkkToday = () => new Date(Date.now() + 7 * 3600 * 1000).toISOString().slice(0, 10)
+function addMonthsStr(date: string, n: number): string {
+  const d = new Date(date + 'T00:00:00Z'); d.setUTCMonth(d.getUTCMonth() + n)
+  return d.toISOString().slice(0, 10)
+}
+const AI_COLS = 'ai_status, ai_credit_balance, ai_monthly_allowance, ai_reset_day, ai_next_reset, ai_until'
+
+// Apply any due monthly refreshes (yearly plans) up to today, capped at ai_until.
+// No rollover: each reset overwrites the balance with the allowance.
+export async function refreshAiCredit(storeId?: string): Promise<AiCreditState | null> {
+  const sid = await requireStoreId(storeId)
+  const { data: row } = await supabase.from('stores').select(AI_COLS).eq('id', sid).maybeSingle()
+  if (!row) return null
+  let balance = Number(row.ai_credit_balance ?? 0)
+  let nextReset = (row.ai_next_reset as string | null) ?? null
+  const until = (row.ai_until as string | null) ?? null
+  const allowance = Number(row.ai_monthly_allowance ?? 0)
+  const today = bkkToday()
+  let changed = false
+  if (row.ai_status !== 'none' && nextReset && until) {
+    while (nextReset <= today && nextReset < until) {
+      balance = allowance
+      nextReset = addMonthsStr(nextReset, 1)
+      changed = true
+    }
+  }
+  if (changed) await supabase.from('stores').update({ ai_credit_balance: balance, ai_next_reset: nextReset }).eq('id', sid)
+  return { status: row.ai_status as string, balance, allowance, resetDay: (row.ai_reset_day as number | null) ?? null, nextReset, until }
+}
+
+export async function checkAiAllowed(storeId?: string): Promise<{ allowed: boolean; reason?: string; state: AiCreditState | null }> {
+  const state = await refreshAiCredit(storeId)
+  if (!state || state.status === 'none') return { allowed: false, reason: 'no_subscription', state }
+  if (state.until && state.until < bkkToday()) return { allowed: false, reason: 'expired', state }
+  if (state.balance <= 0) return { allowed: false, reason: 'no_credit', state }
+  return { allowed: true, state }
+}
+
+// Debit the real API cost after a call. The last call may push the balance
+// slightly negative (we don't cut a call mid-flight); the next call is blocked.
+export async function debitAiCredit(storeId: string, route: string, inputTokens: number, outputTokens: number): Promise<void> {
+  const sid = await requireStoreId(storeId)
+  const cost = aiCostThb(inputTokens, outputTokens)
+  const { data: row } = await supabase.from('stores').select('ai_credit_balance').eq('id', sid).maybeSingle()
+  const balance = Number(row?.ai_credit_balance ?? 0) - cost
+  await supabase.from('stores').update({ ai_credit_balance: balance }).eq('id', sid)
+  await supabase.from('ai_usage').insert({ store_id: sid, route, input_tokens: inputTokens, output_tokens: outputTokens, cost_thb: cost }).then(() => {}, () => {})
+}
+
+export async function activateAiSubscription(storeId: string, cycle: 'monthly' | 'yearly'): Promise<void> {
+  const sid = await requireStoreId(storeId)
+  const today = bkkToday()
+  const allowance = AI_ADDON.monthlyCredit
+  const until = addMonthsStr(today, cycle === 'yearly' ? 12 : 1)
+  // Yearly refreshes monthly on the purchase day; monthly has no mid-cycle reset.
+  const nextReset = cycle === 'yearly' ? addMonthsStr(today, 1) : until
+  await supabase.from('stores').update({
+    ai_status: cycle, ai_credit_balance: allowance, ai_monthly_allowance: allowance,
+    ai_reset_day: Number(today.slice(8, 10)), ai_next_reset: nextReset, ai_until: until,
+  }).eq('id', sid)
+}
+
+export async function addAiCredit(storeId: string, amount: number): Promise<void> {
+  const sid = await requireStoreId(storeId)
+  const { data: row } = await supabase.from('stores').select('ai_credit_balance').eq('id', sid).maybeSingle()
+  await supabase.from('stores').update({ ai_credit_balance: Number(row?.ai_credit_balance ?? 0) + amount }).eq('id', sid)
 }
 
 export async function getCategories(storeId?: string): Promise<CatEntry[]> {

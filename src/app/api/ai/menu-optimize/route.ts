@@ -4,7 +4,14 @@ import { NextRequest, NextResponse } from 'next/server'
 import Anthropic from '@anthropic-ai/sdk'
 import { supabase } from '@/lib/supabase'
 import { requireStaff, resolveStaffStoreId } from '@/lib/api-auth'
+import { checkAiAllowed, debitAiCredit } from '@/lib/store'
 import { AI_MODEL } from '@/lib/ai-brand'
+
+const AI_BLOCK_MSG: Record<string, string> = {
+  no_subscription: 'ยังไม่ได้สมัคร AI add-on — ไปที่หน้าแพ็คเกจเพื่อเปิดใช้งาน',
+  expired:         'AI add-on หมดอายุแล้ว — กรุณาต่ออายุ',
+  no_credit:       'เครดิต AI หมดแล้ว — เติมเครดิตหรือรอรอบรีเซ็ต',
+}
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY! })
 
@@ -35,6 +42,10 @@ export async function GET(req: NextRequest) {
   if (!storeId) return NextResponse.json({ error: 'Store context required' }, { status: 400 })
   if (!process.env.ANTHROPIC_API_KEY) {
     return NextResponse.json({ error: 'ANTHROPIC_API_KEY not configured' }, { status: 503 })
+  }
+  const chk = await checkAiAllowed(storeId)
+  if (!chk.allowed) {
+    return NextResponse.json({ error: AI_BLOCK_MSG[chk.reason ?? ''] ?? 'AI ไม่พร้อมใช้งาน', reason: chk.reason }, { status: 402 })
   }
 
   // ── 1. Fetch menu items ──────────────────────────────────────────────────────
@@ -124,6 +135,10 @@ Provide 5-10 high-confidence suggestions. Only suggest changes where the data cl
     system:     'You are a pricing strategist for a Bangkok bar. Identify pricing opportunities. Return only valid JSON.',
     messages:   [{ role: 'user', content: prompt }],
   })
+
+  // Debit the actual token cost from the store's AI credit (best-effort).
+  debitAiCredit(storeId, 'menu-optimize', response.usage.input_tokens, response.usage.output_tokens)
+    .catch(() => { /* don't fail over metering */ })
 
   // ── 6. Parse response ─────────────────────────────────────────────────────────
   const raw = response.content[0].type === 'text' ? response.content[0].text.trim() : ''
