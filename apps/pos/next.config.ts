@@ -1,10 +1,12 @@
 import type { NextConfig } from "next";
+import path from "path";
 
 const nextConfig: NextConfig = {
-  // Pin the workspace root to this project. A stray package-lock.json in the home
-  // directory otherwise makes Next infer the wrong root (breaks output file tracing).
+  // Monorepo: pin the workspace root to the repo root (two levels up), where the
+  // hoisted node_modules (incl. next) live. Without this Next mis-infers the root
+  // from apps/pos and can't resolve the hoisted next package / file tracing.
   turbopack: {
-    root: __dirname,
+    root: path.join(__dirname, "..", ".."),
   },
   // ลด bundle ที่ส่งไป client — เร็วขึ้นทุก page load
   experimental: {
