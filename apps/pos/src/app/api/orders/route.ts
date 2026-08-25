@@ -24,6 +24,11 @@ const VALID_STATUSES = new Set(['pending', 'accepted', 'ready', 'delivered', 'ca
 const MAX_SINCE_DAYS = 90
 
 export async function GET(req: NextRequest) {
+  // Cheap keep-warm ping (no auth, no query) — the checkout modal calls this on
+  // open so the order lambda is already hot when the cashier confirms, avoiding
+  // a cold-start stall on the first sale after a lull.
+  if (req.nextUrl.searchParams.get('warm')) return NextResponse.json({ ok: true })
+
   const storeId = await resolveStaffStoreId(req)
   if (!storeId) return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
 

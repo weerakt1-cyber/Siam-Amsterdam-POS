@@ -222,6 +222,9 @@ export default function CheckoutModal({
 
   useEffect(() => {
     setCfg(loadBarSettings())
+    // Pre-warm the order lambda now (modal open) so confirming payment isn't
+    // stalled by a serverless cold start on the first sale after a lull.
+    authedFetch('/api/orders?warm=1').catch(() => {})
     try {
       const u = sessionStorage.getItem('pos_active_user')
       if (u) setStaffName(JSON.parse(u).name ?? '')
