@@ -623,12 +623,15 @@ export default function CashPage() {
         </div>
       )}
 
-      {/* Add Modal */}
-      <AddModal
-        type={modal}
-        onClose={() => setModal(null)}
-        onSave={handleAdd}
-      />
+      {/* Add Modal — render only while open so it remounts fresh each time
+          (fields reset every entry instead of keeping the previous amount/note) */}
+      {modal && (
+        <AddModal
+          type={modal}
+          onClose={() => setModal(null)}
+          onSave={handleAdd}
+        />
+      )}
     </div>
   )
 }
