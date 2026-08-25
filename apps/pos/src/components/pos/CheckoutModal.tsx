@@ -8,7 +8,6 @@ import {
   type BarSettings, type ReceiptData,
 } from '@/lib/printer'
 import { getTierByName, computePointsEarned, TIERS } from '@/lib/loyalty'
-import OmisePaymentModal, { type OmisePayType } from './OmisePaymentModal'
 import { usePosLang } from '@/lib/pos-i18n'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -209,8 +208,6 @@ export default function CheckoutModal({
   const [isConfirming, setIsConfirming] = useState(false)
   const [orderRef, setOrderRef]             = useState('DRAFT')
 
-  const [showOmise, setShowOmise]   = useState(false)
-  const [omiseType, setOmiseType]   = useState<OmisePayType>('credit_card')
 
   // PromptPay static QR
   const [ppQr,      setPpQr]      = useState<string | null>(null)
@@ -500,11 +497,10 @@ export default function CheckoutModal({
                 <p className="text-xs text-stone-300 mt-1">{tr('coTable')} {table}</p>
               </div>
 
-              {/* Payment method selector — row 1: local */}
-              <div className="grid grid-cols-3 gap-2 mb-2">
+              {/* Payment method selector — Cash + QR PromptPay */}
+              <div className="grid grid-cols-2 gap-2 mb-4">
                 {([
                   { id: 'cash',      icon: PAY_ICONS.cash, label: tr('coCash')    },
-                  { id: 'card',      icon: PAY_ICONS.card, label: tr('coEdcCard') },
                   { id: 'promptpay', icon: PAY_ICONS.scan, label: tr('coQrPay')  },
                 ] as const).map((pm) => (
                   <button
@@ -520,26 +516,6 @@ export default function CheckoutModal({
                     <span className={`text-[10px] font-bold uppercase tracking-wide ${payment === pm.id ? 'text-white' : 'text-stone-500'}`}>
                       {pm.label}
                     </span>
-                  </button>
-                ))}
-              </div>
-
-              {/* Row 2: online (Omise) — Card + PromptPay */}
-              <p className="text-[9px] font-bold text-stone-300 uppercase tracking-widest text-center mb-1.5">{tr('coOnlinePayment')}</p>
-              <div className="grid grid-cols-2 gap-2 mb-4">
-                {([
-                  { id: 'credit_card'  as OmisePayType, icon: PAY_ICONS.card, label: tr('coCreditCard'), accent: 'border-blue-400 bg-blue-50 text-blue-700'     },
-                  { id: 'promptpay_qr' as OmisePayType, icon: PAY_ICONS.scan, label: tr('coPromptPayQr'),         accent: 'border-violet-400 bg-violet-50 text-violet-700' },
-                ]).map((pm) => (
-                  <button
-                    key={pm.id}
-                    onClick={() => { setPayment(pm.id); setReceived(''); setOmiseType(pm.id); setShowOmise(true) }}
-                    className={`py-3 rounded-xl flex flex-col items-center gap-1 transition active:scale-95 border-2 ${
-                      payment === pm.id ? pm.accent : 'bg-white text-stone-400 border-stone-200 hover:border-stone-300'
-                    }`}
-                  >
-                    <PIcon src={pm.icon} className="w-6 h-6" />
-                    <span className="text-[10px] font-bold uppercase tracking-wide leading-tight text-center">{pm.label}</span>
                   </button>
                 ))}
               </div>
@@ -580,15 +556,6 @@ export default function CheckoutModal({
                 </div>
               )}
 
-              {/* Card panel */}
-              {payment === 'card' && (
-                <div className="bg-white border border-stone-100 rounded-xl p-5 text-center flex flex-col items-center gap-2">
-                  <PIcon src={PAY_ICONS.card} className="w-14 h-14" />
-                  <p className="text-sm font-semibold text-stone-500">{tr('coCardTerminal')}</p>
-                  <p className="text-2xl font-black text-stone-900">{baht(total)}</p>
-                </div>
-              )}
-
               {/* PromptPay QR panel */}
               {payment === 'promptpay' && (
                 <div className="bg-white border border-stone-100 rounded-xl p-4 flex flex-col items-center gap-3">
@@ -625,7 +592,7 @@ export default function CheckoutModal({
               >
                 ← {tr('coBack')}
               </button>
-              {(payment === 'card' || payment === 'promptpay') && (
+              {payment === 'promptpay' && (
                 <button
                   onClick={() => handleConfirm()}
                   disabled={isConfirming}
@@ -698,30 +665,6 @@ export default function CheckoutModal({
           </div>
         )}
       </div>
-
-      {/* Omise payment modal — overlays on top of CheckoutModal */}
-      {showOmise && (
-        <OmisePaymentModal
-          paymentType={omiseType}
-          total={total}
-          onSuccess={async () => {
-            if (confirmingRef.current) return
-            confirmingRef.current = true
-            setIsConfirming(true)
-            try {
-              const id = await onConfirm(omiseType)
-              setOrderRef(id.slice(-8).toUpperCase())
-              setStep(3)
-              setBtStatus('idle')
-            } catch { /* parent shows toast */ } finally {
-              confirmingRef.current = false
-              setIsConfirming(false)
-              setShowOmise(false)
-            }
-          }}
-          onClose={() => { setShowOmise(false); setPayment('cash') }}
-        />
-      )}
     </div>
   )
 }

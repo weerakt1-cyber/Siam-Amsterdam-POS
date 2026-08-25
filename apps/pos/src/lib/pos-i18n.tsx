@@ -55,6 +55,8 @@ const DICT = {
   navSettings:  { en: 'Settings',   th: 'ตั้งค่า' },
   navStats:     { en: 'Stats',      th: 'สถิติ' },
   navBilling:   { en: 'Billing',    th: 'แพ็คเกจ' },
+  setBillingDesc: { en: 'Manage your subscription plan and billing.', th: 'จัดการแพ็คเกจและการเรียกเก็บเงินของร้าน' },
+  setOpenBilling: { en: 'Open billing', th: 'เปิดหน้าแพ็คเกจ' },
   navSuperAdmin:{ en: 'Super-admin', th: 'ผู้ดูแลระบบ' },
   menu:         { en: 'Menu',       th: 'เมนู' },
   login:        { en: 'Login',      th: 'เข้าสู่ระบบ' },
