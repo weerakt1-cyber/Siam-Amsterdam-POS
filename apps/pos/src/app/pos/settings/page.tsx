@@ -1171,6 +1171,20 @@ export default function SettingsPage() {
           </div>
         </section>}
 
+        {/* ── Billing (moved out of the sidebar) ── */}
+        {activeTab === 'general' && isAdmin && <section>
+          <SectionTitle>{tr('navBilling')}</SectionTitle>
+          <div className="bg-white border border-gray-100 rounded-2xl p-5 flex items-center justify-between gap-4 shadow-sm">
+            <p className="text-sm text-gray-500 flex-1">{tr('setBillingDesc')}</p>
+            <button
+              onClick={() => router.push('/pos/billing')}
+              className="px-5 py-2.5 rounded-xl text-sm font-bold bg-stone-900 hover:bg-stone-800 text-white transition active:scale-95 shrink-0"
+            >
+              {tr('setOpenBilling')} →
+            </button>
+          </div>
+        </section>}
+
         {/* ── Receipt & Printer ── */}
         {activeTab === 'printer' && <section>
           <SectionTitle>{tr('setReceiptPrinter')}</SectionTitle>

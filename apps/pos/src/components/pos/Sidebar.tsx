@@ -15,7 +15,6 @@ const NAV: { href: string; icon: string; labelKey: PosStringKey; managerOnly?: b
   { href: '/pos/floor',      icon: '/nav-icons/floor.png',     labelKey: 'navFloor'     },
   { href: '/pos/reservations', icon: '/nav-icons/members.png', labelKey: 'navReservations' },
   { href: '/pos/kitchen',    icon: '/nav-icons/kitchen.png',   labelKey: 'navKitchen'   },
-  { href: '/pos/delivery',   icon: '/nav-icons/delivery.png',  labelKey: 'navDelivery'  },
   { href: '/pos/inventory',  icon: '/nav-icons/inventory.png', labelKey: 'navInventory' },
   { href: '/pos/items',      icon: '/nav-icons/items.png',     labelKey: 'navItems'     },
   { href: '/pos/members',    icon: '/nav-icons/members.png',   labelKey: 'navMembers'   },
@@ -24,7 +23,6 @@ const NAV: { href: string; icon: string; labelKey: PosStringKey; managerOnly?: b
   { href: '/pos/analytics',  icon: '/nav-icons/analytics.png', labelKey: 'navAnalytics', managerOnly: true },
   { href: '/pos/users',      icon: '/nav-icons/users.png',     labelKey: 'navUsers',     managerOnly: true },
   { href: '/pos/settings',   icon: '/nav-icons/settings.png',  labelKey: 'navSettings',  managerOnly: true },
-  { href: '/pos/billing',    icon: '/nav-icons/cash.png',      labelKey: 'navBilling',   adminOnly: true },
   { href: '/super-admin',    icon: '/nav-icons/users.png',     labelKey: 'navSuperAdmin', superAdminOnly: true },
 ]
 
