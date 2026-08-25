@@ -11,5 +11,8 @@
   "dependencies": {
     "@baze/config": "*",
     "@supabase/supabase-js": "^2.108.2"
+  },
+  "peerDependencies": {
+    "next": "*"
   }
 }

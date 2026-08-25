@@ -1,8 +1,8 @@
 export const dynamic = 'force-dynamic'
 
 import { NextRequest, NextResponse } from 'next/server'
-import { requireSuperAdmin } from '@/lib/api-auth'
-import { listPaymentsAdmin, signedSlipUrl } from '@/lib/store'
+import { requireSuperAdmin } from '@baze/db'
+import { listPaymentsAdmin, signedSlipUrl } from '@baze/db'
 
 // GET — payments across all stores (super-admin). ?status=pending to filter.
 // Each slip path is turned into a short-lived signed URL for viewing.

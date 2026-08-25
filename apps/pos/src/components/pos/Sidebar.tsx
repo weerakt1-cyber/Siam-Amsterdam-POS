@@ -23,7 +23,6 @@ const NAV: { href: string; icon: string; labelKey: PosStringKey; managerOnly?: b
   { href: '/pos/analytics',  icon: '/nav-icons/analytics.png', labelKey: 'navAnalytics', managerOnly: true },
   { href: '/pos/users',      icon: '/nav-icons/users.png',     labelKey: 'navUsers',     managerOnly: true },
   { href: '/pos/settings',   icon: '/nav-icons/settings.png',  labelKey: 'navSettings',  managerOnly: true },
-  { href: '/super-admin',    icon: '/nav-icons/users.png',     labelKey: 'navSuperAdmin', superAdminOnly: true },
 ]
 
 const BOTTOM_NAV: { href: string; icon: string; labelKey: PosStringKey; managerOnly?: boolean }[] = [
@@ -68,27 +67,13 @@ export default function Sidebar() {
   const [showSwitcher, setShowSwitcher] = useState(false)
   const [logoSrc, setLogoSrc] = useState('/logo.png')
   const [expanded, setExpanded] = useState(false)
-  const [isSuperAdmin, setIsSuperAdmin] = useState(false)
-
-  // Only the platform operator sees the Super-admin link. The allow-list is
-  // exposed to the client via NEXT_PUBLIC_SUPER_ADMIN_EMAILS (the API still
-  // enforces the real check server-side); unset → nobody sees the link.
-  useEffect(() => {
-    const allow = (process.env.NEXT_PUBLIC_SUPER_ADMIN_EMAILS ?? '')
-      .split(',').map(s => s.trim().toLowerCase()).filter(Boolean)
-    if (!allow.length) return
-    getSupabaseBrowser().auth.getUser().then(({ data }) => {
-      const email = data.user?.email?.toLowerCase() ?? ''
-      if (email && allow.includes(email)) setIsSuperAdmin(true)
-    }).catch(() => {})
-  }, [])
 
   // Sidebar visibility (UI only — every route is still guarded server-side).
+  // The Super-admin console now lives in the separate apps/admin app.
   const role = activeUser?.role ?? ''
-  const visible = (item: { managerOnly?: boolean; adminOnly?: boolean; superAdminOnly?: boolean }) => {
-    if (item.superAdminOnly) return isSuperAdmin
-    if (item.adminOnly)      return role === 'admin'
-    if (item.managerOnly)    return MANAGER_ROLES.has(role)
+  const visible = (item: { managerOnly?: boolean; adminOnly?: boolean }) => {
+    if (item.adminOnly)   return role === 'admin'
+    if (item.managerOnly) return MANAGER_ROLES.has(role)
     return true
   }
 

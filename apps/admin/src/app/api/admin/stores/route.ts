@@ -1,8 +1,8 @@
 export const dynamic = 'force-dynamic'
 
 import { NextRequest, NextResponse } from 'next/server'
-import { requireSuperAdmin } from '@/lib/api-auth'
-import { listStoresAdmin, createStoreAdmin, findStoreBySlug } from '@/lib/store'
+import { requireSuperAdmin } from '@baze/db'
+import { listStoresAdmin, createStoreAdmin, findStoreBySlug } from '@baze/db'
 
 // GET — every store + its subscription/billing (super-admin only).
 export async function GET(req: NextRequest) {

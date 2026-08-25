@@ -1,8 +1,8 @@
 export const dynamic = 'force-dynamic'
 
 import { NextRequest, NextResponse } from 'next/server'
-import { requireSuperAdmin } from '@/lib/api-auth'
-import { listAffiliates, createAffiliate, affiliateEarnings } from '@/lib/store'
+import { requireSuperAdmin } from '@baze/db'
+import { listAffiliates, createAffiliate, affiliateEarnings } from '@baze/db'
 
 // GET — all affiliates + their earnings summary (super-admin).
 export async function GET(req: NextRequest) {

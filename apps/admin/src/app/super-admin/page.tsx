@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useCallback } from 'react'
 import { authedFetch } from '@/lib/supabase-browser'
-import { PLANS, PLAN_IDS, planPrice, INTRO_MONTHLY, YEARLY_FIRST_YEAR_DISCOUNT, type BillingCycle } from '@/lib/plans'
+import { PLANS, PLAN_IDS, planPrice, INTRO_MONTHLY, YEARLY_FIRST_YEAR_DISCOUNT, type BillingCycle } from '@baze/config'
 
 type Store = {
   id: string; name: string; slug: string | null

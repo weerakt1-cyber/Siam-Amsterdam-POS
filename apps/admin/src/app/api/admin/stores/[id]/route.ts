@@ -1,8 +1,8 @@
 export const dynamic = 'force-dynamic'
 
 import { NextRequest, NextResponse } from 'next/server'
-import { requireSuperAdmin } from '@/lib/api-auth'
-import { updateStoreBilling, setStoreAffiliate, listStoresAdmin } from '@/lib/store'
+import { requireSuperAdmin } from '@baze/db'
+import { updateStoreBilling, setStoreAffiliate, listStoresAdmin } from '@baze/db'
 
 // PATCH — update a store's subscription/billing (super-admin only). Any subset
 // of { plan, status, until, cycle, lockedPrice, affiliateId }. Extending is just
