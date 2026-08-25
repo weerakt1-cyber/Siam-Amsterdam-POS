@@ -7,8 +7,11 @@ import { PLANS, PLAN_IDS, planPrice, INTRO_MONTHLY, YEARLY_FIRST_YEAR_DISCOUNT, 
 type Store = {
   id: string; name: string; slug: string | null
   plan: string; status: string; until: string | null
-  cycle: string | null; lockedPrice: number | null
+  cycle: string | null; lockedPrice: number | null; affiliateId: string | null
 }
+
+type Affiliate = { id: string; name: string; contact: string | null; referralCode: string; commissionRate: number; status: string }
+type Earnings = Record<string, { pending: number; paid: number; total: number }>
 
 // ── date helpers (YYYY-MM-DD, client-side) ───────────────────────────────────
 const todayStr = () => new Date(Date.now() + 7 * 3600 * 1000).toISOString().slice(0, 10)
@@ -29,17 +32,18 @@ function daysLeft(until: string | null): number | null {
 
 export default function SuperAdminPage() {
   const [stores, setStores] = useState<Store[] | null>(null)
+  const [affiliates, setAffiliates] = useState<Affiliate[]>([])
   const [denied, setDenied] = useState(false)
   const [err, setErr]       = useState('')
   const [busy, setBusy]     = useState<string | null>(null)
 
   const load = useCallback(async () => {
     setErr('')
-    const r = await authedFetch('/api/admin/stores')
-    if (r.status === 401 || r.status === 403) { setDenied(true); return }
-    if (!r.ok) { setErr('โหลดข้อมูลไม่สำเร็จ'); return }
-    const d = await r.json()
-    setStores(d.stores ?? [])
+    const [rs, ra] = await Promise.all([authedFetch('/api/admin/stores'), authedFetch('/api/admin/affiliates')])
+    if (rs.status === 401 || rs.status === 403) { setDenied(true); return }
+    if (!rs.ok) { setErr('โหลดข้อมูลไม่สำเร็จ'); return }
+    setStores((await rs.json()).stores ?? [])
+    if (ra.ok) setAffiliates((await ra.json()).affiliates ?? [])
   }, [])
 
   useEffect(() => { load() }, [load])
@@ -107,6 +111,7 @@ export default function SuperAdminPage() {
                   <th className="px-4 py-3">สถานะ</th>
                   <th className="px-4 py-3">หมดอายุ</th>
                   <th className="px-4 py-3">ราคาล็อก</th>
+                  <th className="px-4 py-3">นายหน้า</th>
                   <th className="px-4 py-3">จัดการ</th>
                 </tr>
               </thead>
@@ -139,6 +144,16 @@ export default function SuperAdminPage() {
                       </td>
                       <td className="px-4 py-3 text-gray-600">{s.lockedPrice != null ? `฿${s.lockedPrice.toLocaleString()}` : '—'}</td>
                       <td className="px-4 py-3">
+                        <select
+                          value={s.affiliateId ?? ''}
+                          onChange={e => patch(s.id, { affiliateId: e.target.value || null })}
+                          className="border border-gray-200 rounded-lg px-2 py-1 text-xs max-w-[120px]"
+                        >
+                          <option value="">— ไม่มี —</option>
+                          {affiliates.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
+                        </select>
+                      </td>
+                      <td className="px-4 py-3">
                         <div className="flex flex-wrap gap-1.5">
                           <button disabled={busy === s.id} onClick={() => renew(s, 'monthly')}
                             className="text-[11px] font-bold px-2 py-1 rounded-lg bg-gray-900 text-white disabled:opacity-40">+1 เดือน</button>
@@ -159,6 +174,8 @@ export default function SuperAdminPage() {
         )}
 
         <PaymentsPanel onChange={load} onError={setErr} />
+
+        <AffiliatesPanel onChange={load} onError={setErr} />
 
         <p className="text-[11px] text-gray-400 mt-4">
           ราคาอ้างอิง: Pro ฿{planPrice('pro', 'monthly').toLocaleString()}/เดือน · ฿{planPrice('pro', 'yearly').toLocaleString()}/ปี ·
@@ -228,6 +245,104 @@ function PaymentsPanel({ onChange, onError }: { onChange: () => void; onError: (
           ))}
         </div>
       )}
+    </div>
+  )
+}
+
+function AffiliatesPanel({ onChange, onError }: { onChange: () => void; onError: (m: string) => void }) {
+  const [affiliates, setAffiliates] = useState<Affiliate[] | null>(null)
+  const [earnings, setEarnings] = useState<Earnings>({})
+  const [busy, setBusy] = useState<string | null>(null)
+  const [name, setName] = useState('')
+  const [contact, setContact] = useState('')
+  const [rate, setRate] = useState('20')   // percent, converted to fraction
+
+  const load = useCallback(async () => {
+    const r = await authedFetch('/api/admin/affiliates')
+    if (!r.ok) { setAffiliates([]); return }
+    const d = await r.json()
+    setAffiliates(d.affiliates ?? []); setEarnings(d.earnings ?? {})
+  }, [])
+  useEffect(() => { load() }, [load])
+
+  async function create() {
+    if (!name.trim()) { onError('กรอกชื่อ นายหน้า'); return }
+    const pct = Number(rate)
+    if (!(pct >= 0) || pct > 100) { onError('% คอมต้องอยู่ 0–100'); return }
+    setBusy('new')
+    try {
+      const r = await authedFetch('/api/admin/affiliates', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: name.trim(), contact: contact.trim() || null, commissionRate: pct / 100 }),
+      })
+      if (!r.ok) { const d = await r.json().catch(() => ({})); onError(d.error || 'สร้างไม่สำเร็จ'); return }
+      setName(''); setContact(''); await load(); onChange()
+    } finally { setBusy(null) }
+  }
+
+  async function markPaid(id: string, name: string) {
+    if (!confirm(`ยืนยันว่าจ่ายคอมค้างทั้งหมดของ "${name}" แล้ว?`)) return
+    setBusy(id)
+    try {
+      const r = await authedFetch(`/api/admin/affiliates/${id}`, {
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'mark_paid' }),
+      })
+      if (!r.ok) { onError('ทำรายการไม่สำเร็จ'); return }
+      await load()
+    } finally { setBusy(null) }
+  }
+
+  if (affiliates === null) return null
+  const baht = (n: number) => '฿' + Math.round(n).toLocaleString()
+
+  return (
+    <div className="mt-6">
+      <h2 className="text-lg font-black text-gray-900 mb-2">🤝 นายหน้า (Affiliate)</h2>
+
+      {/* Create */}
+      <div className="mb-3 bg-white rounded-2xl border border-gray-100 p-4 flex flex-wrap items-end gap-3">
+        <div>
+          <label className="text-[11px] font-bold text-gray-400 uppercase block mb-1">ชื่อ</label>
+          <input value={name} onChange={e => setName(e.target.value)} placeholder="ชื่อนายหน้า" className="border border-gray-200 rounded-lg px-3 py-2 text-sm" />
+        </div>
+        <div>
+          <label className="text-[11px] font-bold text-gray-400 uppercase block mb-1">ติดต่อ</label>
+          <input value={contact} onChange={e => setContact(e.target.value)} placeholder="เบอร์ / LINE" className="border border-gray-200 rounded-lg px-3 py-2 text-sm" />
+        </div>
+        <div>
+          <label className="text-[11px] font-bold text-gray-400 uppercase block mb-1">% คอม</label>
+          <input value={rate} onChange={e => setRate(e.target.value.replace(/[^\d.]/g, ''))} inputMode="decimal" className="border border-gray-200 rounded-lg px-3 py-2 text-sm w-20" />
+        </div>
+        <button disabled={busy === 'new'} onClick={create} className="text-sm font-bold px-4 py-2 rounded-xl bg-gray-900 text-white disabled:opacity-40">เพิ่มนายหน้า</button>
+      </div>
+
+      {/* List */}
+      {affiliates.length === 0 ? (
+        <p className="text-sm text-gray-400">ยังไม่มีนายหน้า</p>
+      ) : (
+        <div className="bg-white rounded-2xl border border-gray-100 divide-y divide-gray-50">
+          {affiliates.map(a => {
+            const e = earnings[a.id] ?? { pending: 0, paid: 0, total: 0 }
+            return (
+              <div key={a.id} className="flex flex-wrap items-center justify-between gap-3 p-4">
+                <div>
+                  <div className="font-bold text-gray-900">{a.name} <span className="text-[11px] font-mono text-amber-600">{a.referralCode}</span></div>
+                  <div className="text-xs text-gray-400">{a.contact || '—'} · คอม {Math.round(a.commissionRate * 100)}% · {a.status}</div>
+                </div>
+                <div className="flex items-center gap-4 text-sm">
+                  <div className="text-right">
+                    <div className="text-amber-600 font-bold">ค้าง {baht(e.pending)}</div>
+                    <div className="text-[11px] text-gray-400">จ่ายแล้ว {baht(e.paid)}</div>
+                  </div>
+                  <button disabled={busy === a.id || e.pending <= 0} onClick={() => markPaid(a.id, a.name)}
+                    className="text-[11px] font-bold px-3 py-1.5 rounded-lg bg-emerald-500 text-white disabled:opacity-40">มาร์คจ่ายคอม</button>
+                </div>
+              </div>
+            )
+          })}
+        </div>
+      )}
+      <p className="text-[11px] text-gray-400 mt-2">คอมเกิดอัตโนมัติทุกครั้งที่ร้าน (ที่ผูกนายหน้าไว้) จ่ายเงินและคุณกดยืนยันสลิป</p>
     </div>
   )
 }
