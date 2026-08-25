@@ -5,6 +5,7 @@
 
 import { supabase } from './supabase'
 import { AI_ADDON, aiCostThb } from '@baze/config'
+import { createCommissionForPayment } from './affiliates'
 
 // The sole-store fallback: a single-tenant install has exactly one store, so
 // callers (public customer order page, internal cross-calls during single-tenant
@@ -76,7 +77,7 @@ export async function getStoreSubscription(storeId?: string): Promise<StoreSubsc
 export type StoreAdminRow = {
   id: string; name: string; slug: string | null
   plan: string; status: string; until: string | null
-  cycle: string | null; lockedPrice: number | null
+  cycle: string | null; lockedPrice: number | null; affiliateId: string | null
 }
 
 function mapStoreAdminRow(r: Record<string, unknown>): StoreAdminRow {
@@ -89,10 +90,11 @@ function mapStoreAdminRow(r: Record<string, unknown>): StoreAdminRow {
     until:       (r.subscription_until as string | null) ?? null,
     cycle:       (r.billing_cycle as string | null) ?? null,
     lockedPrice: r.locked_price != null ? Number(r.locked_price) : null,
+    affiliateId: (r.affiliate_id as string | null) ?? null,
   }
 }
 
-const STORE_ADMIN_COLS = 'id, name, slug, plan, subscription_status, subscription_until, billing_cycle, locked_price'
+const STORE_ADMIN_COLS = 'id, name, slug, plan, subscription_status, subscription_until, billing_cycle, locked_price, affiliate_id'
 
 export async function listStoresAdmin(): Promise<StoreAdminRow[]> {
   const { data, error } = await supabase.from('stores').select(STORE_ADMIN_COLS).order('created_at', { ascending: true })
@@ -245,6 +247,11 @@ export async function confirmStorePayment(id: string, by: string): Promise<Store
     .update({ status: 'confirmed', confirmed_by: by, confirmed_at: new Date().toISOString() })
     .eq('id', id).select('*, stores(name, slug)').single()
   if (error) throw error
+
+  // Accrue affiliate commission for this store's referrer (best-effort — a
+  // commission hiccup must not undo a confirmed payment).
+  await createCommissionForPayment({ id: payment.id, storeId: payment.storeId, amount: payment.amount }).catch(() => {})
+
   return mapPayment(data)
 }
 
