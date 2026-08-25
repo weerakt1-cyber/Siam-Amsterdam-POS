@@ -326,7 +326,14 @@ function AffiliatesPanel({ onChange, onError }: { onChange: () => void; onError:
             return (
               <div key={a.id} className="flex flex-wrap items-center justify-between gap-3 p-4">
                 <div>
-                  <div className="font-bold text-gray-900">{a.name} <span className="text-[11px] font-mono text-amber-600">{a.referralCode}</span></div>
+                  <div className="font-bold text-gray-900">
+                    {a.name} <span className="text-[11px] font-mono text-amber-600">{a.referralCode}</span>
+                    <button
+                      onClick={() => { navigator.clipboard?.writeText(`${location.origin}/partner/${a.referralCode}`); onError('') }}
+                      className="ml-2 text-[10px] font-bold px-2 py-0.5 rounded bg-gray-100 text-gray-600 hover:bg-gray-200"
+                      title="คัดลอกลิงก์รายได้ของนายหน้า"
+                    >คัดลอกลิงก์</button>
+                  </div>
                   <div className="text-xs text-gray-400">{a.contact || '—'} · คอม {Math.round(a.commissionRate * 100)}% · {a.status}</div>
                 </div>
                 <div className="flex items-center gap-4 text-sm">
