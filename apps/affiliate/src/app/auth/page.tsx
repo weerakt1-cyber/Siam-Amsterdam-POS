@@ -78,7 +78,9 @@ export default function PartnerAuthPage() {
 
           {error && <p className="text-red-400 text-xs text-center bg-red-400/10 rounded-lg py-2 px-3">{error}</p>}
         </div>
-        <p className="text-[11px] text-gray-600 text-center">ใช้บัญชี Google ที่ลงทะเบียนไว้กับผู้ดูแลระบบ</p>
+        <button onClick={() => router.push('/apply')} className="text-[12px] text-amber-500 hover:text-amber-400 transition text-center font-semibold">
+          ยังไม่เป็นนายหน้า? · สมัครที่นี่
+        </button>
       </div>
     </div>
   )
