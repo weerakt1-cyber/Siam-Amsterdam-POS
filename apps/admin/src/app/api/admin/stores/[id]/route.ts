@@ -2,7 +2,7 @@ export const dynamic = 'force-dynamic'
 
 import { NextRequest, NextResponse } from 'next/server'
 import { requireSuperAdmin } from '@baze/db'
-import { updateStoreBilling, setStoreAffiliate, listStoresAdmin } from '@baze/db'
+import { updateStoreBilling, setStoreAffiliate, listStoresAdmin, adminRenewStore } from '@baze/db'
 
 // PATCH — update a store's subscription/billing (super-admin only). Any subset
 // of { plan, status, until, cycle, lockedPrice, affiliateId }. Extending is just
@@ -12,6 +12,15 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   if (!gate.ok) return gate.res
   const { id } = await params
   const b = await req.json().catch(() => ({}))
+
+  // Paid renewal (+1 month / +1 year): extends the sub AND records a confirmed
+  // payment so the referrer earns commission.
+  if (b.action === 'renew') {
+    const cycle = b.cycle === 'yearly' ? 'yearly' : 'monthly'
+    const store = await adminRenewStore(id, cycle, gate.email)
+    if (!store) return NextResponse.json({ error: 'Store not found' }, { status: 404 })
+    return NextResponse.json({ store })
+  }
 
   // Referrer assignment is a separate concern from billing fields.
   if (b.affiliateId !== undefined) {
