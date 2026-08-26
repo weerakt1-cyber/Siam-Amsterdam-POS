@@ -1,7 +1,7 @@
 export const dynamic = 'force-dynamic'
 
 import { NextRequest, NextResponse } from 'next/server'
-import { getAuthUser, getAffiliateByEmail, applyAsAffiliate } from '@baze/db'
+import { getAuthUser, getAffiliateByEmail, applyAsAffiliate, notifyAdmin, adminUrl } from '@baze/db'
 
 type State = 'none' | 'pending' | 'active' | 'rejected'
 function stateOf(status: string | null | undefined): State {
@@ -39,6 +39,15 @@ export async function POST(req: NextRequest) {
 
   try {
     const aff = await applyAsAffiliate({ email: user.email, name, contact })
+    // Fire-and-forget push to the operator (no-op if Telegram env isn't set).
+    const base = adminUrl()
+    await notifyAdmin(
+      `🤝 มีใบสมัครนายหน้าใหม่\n` +
+      `ชื่อ: ${name}\n` +
+      `อีเมล: ${user.email}\n` +
+      `ติดต่อ: ${contact || '-'}\n` +
+      (base ? `อนุมัติที่: ${base}/super-admin` : `เข้า admin console เพื่ออนุมัติ`),
+    )
     return NextResponse.json({ ok: true, state: stateOf(aff.status) }, { status: 201 })
   } catch (err) {
     console.error('[affiliate-apply]', err instanceof Error ? err.message : err)
