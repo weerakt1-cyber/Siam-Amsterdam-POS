@@ -10,7 +10,7 @@ type Store = {
   cycle: string | null; lockedPrice: number | null; affiliateId: string | null
 }
 
-type Affiliate = { id: string; name: string; contact: string | null; referralCode: string; commissionRate: number; status: string }
+type Affiliate = { id: string; name: string; contact: string | null; email: string | null; referralCode: string; commissionRate: number; status: string }
 type Earnings = Record<string, { pending: number; paid: number; total: number }>
 
 // ── date helpers (YYYY-MM-DD, client-side) ───────────────────────────────────
@@ -255,6 +255,7 @@ function AffiliatesPanel({ onChange, onError }: { onChange: () => void; onError:
   const [busy, setBusy] = useState<string | null>(null)
   const [name, setName] = useState('')
   const [contact, setContact] = useState('')
+  const [email, setEmail] = useState('')   // Google login email for the portal
   const [rate, setRate] = useState('20')   // percent, converted to fraction
 
   const load = useCallback(async () => {
@@ -273,10 +274,10 @@ function AffiliatesPanel({ onChange, onError }: { onChange: () => void; onError:
     try {
       const r = await authedFetch('/api/admin/affiliates', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: name.trim(), contact: contact.trim() || null, commissionRate: pct / 100 }),
+        body: JSON.stringify({ name: name.trim(), contact: contact.trim() || null, email: email.trim() || null, commissionRate: pct / 100 }),
       })
       if (!r.ok) { const d = await r.json().catch(() => ({})); onError(d.error || 'สร้างไม่สำเร็จ'); return }
-      setName(''); setContact(''); await load(); onChange()
+      setName(''); setContact(''); setEmail(''); await load(); onChange()
     } finally { setBusy(null) }
   }
 
@@ -310,6 +311,10 @@ function AffiliatesPanel({ onChange, onError }: { onChange: () => void; onError:
           <input value={contact} onChange={e => setContact(e.target.value)} placeholder="เบอร์ / LINE" className="border border-gray-200 rounded-lg px-3 py-2 text-sm" />
         </div>
         <div>
+          <label className="text-[11px] font-bold text-gray-400 uppercase block mb-1">อีเมล login (Google)</label>
+          <input value={email} onChange={e => setEmail(e.target.value)} inputMode="email" placeholder="broker@gmail.com" className="border border-gray-200 rounded-lg px-3 py-2 text-sm" />
+        </div>
+        <div>
           <label className="text-[11px] font-bold text-gray-400 uppercase block mb-1">% คอม</label>
           <input value={rate} onChange={e => setRate(e.target.value.replace(/[^\d.]/g, ''))} inputMode="decimal" className="border border-gray-200 rounded-lg px-3 py-2 text-sm w-20" />
         </div>
@@ -335,6 +340,7 @@ function AffiliatesPanel({ onChange, onError }: { onChange: () => void; onError:
                     >คัดลอกลิงก์</button>
                   </div>
                   <div className="text-xs text-gray-400">{a.contact || '—'} · คอม {Math.round(a.commissionRate * 100)}% · {a.status}</div>
+                  <div className="text-[11px] text-gray-400">{a.email ? `🔑 ${a.email}` : '⚠️ ยังไม่ตั้งอีเมล login'}</div>
                 </div>
                 <div className="flex items-center gap-4 text-sm">
                   <div className="text-right">
