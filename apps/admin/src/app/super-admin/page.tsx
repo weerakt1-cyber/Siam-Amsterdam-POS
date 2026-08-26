@@ -271,6 +271,19 @@ function AffiliatesPanel({ onChange, onError }: { onChange: () => void; onError:
     } finally { setBusy(null) }
   }
 
+  async function decide(id: string, status: 'active' | 'rejected', name: string) {
+    const verb = status === 'active' ? 'อนุมัติ' : 'ปฏิเสธ'
+    if (!confirm(`${verb}ใบสมัครนายหน้าของ "${name}"?`)) return
+    setBusy(id)
+    try {
+      const r = await authedFetch(`/api/admin/affiliates/${id}`, {
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status }),
+      })
+      if (!r.ok) { onError('ทำรายการไม่สำเร็จ'); return }
+      await load(); onChange()
+    } finally { setBusy(null) }
+  }
+
   async function markPaid(id: string, name: string) {
     if (!confirm(`ยืนยันว่าจ่ายคอมค้างทั้งหมดของ "${name}" แล้ว?`)) return
     setBusy(id)
@@ -318,8 +331,9 @@ function AffiliatesPanel({ onChange, onError }: { onChange: () => void; onError:
         <div className="bg-white rounded-2xl border border-gray-100 divide-y divide-gray-50">
           {affiliates.map(a => {
             const e = earnings[a.id] ?? { pending: 0, paid: 0, total: 0 }
+            const isPending = a.status === 'pending'
             return (
-              <div key={a.id} className="flex flex-wrap items-center justify-between gap-3 p-4">
+              <div key={a.id} className={`flex flex-wrap items-center justify-between gap-3 p-4 ${isPending ? 'bg-amber-50/60' : ''}`}>
                 <div>
                   <div className="font-bold text-gray-900">
                     {a.name} <span className="text-[11px] font-mono text-amber-600">{a.referralCode}</span>
@@ -337,14 +351,24 @@ function AffiliatesPanel({ onChange, onError }: { onChange: () => void; onError:
                   <div className="text-xs text-gray-400">{a.contact || '—'} · คอม {Math.round(a.commissionRate * 100)}% · {a.status}</div>
                   <div className="text-[11px] text-gray-400">{a.email ? `🔑 ${a.email}` : '⚠️ ยังไม่ตั้งอีเมล login'}</div>
                 </div>
-                <div className="flex items-center gap-4 text-sm">
-                  <div className="text-right">
-                    <div className="text-amber-600 font-bold">ค้าง {baht(e.pending)}</div>
-                    <div className="text-[11px] text-gray-400">จ่ายแล้ว {baht(e.paid)}</div>
+                {isPending ? (
+                  <div className="flex items-center gap-2 text-sm">
+                    <span className="text-[10px] font-bold px-2 py-1 rounded-lg bg-amber-100 text-amber-700">ใบสมัครใหม่</span>
+                    <button disabled={busy === a.id} onClick={() => decide(a.id, 'active', a.name)}
+                      className="text-[11px] font-bold px-3 py-1.5 rounded-lg bg-emerald-500 text-white disabled:opacity-40">อนุมัติ</button>
+                    <button disabled={busy === a.id} onClick={() => decide(a.id, 'rejected', a.name)}
+                      className="text-[11px] font-bold px-3 py-1.5 rounded-lg bg-gray-200 text-gray-700 disabled:opacity-40">ปฏิเสธ</button>
                   </div>
-                  <button disabled={busy === a.id || e.pending <= 0} onClick={() => markPaid(a.id, a.name)}
-                    className="text-[11px] font-bold px-3 py-1.5 rounded-lg bg-emerald-500 text-white disabled:opacity-40">มาร์คจ่ายคอม</button>
-                </div>
+                ) : (
+                  <div className="flex items-center gap-4 text-sm">
+                    <div className="text-right">
+                      <div className="text-amber-600 font-bold">ค้าง {baht(e.pending)}</div>
+                      <div className="text-[11px] text-gray-400">จ่ายแล้ว {baht(e.paid)}</div>
+                    </div>
+                    <button disabled={busy === a.id || e.pending <= 0} onClick={() => markPaid(a.id, a.name)}
+                      className="text-[11px] font-bold px-3 py-1.5 rounded-lg bg-emerald-500 text-white disabled:opacity-40">มาร์คจ่ายคอม</button>
+                  </div>
+                )}
               </div>
             )
           })}

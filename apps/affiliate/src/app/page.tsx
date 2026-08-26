@@ -49,10 +49,13 @@ export default function PartnerDashboard() {
   if (notAffiliate) return (
     <div className="min-h-screen flex items-center justify-center px-6">
       <div className="text-center max-w-sm">
-        <p className="text-4xl mb-3">🚫</p>
-        <h1 className="text-xl font-black text-gray-900">อีเมลนี้ยังไม่ได้ลงทะเบียน</h1>
-        <p className="text-sm text-gray-500 mt-2">บัญชีที่ล็อกอินยังไม่ถูกตั้งเป็นนายหน้า — ติดต่อผู้ดูแลระบบให้เพิ่มอีเมลของคุณ</p>
-        <button onClick={logout} className="mt-4 text-sm font-bold px-4 py-2 rounded-xl bg-gray-900 text-white">ออกจากระบบ</button>
+        <p className="text-4xl mb-3">🤝</p>
+        <h1 className="text-xl font-black text-gray-900">ยังไม่ใช่นายหน้า</h1>
+        <p className="text-sm text-gray-500 mt-2">อีเมลนี้ยังไม่ได้ลงทะเบียนเป็นนายหน้า — สมัครได้เลย รอผู้ดูแลอนุมัติแล้วเข้าดูรายได้ได้ทันที</p>
+        <div className="mt-4 flex items-center justify-center gap-2">
+          <button onClick={() => router.push('/apply')} className="text-sm font-bold px-4 py-2 rounded-xl bg-amber-500 text-black">สมัครเป็นนายหน้า</button>
+          <button onClick={logout} className="text-sm font-bold px-4 py-2 rounded-xl bg-gray-900 text-white">ออกจากระบบ</button>
+        </div>
       </div>
     </div>
   )

@@ -66,6 +66,29 @@ export async function createAffiliate(input: {
   return mapAffiliate(data)
 }
 
+// Self-service application from the affiliate portal. Creates a PENDING affiliate:
+// existing guards (requireAffiliate, signup attribution, commission accrual) all
+// require status 'active', so a pending record grants nothing until an admin
+// approves it. Idempotent per email — re-applying returns the existing record so
+// a double-submit or re-login never creates duplicates or resets the status.
+export async function applyAsAffiliate(input: {
+  email: string; name: string; contact?: string | null
+}): Promise<Affiliate> {
+  const email = input.email.trim().toLowerCase()
+  const existing = await getAffiliateByEmail(email)
+  if (existing) return existing
+  const { data, error } = await supabase.from('affiliates').insert({
+    name:            input.name.trim(),
+    contact:         input.contact?.trim() || null,
+    email,
+    referral_code:   makeCode(input.name),
+    commission_rate: 0.20,
+    status:          'pending',
+  }).select(AFF_COLS).single()
+  if (error) throw error
+  return mapAffiliate(data)
+}
+
 export async function updateAffiliate(id: string, patch: {
   name?: string; contact?: string | null; email?: string | null; commissionRate?: number; status?: string; payoutInfo?: string | null; note?: string | null
 }): Promise<Affiliate | null> {
