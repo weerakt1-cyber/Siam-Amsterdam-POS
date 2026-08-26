@@ -1,8 +1,8 @@
 export const dynamic = 'force-dynamic'
 
 import { NextRequest, NextResponse } from 'next/server'
-import { requireSuperAdmin } from '@/lib/api-auth'
-import { updateAffiliate, markAffiliatePaid } from '@/lib/store'
+import { requireSuperAdmin } from '@baze/db'
+import { updateAffiliate, markAffiliatePaid } from '@baze/db'
 
 // PATCH — update an affiliate (rate/status/contact/…), or run a payout:
 //   body { action: 'mark_paid' } → marks all pending commissions paid.

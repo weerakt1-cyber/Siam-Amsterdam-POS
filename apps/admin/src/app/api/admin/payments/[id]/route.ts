@@ -1,8 +1,8 @@
 export const dynamic = 'force-dynamic'
 
 import { NextRequest, NextResponse } from 'next/server'
-import { requireSuperAdmin } from '@/lib/api-auth'
-import { confirmStorePayment, rejectStorePayment } from '@/lib/store'
+import { requireSuperAdmin } from '@baze/db'
+import { confirmStorePayment, rejectStorePayment } from '@baze/db'
 
 // POST — super-admin confirms or rejects a pending payment.
 //   body: { action: 'confirm' | 'reject' }
