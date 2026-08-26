@@ -46,7 +46,7 @@ export default function SignupPage() {
       const d = await res.json().catch(() => ({}))
       if (!res.ok) { setError(d.error || 'สร้างร้านไม่สำเร็จ'); setBusy(false); return }
       setDone(true)
-      setTimeout(() => router.replace('/pos'), 1200)
+      setTimeout(() => router.replace('/welcome'), 1200)
     } catch { setError('เชื่อมต่อไม่ได้'); setBusy(false) }
   }
 
@@ -54,7 +54,7 @@ export default function SignupPage() {
 
   if (done) return (
     <div className="min-h-screen bg-gray-950 flex items-center justify-center px-6">
-      <div className="text-center"><p className="text-5xl mb-3">🎉</p><p className="text-white font-black text-lg">สร้างร้านสำเร็จ!</p><p className="text-gray-400 text-sm mt-1">กำลังพาเข้าสู่ระบบ…</p></div>
+      <div className="text-center"><p className="text-5xl mb-3">🎉</p><p className="text-white font-black text-lg">สร้างร้านสำเร็จ!</p><p className="text-gray-400 text-sm mt-1">กำลังเตรียมการติดตั้ง…</p></div>
     </div>
   )
 

@@ -14,8 +14,11 @@ const config: CapacitorConfig = {
   // For on-device DEV against your own machine instead, temporarily swap the
   // url to 'http://<your-computer-LAN-ip>:3000' and add `cleartext: true`,
   // then `npx cap sync`. Change it back to the production URL before shipping.
+  // Boot straight into the app (/pos), NOT the marketing landing at '/'. The
+  // installed app is for existing stores; new-store signup happens on the web
+  // via the affiliate's referral link, before the app is ever installed.
   server: {
-    url: 'https://siam-amsterdam-pos.vercel.app',
+    url: 'https://siam-amsterdam-pos.vercel.app/pos',
   },
 
   plugins: {
