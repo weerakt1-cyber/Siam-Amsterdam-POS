@@ -173,6 +173,177 @@ function PaymentSettings() {
   )
 }
 
+// ─── Bank-transfer / PromptPay-slip sub-component ─────────────────────────────
+// For stores without Omise: accept transfers to a personal PromptPay account and
+// verify the customer's slip — automatically (SlipOK) or by staff confirmation.
+
+function TransferSettings() {
+  const { t: tr } = usePosLang()
+  const [enabled, setEnabled]         = useState(false)
+  const [mode, setMode]               = useState<'auto' | 'manual'>('manual')
+  const [promptpayId, setPromptpayId] = useState('')
+  const [accountName, setAccountName] = useState('')
+  const [slipokKey, setSlipokKey]     = useState('')          // only sent if newly typed
+  const [slipokSet, setSlipokSet]     = useState(false)
+  const [branchId, setBranchId]       = useState('')
+  const [loading, setLoading]         = useState(true)
+  const [saving, setSaving]           = useState(false)
+  const [saved, setSaved]             = useState(false)
+  const [error, setError]             = useState('')
+  const [testMsg, setTestMsg]         = useState('')
+
+  const load = useCallback(async () => {
+    try {
+      const r = await authedFetch('/api/payment/config')
+      const d = await r.json()
+      const t = d.transfer ?? {}
+      setEnabled(!!t.enabled)
+      setMode(t.mode === 'auto' ? 'auto' : 'manual')
+      setPromptpayId(t.promptpayId ?? '')
+      setAccountName(t.accountName ?? '')
+      setSlipokSet(!!d.transferAdmin?.slipokConfigured)
+      setBranchId(d.transferAdmin?.slipokBranchId ?? '')
+    } catch { /* ignore */ } finally {
+      setLoading(false)
+    }
+  }, [])
+  useEffect(() => { load() }, [load])
+
+  async function save() {
+    setSaving(true); setError(''); setSaved(false)
+    try {
+      const transfer: Record<string, unknown> = {
+        enabled, mode, promptpayId: promptpayId.trim(), accountName: accountName.trim(),
+        slipokBranchId: branchId.trim(),
+      }
+      if (slipokKey.trim()) transfer.slipokApiKey = slipokKey.trim()   // don't wipe unless replaced
+      const r = await authedFetch('/api/payment/config', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ transfer }),
+      })
+      if (!r.ok) throw new Error((await r.json()).error ?? 'Save failed')
+      setSlipokKey('')
+      await load()
+      setSaved(true)
+      setTimeout(() => setSaved(false), 2500)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Save failed')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  // "ทดสอบ" — send a harmless sample payload through the verify pipeline. A
+  // configured auto store gets a real SlipOK round-trip (expected to reject the
+  // dummy); manual mode / no key degrades to pending. Either proves the wiring.
+  async function test() {
+    setTestMsg('กำลังทดสอบ…')
+    try {
+      const r = await authedFetch('/api/payment/slip/verify', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ orderId: '00000000-0000-0000-0000-000000000000', qrPayload: '00020101' }),
+      })
+      const d = await r.json().catch(() => ({}))
+      // A 404 (dummy order) still proves auth + config resolved correctly.
+      setTestMsg(r.status === 404
+        ? '✓ การตั้งค่าใช้งานได้ (order ทดสอบไม่มีอยู่จริง ตามคาด)'
+        : d.error ? `ผล: ${d.error}` : `ผล: ${d.status ?? r.status}`)
+    } catch {
+      setTestMsg('✗ เชื่อมต่อไม่สำเร็จ')
+    }
+  }
+
+  if (loading) return <p className="text-sm text-gray-400">{tr('loading')}</p>
+
+  const inputCls = 'w-full bg-white border border-gray-200 rounded-xl px-3 py-2.5 text-sm text-gray-900 placeholder:text-gray-300 focus:outline-none focus:border-amber-400 transition'
+
+  return (
+    <div className="flex flex-col gap-4 mt-8 pt-6 border-t border-gray-100">
+      <div className="flex items-center justify-between">
+        <div>
+          <p className="font-bold text-sm text-gray-800">โอนเงิน / PromptPay (สลิป)</p>
+          <p className="text-xs text-gray-400 mt-0.5">รับโอนเข้าบัญชีส่วนตัว แล้วตรวจสลิปอัตโนมัติหรือให้พนักงานยืนยัน</p>
+        </div>
+        <button
+          onClick={() => setEnabled(v => !v)}
+          className={`shrink-0 w-12 h-7 rounded-full transition relative ${enabled ? 'bg-emerald-500' : 'bg-gray-300'}`}
+          aria-pressed={enabled}
+        >
+          <span className={`absolute top-0.5 w-6 h-6 bg-white rounded-full shadow transition ${enabled ? 'left-[22px]' : 'left-0.5'}`} />
+        </button>
+      </div>
+
+      {enabled && (
+        <>
+          {/* Mode */}
+          <div className="grid grid-cols-2 gap-2">
+            {([
+              { id: 'manual', label: 'พนักงานยืนยัน', desc: 'พนักงานดูสลิปแล้วกดยืนยัน' },
+              { id: 'auto',   label: 'ตรวจอัตโนมัติ',  desc: 'ตรวจสลิปผ่าน SlipOK' },
+            ] as const).map(m => (
+              <button
+                key={m.id}
+                onClick={() => setMode(m.id)}
+                className={`text-left p-3 rounded-xl border-2 transition ${
+                  mode === m.id ? 'border-emerald-400 bg-emerald-50' : 'border-gray-200 bg-white hover:border-gray-300'
+                }`}
+              >
+                <p className="font-bold text-sm text-gray-800">{m.label}</p>
+                <p className="text-[11px] text-gray-400 mt-0.5">{m.desc}</p>
+              </button>
+            ))}
+          </div>
+
+          <div>
+            <label className="text-xs text-gray-500 mb-1 block">PromptPay (เบอร์โทร / เลขบัตร ปชช. / e-Wallet)</label>
+            <input value={promptpayId} onChange={e => setPromptpayId(e.target.value)} placeholder="0812345678" className={inputCls} />
+          </div>
+          <div>
+            <label className="text-xs text-gray-500 mb-1 block">ชื่อบัญชีผู้รับ</label>
+            <input value={accountName} onChange={e => setAccountName(e.target.value)} placeholder="นาย…" className={inputCls} />
+          </div>
+
+          {mode === 'auto' && (
+            <div className="flex flex-col gap-3 bg-gray-50 border border-gray-100 rounded-xl p-3">
+              <p className="text-[11px] text-gray-500">
+                ตรวจสลิปอัตโนมัติผ่าน SlipOK — ต้องสมัครที่ slipok.com เพื่อรับ API key + Branch ID
+                (ถ้ายังไม่ตั้งค่าหรือเครดิตหมด ระบบจะเปลี่ยนเป็นให้พนักงานยืนยันแทน)
+              </p>
+              <div>
+                <label className="text-xs text-gray-500 mb-1 block">
+                  SlipOK API Key
+                  {slipokSet && <span className="text-emerald-600 font-semibold ml-2">✓ ตั้งค่าแล้ว</span>}
+                </label>
+                <input type="password" value={slipokKey} onChange={e => setSlipokKey(e.target.value)}
+                  placeholder={slipokSet ? 'พิมพ์ใหม่เพื่อแทนที่' : 'SLIPOK…'} autoComplete="off" className={`${inputCls} font-mono`} />
+              </div>
+              <div>
+                <label className="text-xs text-gray-500 mb-1 block">SlipOK Branch ID</label>
+                <input value={branchId} onChange={e => setBranchId(e.target.value)} placeholder="เช่น 12345" className={inputCls} />
+              </div>
+            </div>
+          )}
+        </>
+      )}
+
+      {error && <p className="text-xs text-red-500">{error}</p>}
+      {testMsg && <p className="text-xs text-gray-500">{testMsg}</p>}
+
+      <div className="flex items-center gap-3">
+        <button onClick={save} disabled={saving}
+          className="px-5 py-2.5 rounded-xl bg-gray-900 text-white font-bold text-sm transition active:scale-95 disabled:opacity-50">
+          {saving ? tr('saving') : saved ? '✓ ' + tr('saved') : tr('paySaveKeys')}
+        </button>
+        {enabled && (
+          <button onClick={test}
+            className="px-5 py-2.5 rounded-xl border border-gray-300 text-gray-600 font-bold text-sm transition active:scale-95 hover:bg-gray-50">
+            ทดสอบ
+          </button>
+        )}
+      </div>
+    </div>
+  )
+}
+
 // ─── Main Page ─────────────────────────────────────────────────────────────────
 
 // ─── Delivery settings (moved here from the staff-facing delivery board so ──────
@@ -1503,6 +1674,7 @@ export default function SettingsPage() {
           <SectionTitle>{tr('setOnlinePayment')}</SectionTitle>
           <div className="bg-white border border-gray-100 rounded-2xl p-5 shadow-sm">
             <PaymentSettings />
+            <TransferSettings />
           </div>
         </section>}
 

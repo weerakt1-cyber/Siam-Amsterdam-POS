@@ -1,6 +1,7 @@
 'use client'
 
 import { authedFetch } from "@/lib/supabase-browser"
+import SlipTransferPanel from "@/components/pos/SlipTransferPanel"
 import { useState, useEffect, useRef } from 'react'
 import {
   loadBarSettings, loadPrinterDevice,
@@ -21,7 +22,7 @@ function effUnit(c: CartItem): number {
     ? Math.round(c.price * (1 - c.itemDiscount / 100))
     : c.price
 }
-export type PaymentMethod = 'cash' | 'card' | 'promptpay' | 'credit_card' | 'promptpay_qr' | 'wechat_pay'
+export type PaymentMethod = 'cash' | 'card' | 'promptpay' | 'credit_card' | 'promptpay_qr' | 'wechat_pay' | 'transfer'
 export type DiscountInfo  = { type: 'percent' | 'fixed'; value: number; amount: number; couponCode?: string }
 
 type Props = {
@@ -162,6 +163,7 @@ ${note ? `<div class="sep"></div><div class="small">Note: ${note}</div>` : ''}
 const PAY_LABEL_MAP: Record<string, string> = {
   cash: 'Cash', card: 'Card', promptpay: 'QR PromptPay',
   credit_card: 'Credit Card', promptpay_qr: 'PromptPay QR', wechat_pay: 'WeChat/Alipay',
+  transfer: 'Bank Transfer',
 }
 
 // Payment-step icons, served from /public/pos-icons. Rendered in the POS
@@ -213,6 +215,12 @@ export default function CheckoutModal({
   const [ppQr,      setPpQr]      = useState<string | null>(null)
   const [ppLoading, setPpLoading] = useState(false)
 
+  // Bank-transfer (PromptPay slip) config — enabled/promptpayId/accountName from
+  // the store's payment config. When enabled, a "โอนเงิน" method is offered.
+  const [transferCfg, setTransferCfg] = useState<{
+    enabled: boolean; mode: 'auto' | 'manual'; promptpayId: string; accountName: string
+  } | null>(null)
+
   const [btStatus, setBtStatus] = useState<'idle' | 'connecting' | 'printing' | 'done' | 'error'>('idle')
   const [btError,  setBtError]  = useState('')
   const [btName,   setBtName]   = useState('')
@@ -225,6 +233,11 @@ export default function CheckoutModal({
     // Pre-warm the order lambda now (modal open) so confirming payment isn't
     // stalled by a serverless cold start on the first sale after a lull.
     authedFetch('/api/orders?warm=1').catch(() => {})
+    // Load transfer-payment config so we know whether to offer "โอนเงิน".
+    authedFetch('/api/payment/config')
+      .then(r => r.json())
+      .then(d => { if (d?.transfer) setTransferCfg(d.transfer) })
+      .catch(() => {})
     try {
       const u = sessionStorage.getItem('pos_active_user')
       if (u) setStaffName(JSON.parse(u).name ?? '')
@@ -251,6 +264,22 @@ export default function CheckoutModal({
       .finally(() => setPpLoading(false))
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [payment, cfg])
+
+  // Fetch the transfer PromptPay QR (uses the store's transfer promptpayId, which
+  // may differ from the POS static-QR number) when "โอนเงิน" is selected.
+  useEffect(() => {
+    if (payment !== 'transfer' || ppQr) return
+    const phone = transferCfg?.promptpayId ?? ''
+    if (!phone) return
+    setPpLoading(true)
+    const barNameParam = cfg?.barName ? `&barName=${encodeURIComponent(cfg.barName)}` : ''
+    authedFetch(`/api/payment/promptpay?phone=${encodeURIComponent(phone)}&amount=${total}${barNameParam}`)
+      .then(r => r.json())
+      .then(d => { if (d.dataUrl) setPpQr(d.dataUrl) })
+      .catch(() => {})
+      .finally(() => setPpLoading(false))
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [payment, transferCfg, cfg])
 
   // Auto-print when payment confirmed (step 3) — Bluetooth or LAN
   const autoPrintedRef = useRef(false)
@@ -500,11 +529,14 @@ export default function CheckoutModal({
                 <p className="text-xs text-stone-300 mt-1">{tr('coTable')} {table}</p>
               </div>
 
-              {/* Payment method selector — Cash + QR PromptPay */}
-              <div className="grid grid-cols-2 gap-2 mb-4">
+              {/* Payment method selector — Cash + QR PromptPay (+ Transfer if enabled) */}
+              <div className={`grid ${transferCfg?.enabled ? 'grid-cols-3' : 'grid-cols-2'} gap-2 mb-4`}>
                 {([
                   { id: 'cash',      icon: PAY_ICONS.cash, label: tr('coCash')    },
                   { id: 'promptpay', icon: PAY_ICONS.scan, label: tr('coQrPay')  },
+                  ...(transferCfg?.enabled
+                    ? [{ id: 'transfer' as const, icon: PAY_ICONS.scan, label: 'โอนเงิน' }]
+                    : []),
                 ] as const).map((pm) => (
                   <button
                     key={pm.id}
@@ -586,6 +618,36 @@ export default function CheckoutModal({
                   )}
                 </div>
               )}
+
+              {/* Bank-transfer panel — show the transfer QR; the slip is scanned
+                  after the sale is recorded (step 3) so it attaches to the order. */}
+              {payment === 'transfer' && (
+                <div className="bg-white border border-stone-100 rounded-xl p-4 flex flex-col items-center gap-3">
+                  {ppLoading ? (
+                    <div className="py-8 flex flex-col items-center gap-2">
+                      <div className="w-7 h-7 border-2 border-stone-200 border-t-emerald-500 rounded-full animate-spin" />
+                      <p className="text-xs text-stone-400">{tr('coGeneratingQr')}</p>
+                    </div>
+                  ) : ppQr ? (
+                    <>
+                      <div className="p-2 bg-white border-2 border-emerald-100 rounded-xl">
+                        <img src={ppQr} alt="Transfer QR" className="w-48 h-48 object-contain" />
+                      </div>
+                      <p className="text-2xl font-black text-stone-900">{baht(total)}</p>
+                      {transferCfg?.accountName && <p className="text-sm text-stone-500">{transferCfg.accountName}</p>}
+                      <p className="text-[10px] text-stone-400 text-center">
+                        ลูกค้าสแกนโอน แล้วกด &ldquo;{tr('coConfirmPayment')}&rdquo; เพื่อแนบสลิป
+                      </p>
+                    </>
+                  ) : (
+                    <div className="py-6 text-center flex flex-col items-center gap-2">
+                      <PIcon src={PAY_ICONS.scan} className="w-12 h-12" />
+                      <p className="text-sm font-bold text-stone-900">{baht(total)}</p>
+                      <p className="text-xs text-stone-400">ตั้งค่าบัญชีรับโอนใน Settings</p>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
 
             <div className="px-5 py-4 border-t border-stone-100 flex gap-3 bg-white">
@@ -595,7 +657,7 @@ export default function CheckoutModal({
               >
                 ← {tr('coBack')}
               </button>
-              {payment === 'promptpay' && (
+              {(payment === 'promptpay' || payment === 'transfer') && (
                 <button
                   onClick={() => handleConfirm()}
                   disabled={isConfirming}
@@ -631,6 +693,27 @@ export default function CheckoutModal({
               <p className="text-xs text-stone-300 mt-2 font-mono">Order #{orderRef}</p>
               {staffName && <p className="text-xs text-stone-300 mt-0.5">Staff: {staffName}</p>}
             </div>
+
+            {/* Transfer slip — verify/attach the customer's slip against the order.
+                Auto mode marks it verified; manual mode records it pending for a
+                staff confirm. Only once a real order id exists. */}
+            {payment === 'transfer' && orderRef !== 'DRAFT' && transferCfg?.promptpayId && (
+              <div className="w-full bg-stone-50 border border-stone-100 rounded-2xl p-4">
+                <SlipTransferPanel
+                  amount={total}
+                  orderId={orderRef}
+                  promptpayId={transferCfg.promptpayId}
+                  accountName={transferCfg.accountName}
+                  merchantName={cfg?.barName}
+                  isStaff
+                  post={(path, body) => authedFetch(path, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(body),
+                  })}
+                />
+              </div>
+            )}
 
             {/* Print — device connection only (no browser tab) */}
             <div className="flex flex-col gap-2 w-full">

@@ -1,7 +1,8 @@
 export const dynamic = "force-dynamic"
 
 import { NextRequest, NextResponse } from 'next/server'
-import { getOrder, updateOrderStatus, getMenuIngredients, adjustStock, awardOrderPoints } from '@/lib/store'
+import { getOrder, updateOrderStatus, awardOrderPoints } from '@/lib/store'
+import { deductStockForOrder } from '@/lib/order-payment'
 import { resolveStoreId } from '@/lib/api-auth'
 import { fireWebhook } from '@/lib/webhooks'
 import { getAdapter } from '@/lib/delivery-platforms'
@@ -66,22 +67,4 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   }
 
   return NextResponse.json({ order: updated })
-}
-
-async function deductStockForOrder(orderId: string, storeId: string) {
-  const order = await getOrder(orderId, storeId)
-  if (!order) return
-
-  for (const item of order.items) {
-    const ingredients = await getMenuIngredients(item.menuId)
-    for (const ing of ingredients) {
-      await adjustStock(
-        ing.inventoryItemId,
-        -(ing.quantityPerServing * item.qty),
-        'usage',
-        `Order ${orderId} — ${item.name} x${item.qty}`,
-        storeId,
-      )
-    }
-  }
 }
