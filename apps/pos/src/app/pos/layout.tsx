@@ -7,6 +7,8 @@ import PrinterAutoConnect from '@/components/pos/PrinterAutoConnect'
 import QrOrderAutoPrint from '@/components/pos/QrOrderAutoPrint'
 import SettingsSync from '@/components/pos/SettingsSync'
 import SubscriptionBanner from '@/components/pos/SubscriptionBanner'
+import ServiceWorkerRegister from '@/components/pos/ServiceWorkerRegister'
+import InstallPrompt from '@/components/pos/InstallPrompt'
 import { PosAuthProvider } from '@/lib/pos-auth'
 import { PosLangProvider } from '@/lib/pos-i18n'
 
@@ -33,6 +35,8 @@ export default function POSLayout({ children }: { children: React.ReactNode }) {
         <PrinterAutoConnect />
         <QrOrderAutoPrint />
         <SettingsSync />
+        <ServiceWorkerRegister />
+        <InstallPrompt />
       </AppAuthGuard>
       </PosLangProvider>
     </PosAuthProvider>

@@ -651,6 +651,17 @@ const DICT = {
   posEnterDrawerPin: { en: 'Enter drawer PIN', th: 'ใส่รหัสเปิดลิ้นชัก' },
   posWrongPin:       { en: 'Wrong PIN', th: 'รหัสไม่ถูกต้อง' },
   invLow:            { en: 'Low', th: 'ใกล้หมด' },
+
+  // ── Install app (PWA) ──
+  installTitle:      { en: 'Install Baze POS', th: 'ติดตั้งแอป Baze POS' },
+  installDesc:       { en: 'Add to your home screen for a full-screen, app-like experience.', th: 'เพิ่มลงหน้าจอโฮมเพื่อใช้งานแบบเต็มจอเหมือนแอปจริง' },
+  installBtn:        { en: 'Install app', th: 'ติดตั้งแอป' },
+  installLater:      { en: 'Not now', th: 'ไว้ก่อน' },
+  installIosTitle:   { en: 'Install on iPhone / iPad', th: 'ติดตั้งบน iPhone / iPad' },
+  installIosStep1:   { en: 'Tap the Share button in Safari', th: 'แตะปุ่มแชร์ในเบราว์เซอร์ Safari' },
+  installIosStep2:   { en: 'Choose "Add to Home Screen"', th: 'เลือก "เพิ่มไปยังหน้าจอโฮม"' },
+  installIosStep3:   { en: 'Tap "Add" to finish', th: 'แตะ "เพิ่ม" เพื่อเสร็จสิ้น' },
+  installClose:      { en: 'Got it', th: 'เข้าใจแล้ว' },
 } as const
 
 export type PosStringKey = keyof typeof DICT
