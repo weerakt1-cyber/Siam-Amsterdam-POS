@@ -107,6 +107,36 @@ export async function findStoreBySlug(slug: string): Promise<{ id: string } | nu
   return data ? { id: data.id as string } : null
 }
 
+// ── Self-service store signup (M3d — referral onboarding) ────────────────────
+// A new owner creates their own store (15-day Pro trial), optionally attributed
+// to the affiliate whose referral link they used.
+export async function createSignupStore(input: { name: string; slug: string; affiliateId?: string | null; trialDays?: number }): Promise<StoreAdminRow> {
+  const days = input.trialDays ?? 15
+  const until = new Date(Date.now() + days * 86400000 + 7 * 3600 * 1000).toISOString().slice(0, 10)
+  const { data, error } = await supabase.from('stores').insert({
+    name: input.name, slug: input.slug,
+    plan: 'pro', subscription_status: 'trial', subscription_until: until,
+    affiliate_id: input.affiliateId ?? null,
+  }).select(STORE_ADMIN_COLS).single()
+  if (error) throw error
+  return mapStoreAdminRow(data)
+}
+
+// Current owner state for a user (guards double-signup).
+export async function getOwnerState(userId: string): Promise<{ status: string | null; storeId: string | null } | null> {
+  const { data } = await supabase.from('profiles').select('status, store_id').eq('id', userId).maybeSingle()
+  return data ? { status: (data.status as string | null) ?? null, storeId: (data.store_id as string | null) ?? null } : null
+}
+
+// Make the signed-up user the approved admin of their new store. Upsert only
+// touches the provided columns, so color/avatar on an existing row are kept.
+export async function linkOwnerProfile(userId: string, name: string, storeId: string): Promise<void> {
+  const { error } = await supabase.from('profiles').upsert({
+    id: userId, name, role: 'admin', status: 'approved', store_id: storeId, provider: 'oauth',
+  }, { onConflict: 'id' })
+  if (error) throw error
+}
+
 export async function createStoreAdmin(input: {
   name: string; slug: string; plan?: string; cycle?: string | null; until?: string | null; lockedPrice?: number | null
 }): Promise<StoreAdminRow> {

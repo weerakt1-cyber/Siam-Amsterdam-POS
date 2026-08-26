@@ -29,6 +29,17 @@ export async function requireAffiliate(
   return { ok: true, affiliate }
 }
 
+// The authenticated Supabase user (id + email) from the Bearer token, or null.
+// Used by self-service flows (store signup) where no profile exists yet.
+export async function getAuthUser(req: NextRequest): Promise<{ id: string; email: string } | null> {
+  const authz = req.headers.get('authorization') ?? ''
+  const token = authz.toLowerCase().startsWith('bearer ') ? authz.slice(7).trim() : ''
+  if (!token) return null
+  const { data, error } = await supabase.auth.getUser(token)
+  if (error || !data?.user) return null
+  return { id: data.user.id, email: (data.user.email ?? '').toLowerCase() }
+}
+
 function superAdminEmails(): string[] {
   return (process.env.SUPER_ADMIN_EMAILS ?? '')
     .split(',').map(s => s.trim().toLowerCase()).filter(Boolean)
