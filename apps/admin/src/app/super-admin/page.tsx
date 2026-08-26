@@ -236,6 +236,9 @@ function PaymentsPanel({ onChange, onError }: { onChange: () => void; onError: (
   )
 }
 
+// POS app origin (where /signup and /partner live) — set on the admin project.
+const POS_URL = (process.env.NEXT_PUBLIC_POS_URL || '').replace(/\/$/, '')
+
 function AffiliatesPanel({ onChange, onError }: { onChange: () => void; onError: (m: string) => void }) {
   const [affiliates, setAffiliates] = useState<Affiliate[] | null>(null)
   const [earnings, setEarnings] = useState<Earnings>({})
@@ -321,10 +324,15 @@ function AffiliatesPanel({ onChange, onError }: { onChange: () => void; onError:
                   <div className="font-bold text-gray-900">
                     {a.name} <span className="text-[11px] font-mono text-amber-600">{a.referralCode}</span>
                     <button
-                      onClick={() => { navigator.clipboard?.writeText(`${location.origin}/partner/${a.referralCode}`); onError('') }}
-                      className="ml-2 text-[10px] font-bold px-2 py-0.5 rounded bg-gray-100 text-gray-600 hover:bg-gray-200"
-                      title="คัดลอกลิงก์รายได้ของนายหน้า"
-                    >คัดลอกลิงก์</button>
+                      onClick={() => { navigator.clipboard?.writeText(`${POS_URL}/signup?ref=${a.referralCode}`); onError('') }}
+                      className="ml-2 text-[10px] font-bold px-2 py-0.5 rounded bg-amber-100 text-amber-700 hover:bg-amber-200"
+                      title="ลิงก์ให้นายหน้าไปชวนร้านสมัคร (ผูกนายหน้าอัตโนมัติ)"
+                    >ลิงก์ชวนร้าน</button>
+                    <button
+                      onClick={() => { navigator.clipboard?.writeText(`${POS_URL}/partner/${a.referralCode}`); onError('') }}
+                      className="ml-1.5 text-[10px] font-bold px-2 py-0.5 rounded bg-gray-100 text-gray-600 hover:bg-gray-200"
+                      title="ลิงก์ดูรายได้ (แบบไม่ต้องล็อกอิน)"
+                    >ลิงก์รายได้</button>
                   </div>
                   <div className="text-xs text-gray-400">{a.contact || '—'} · คอม {Math.round(a.commissionRate * 100)}% · {a.status}</div>
                   <div className="text-[11px] text-gray-400">{a.email ? `🔑 ${a.email}` : '⚠️ ยังไม่ตั้งอีเมล login'}</div>
