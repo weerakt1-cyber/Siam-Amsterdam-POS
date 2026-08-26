@@ -21,7 +21,9 @@ export default function PartnerDashboard() {
 
   const load = useCallback(async () => {
     const r = await authedFetch('/api/me')
-    if (r.status === 401) { router.replace('/auth'); return }
+    // 401 = expired/invalid session → sign out first so /auth shows the login
+    // form instead of bouncing on the stale session.
+    if (r.status === 401) { await getSupabaseBrowser().auth.signOut().catch(() => {}); router.replace('/auth'); return }
     if (r.status === 403) { setNotAffiliate(true); setLoading(false); return }
     if (!r.ok) { setLoading(false); return }
     setData(await r.json()); setLoading(false)

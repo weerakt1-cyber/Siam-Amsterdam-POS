@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState, useCallback } from 'react'
-import { authedFetch } from '@/lib/supabase-browser'
+import { authedFetch, getSupabaseBrowser } from '@/lib/supabase-browser'
 import { PLANS, PLAN_IDS, planPrice, INTRO_MONTHLY, YEARLY_FIRST_YEAR_DISCOUNT, type BillingCycle } from '@baze/config'
 
 type Store = {
@@ -78,7 +78,11 @@ export default function SuperAdminPage() {
         <div className="max-w-sm text-center">
           <p className="text-4xl mb-3">🔒</p>
           <h1 className="text-xl font-black text-gray-900">ไม่มีสิทธิ์เข้าถึง</h1>
-          <p className="text-sm text-gray-500 mt-2">หน้านี้สำหรับผู้ดูแลระบบ (super-admin) เท่านั้น — ต้องล็อกอินด้วยอีเมลที่อยู่ใน <code>SUPER_ADMIN_EMAILS</code> และเข้าสู่ระบบที่ <a href="/auth" className="text-amber-600 underline">/auth</a> ก่อน</p>
+          <p className="text-sm text-gray-500 mt-2">หน้านี้สำหรับผู้ดูแลระบบ (super-admin) เท่านั้น — ต้องล็อกอินด้วยอีเมลที่อยู่ใน <code>SUPER_ADMIN_EMAILS</code></p>
+          <button
+            onClick={async () => { await getSupabaseBrowser().auth.signOut(); window.location.href = '/auth' }}
+            className="mt-4 text-sm font-bold px-5 py-2.5 rounded-xl bg-gray-900 text-white"
+          >ออกจากระบบแล้วเข้าใหม่</button>
         </div>
       </div>
     )
