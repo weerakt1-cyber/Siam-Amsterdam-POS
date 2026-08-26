@@ -4,7 +4,7 @@
 // apps/pos store.ts in monorepo M2. Runs on the service-role Supabase client.
 
 import { supabase } from './supabase'
-import { AI_ADDON, aiCostThb } from '@baze/config'
+import { AI_ADDON, aiCostThb, planPrice, isPlanId, type PlanId } from '@baze/config'
 import { createCommissionForPayment } from './affiliates'
 
 // The sole-store fallback: a single-tenant install has exactly one store, so
@@ -253,6 +253,39 @@ export async function confirmStorePayment(id: string, by: string): Promise<Store
   await createCommissionForPayment({ id: payment.id, storeId: payment.storeId, amount: payment.amount }).catch(() => {})
 
   return mapPayment(data)
+}
+
+// Operator-side paid renewal (the /super-admin +1 month / +1 year buttons):
+// extend the subscription AND record a confirmed payment in the ledger so the
+// store's referrer earns commission — the same outcome as confirming a slip,
+// for the manual-billing workflow where the operator collects PromptPay directly
+// and extends the store themselves.
+export async function adminRenewStore(storeId: string, cycle: 'monthly' | 'yearly', by: string): Promise<StoreAdminRow | null> {
+  const sub = await getStoreSubscription(storeId)
+  if (!sub) return null
+  const pid: PlanId = isPlanId(sub.plan) ? sub.plan : 'pro'
+  const months = cycle === 'yearly' ? 12 : 1
+  const amount = sub.lockedPrice ?? planPrice(pid, cycle)
+
+  const today = new Date(Date.now() + 7 * 3600 * 1000).toISOString().slice(0, 10)
+  const from = sub.until && sub.until > today ? sub.until : today
+  const d = new Date(from + 'T00:00:00Z'); d.setUTCMonth(d.getUTCMonth() + months)
+  const newUntil = d.toISOString().slice(0, 10)
+
+  const row = await updateStoreBilling(storeId, {
+    plan: pid, status: 'active', until: newUntil, cycle,
+    lockedPrice: sub.lockedPrice ?? planPrice(pid, cycle),
+  })
+
+  // Record the paid renewal + accrue affiliate commission (skip for ฿0 / free).
+  if (amount > 0) {
+    const { data: pay } = await supabase.from('store_payments').insert({
+      store_id: storeId, kind: 'subscription', plan: pid, cycle, amount, months,
+      status: 'confirmed', confirmed_by: by, confirmed_at: new Date().toISOString(),
+    }).select('id').single()
+    if (pay) await createCommissionForPayment({ id: pay.id as string, storeId, amount }).catch(() => {})
+  }
+  return row
 }
 
 export async function rejectStorePayment(id: string, by: string): Promise<StorePayment | null> {

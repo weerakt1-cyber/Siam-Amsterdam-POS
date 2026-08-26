@@ -15,16 +15,6 @@ type Earnings = Record<string, { pending: number; paid: number; total: number }>
 
 // ── date helpers (YYYY-MM-DD, client-side) ───────────────────────────────────
 const todayStr = () => new Date(Date.now() + 7 * 3600 * 1000).toISOString().slice(0, 10)
-function addPeriod(from: string, months: number): string {
-  const d = new Date(from + 'T00:00:00Z')
-  d.setUTCMonth(d.getUTCMonth() + months)
-  return d.toISOString().slice(0, 10)
-}
-// Extend from whichever is later: today or the current expiry (no lost days).
-function extendedUntil(current: string | null, months: number): string {
-  const base = current && current > todayStr() ? current : todayStr()
-  return addPeriod(base, months)
-}
 function daysLeft(until: string | null): number | null {
   if (!until) return null
   return Math.round((Date.parse(until) - Date.parse(todayStr())) / 86400000)
@@ -59,17 +49,10 @@ export default function SuperAdminPage() {
     } finally { setBusy(null) }
   }
 
-  // Extend by a cycle and mark active. Sets locked_price on first paid renewal
-  // if it isn't set yet (grandfathering baseline).
+  // Paid renewal: the server extends the sub, records a confirmed payment, and
+  // accrues the referrer's commission (see adminRenewStore).
   function renew(s: Store, cycle: BillingCycle) {
-    const months = cycle === 'yearly' ? 12 : 1
-    const price  = s.lockedPrice ?? planPrice((PLANS[s.plan as keyof typeof PLANS] ? s.plan : 'pro') as 'free' | 'pro', cycle)
-    patch(s.id, {
-      status: 'active',
-      until:  extendedUntil(s.until, months),
-      cycle,
-      lockedPrice: price,
-    })
+    patch(s.id, { action: 'renew', cycle })
   }
 
   if (denied) {
