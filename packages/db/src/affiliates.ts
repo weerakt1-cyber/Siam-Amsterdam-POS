@@ -3,7 +3,7 @@
 import { supabase } from './supabase'
 
 export type Affiliate = {
-  id: string; name: string; contact: string | null
+  id: string; name: string; contact: string | null; email: string | null
   referralCode: string; commissionRate: number
   status: string; payoutInfo: string | null; note: string | null; createdAt: string
 }
@@ -13,6 +13,7 @@ function mapAffiliate(r: Record<string, unknown>): Affiliate {
     id:             r.id as string,
     name:           r.name as string,
     contact:        (r.contact as string | null) ?? null,
+    email:          (r.email as string | null) ?? null,
     referralCode:   r.referral_code as string,
     commissionRate: Number(r.commission_rate),
     status:         (r.status as string) ?? 'active',
@@ -22,7 +23,7 @@ function mapAffiliate(r: Record<string, unknown>): Affiliate {
   }
 }
 
-const AFF_COLS = 'id, name, contact, referral_code, commission_rate, status, payout_info, note, created_at'
+const AFF_COLS = 'id, name, contact, email, referral_code, commission_rate, status, payout_info, note, created_at'
 
 export async function listAffiliates(): Promise<Affiliate[]> {
   const { data, error } = await supabase.from('affiliates').select(AFF_COLS).order('created_at', { ascending: false })
@@ -35,6 +36,12 @@ export async function getAffiliateByCode(code: string): Promise<Affiliate | null
   return data ? mapAffiliate(data) : null
 }
 
+// Map a login email → affiliate (portal auth). Email is stored lowercased.
+export async function getAffiliateByEmail(email: string): Promise<Affiliate | null> {
+  const { data } = await supabase.from('affiliates').select(AFF_COLS).eq('email', email.toLowerCase()).maybeSingle()
+  return data ? mapAffiliate(data) : null
+}
+
 // Generate a short unique-ish referral code from the name + a random suffix.
 function makeCode(name: string): string {
   const base = name.replace(/[^a-zA-Z0-9]/g, '').slice(0, 6).toUpperCase() || 'REF'
@@ -43,12 +50,13 @@ function makeCode(name: string): string {
 }
 
 export async function createAffiliate(input: {
-  name: string; contact?: string | null; commissionRate?: number; payoutInfo?: string | null; note?: string | null; referralCode?: string
+  name: string; contact?: string | null; email?: string | null; commissionRate?: number; payoutInfo?: string | null; note?: string | null; referralCode?: string
 }): Promise<Affiliate> {
   const code = (input.referralCode && input.referralCode.trim()) || makeCode(input.name)
   const { data, error } = await supabase.from('affiliates').insert({
     name:            input.name,
     contact:         input.contact ?? null,
+    email:           input.email ? input.email.trim().toLowerCase() : null,
     referral_code:   code,
     commission_rate: input.commissionRate ?? 0.20,
     payout_info:     input.payoutInfo ?? null,
@@ -59,11 +67,12 @@ export async function createAffiliate(input: {
 }
 
 export async function updateAffiliate(id: string, patch: {
-  name?: string; contact?: string | null; commissionRate?: number; status?: string; payoutInfo?: string | null; note?: string | null
+  name?: string; contact?: string | null; email?: string | null; commissionRate?: number; status?: string; payoutInfo?: string | null; note?: string | null
 }): Promise<Affiliate | null> {
   const upd: Record<string, unknown> = {}
   if (patch.name           !== undefined) upd.name            = patch.name
   if (patch.contact        !== undefined) upd.contact         = patch.contact
+  if (patch.email          !== undefined) upd.email           = patch.email ? patch.email.trim().toLowerCase() : null
   if (patch.commissionRate !== undefined) upd.commission_rate = patch.commissionRate
   if (patch.status         !== undefined) upd.status          = patch.status
   if (patch.payoutInfo     !== undefined) upd.payout_info     = patch.payoutInfo

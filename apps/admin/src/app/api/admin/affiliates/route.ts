@@ -27,6 +27,7 @@ export async function POST(req: NextRequest) {
     const affiliate = await createAffiliate({
       name,
       contact:      b.contact ? String(b.contact) : null,
+      email:        b.email ? String(b.email) : null,
       commissionRate: rate,
       payoutInfo:   b.payoutInfo ? String(b.payoutInfo) : null,
       referralCode: b.referralCode ? String(b.referralCode).trim() : undefined,
