@@ -18,7 +18,7 @@ create table if not exists payment_slips (
   id           uuid primary key default gen_random_uuid(),
   store_id     uuid not null default '00000000-0000-0000-0000-000000000001'
                references stores(id) on delete cascade,
-  order_id     uuid not null references orders(id) on delete cascade,
+  order_id     text not null references orders(id) on delete cascade,
   trans_ref    text,                        -- from slip QR; null in manual mode
   amount       numeric(12,2) not null,
   sender_name  text,                        -- masked, from verify API
