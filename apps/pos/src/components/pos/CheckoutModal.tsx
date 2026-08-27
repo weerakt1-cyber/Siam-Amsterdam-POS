@@ -529,14 +529,15 @@ export default function CheckoutModal({
                 <p className="text-xs text-stone-300 mt-1">{tr('coTable')} {table}</p>
               </div>
 
-              {/* Payment method selector — Cash + QR PromptPay (+ Transfer if enabled) */}
-              <div className={`grid ${transferCfg?.enabled ? 'grid-cols-3' : 'grid-cols-2'} gap-2 mb-4`}>
+              {/* Payment method selector — Cash + one QR option. When transfer
+                  (slip verification) is enabled it replaces the plain PromptPay
+                  QR, since both are "scan the QR and pay" to the same account. */}
+              <div className="grid grid-cols-2 gap-2 mb-4">
                 {([
-                  { id: 'cash',      icon: PAY_ICONS.cash, label: tr('coCash')    },
-                  { id: 'promptpay', icon: PAY_ICONS.scan, label: tr('coQrPay')  },
-                  ...(transferCfg?.enabled
-                    ? [{ id: 'transfer' as const, icon: PAY_ICONS.scan, label: 'โอนเงิน' }]
-                    : []),
+                  { id: 'cash', icon: PAY_ICONS.cash, label: tr('coCash') },
+                  transferCfg?.enabled
+                    ? { id: 'transfer' as const,  icon: PAY_ICONS.scan, label: 'QR / โอนเงิน' }
+                    : { id: 'promptpay' as const, icon: PAY_ICONS.scan, label: tr('coQrPay') },
                 ] as const).map((pm) => (
                   <button
                     key={pm.id}
