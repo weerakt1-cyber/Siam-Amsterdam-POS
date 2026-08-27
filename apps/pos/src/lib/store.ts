@@ -1579,3 +1579,168 @@ export async function upsertMenuIngredients(
   if (error) throw error
   return (data ?? []).map(mapMenuIngredient)
 }
+
+// ─── Bank-transfer slip verification (migration 025) ──────────────────────────
+// Per-store PromptPay / bank-transfer receiving config + the payment_slips
+// ledger. See supabase/migrations/025_payment_slips.sql for the config shape.
+
+export type TransferSettings = {
+  enabled: boolean
+  mode: 'auto' | 'manual'
+  promptpayId: string
+  accountName: string
+  bankCode: string
+  slipokApiKey: string
+  slipokBranchId: string
+}
+
+export type PaymentSlip = {
+  id: string
+  storeId: string
+  orderId: string
+  transRef: string | null
+  amount: number
+  senderName: string | null
+  receiverOk: boolean | null
+  method: 'auto' | 'manual'
+  status: 'pending' | 'verified' | 'rejected'
+  verifiedBy: string | null
+  imageUrl: string | null
+  createdAt: string
+  verifiedAt: string | null
+}
+
+function mapSlip(row: Record<string, unknown>): PaymentSlip {
+  return {
+    id:         row.id as string,
+    storeId:    row.store_id as string,
+    orderId:    row.order_id as string,
+    transRef:   (row.trans_ref as string | null) ?? null,
+    amount:     Number(row.amount),
+    senderName: (row.sender_name as string | null) ?? null,
+    receiverOk: (row.receiver_ok as boolean | null) ?? null,
+    method:     row.method as 'auto' | 'manual',
+    status:     row.status as 'pending' | 'verified' | 'rejected',
+    verifiedBy: (row.verified_by as string | null) ?? null,
+    imageUrl:   (row.image_url as string | null) ?? null,
+    createdAt:  row.created_at as string,
+    verifiedAt: (row.verified_at as string | null) ?? null,
+  }
+}
+
+// Full transfer config INCLUDING SlipOK credentials — server-side only. Never
+// return this straight to a client; the payment/config route exposes a public,
+// secret-free subset.
+export async function getTransferSettings(storeId?: string): Promise<TransferSettings> {
+  const sid = await requireStoreId(storeId)
+  const raw = await getConfig('transfer_settings', sid)
+  let parsed: Partial<TransferSettings> = {}
+  if (raw) { try { parsed = JSON.parse(raw) } catch { /* ignore */ } }
+  return {
+    enabled:        !!parsed.enabled,
+    mode:           parsed.mode === 'auto' ? 'auto' : 'manual',
+    promptpayId:    parsed.promptpayId ?? '',
+    accountName:    parsed.accountName ?? '',
+    bankCode:       parsed.bankCode ?? '',
+    slipokApiKey:   parsed.slipokApiKey ?? '',
+    slipokBranchId: parsed.slipokBranchId ?? '',
+  }
+}
+
+export type NewPaymentSlip = {
+  orderId: string
+  transRef: string | null
+  amount: number
+  senderName: string | null
+  receiverOk: boolean | null
+  method: 'auto' | 'manual'
+  status: 'pending' | 'verified' | 'rejected'
+  verifiedBy?: string | null
+  rawPayload?: unknown
+  imageUrl?: string | null
+}
+
+// Insert a slip row. A duplicate (store_id, trans_ref) trips the unique index
+// (Postgres 23505) — the caller treats that as SLIP_ALREADY_USED, the anti-reuse
+// guarantee. Returns { slip } on success or { error: '23505' } on reuse.
+export async function insertPaymentSlip(
+  slip: NewPaymentSlip, storeId?: string,
+): Promise<{ slip: PaymentSlip } | { error: string }> {
+  const sid = await requireStoreId(storeId)
+  const verified = slip.status === 'verified'
+  const { data, error } = await supabase
+    .from('payment_slips')
+    .insert({
+      store_id:    sid,
+      order_id:    slip.orderId,
+      trans_ref:   slip.transRef,
+      amount:      slip.amount,
+      sender_name: slip.senderName,
+      receiver_ok: slip.receiverOk,
+      method:      slip.method,
+      status:      slip.status,
+      verified_by: slip.verifiedBy ?? null,
+      raw_payload: slip.rawPayload ?? null,
+      image_url:   slip.imageUrl ?? null,
+      verified_at: verified ? now() : null,
+    })
+    .select()
+    .single()
+  if (error) return { error: error.code ?? error.message }
+  return { slip: mapSlip(data) }
+}
+
+export async function getPaymentSlip(id: string, storeId?: string): Promise<PaymentSlip | null> {
+  const sid = await requireStoreId(storeId)
+  const { data } = await supabase
+    .from('payment_slips').select('*').eq('id', id).eq('store_id', sid).maybeSingle()
+  return data ? mapSlip(data) : null
+}
+
+export async function getPaymentSlipsByOrder(orderId: string, storeId?: string): Promise<PaymentSlip[]> {
+  const sid = await requireStoreId(storeId)
+  const { data } = await supabase
+    .from('payment_slips').select('*')
+    .eq('store_id', sid).eq('order_id', orderId)
+    .order('created_at', { ascending: false })
+  return (data ?? []).map(mapSlip)
+}
+
+// Move a pending slip to verified/rejected. Store-scoped and status-guarded:
+// only a row still 'pending' flips, so a double confirm/reject is a no-op
+// (returns null → caller 409s).
+export async function resolvePaymentSlip(
+  id: string, status: 'verified' | 'rejected', verifiedBy: string | null, storeId?: string,
+): Promise<PaymentSlip | null> {
+  const sid = await requireStoreId(storeId)
+  const { data } = await supabase
+    .from('payment_slips')
+    .update({ status, verified_by: verifiedBy, verified_at: now() })
+    .eq('id', id).eq('store_id', sid).eq('status', 'pending')
+    .select().maybeSingle()
+  return data ? mapSlip(data) : null
+}
+
+// ── Slip-image storage (private 'slips' bucket, auto-created on first use) ─────
+const ORDER_SLIP_BUCKET = 'slips'
+
+export async function uploadOrderSlip(
+  storeId: string, orderId: string, bytes: Uint8Array, contentType: string,
+): Promise<string> {
+  const ext  = contentType.includes('png') ? 'png' : 'jpg'
+  const path = `${storeId}/${orderId}-${Date.now()}.${ext}`
+  const doUpload = () => supabase.storage.from(ORDER_SLIP_BUCKET).upload(path, bytes, { contentType, upsert: true })
+  let { error } = await doUpload()
+  if (error && /bucket/i.test(error.message)) {
+    await supabase.storage.createBucket(ORDER_SLIP_BUCKET, { public: false }).catch(() => {})
+    ;({ error } = await doUpload())
+  }
+  if (error) throw error
+  return path
+}
+
+// Short-lived signed URL for a slip image — staff routes only, never public.
+export async function signedOrderSlipUrl(path: string): Promise<string | null> {
+  const { data } = await supabase.storage.from(ORDER_SLIP_BUCKET).createSignedUrl(path, 600)
+  return data?.signedUrl ?? null
+}

@@ -6,6 +6,7 @@ import { type CatEntry, CATEGORIES_CHANGED_EVENT, loadAllCategories, fetchCatego
 import { type Lang, type OrderStringKey, LANGS, STRINGS, DEFAULT_MEMBER_BENEFITS, loadOrderLang, saveOrderLang } from '@/lib/order-i18n'
 import { applyPromotions, isPromotionActiveNow, promotionSummary } from '@/lib/promotions'
 import OmisePaymentModal, { type OmisePayType } from '@/components/pos/OmisePaymentModal'
+import SlipTransferPanel from '@/components/pos/SlipTransferPanel'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -217,6 +218,10 @@ export default function OrderPage({ params }: { params: Promise<{ store: string;
       .then(r => r.json())
       .then(d => { if (Array.isArray(d?.benefits)) setBenefits(d.benefits) })
       .catch(() => {})
+    sfetch('/api/payment/config')
+      .then(r => r.json())
+      .then(d => { if (d?.transfer) setTransferCfg(d.transfer) })
+      .catch(() => {})
   }, [sfetch])
 
   // ── Poll order status ─────────────────────────────────────────────────────────
@@ -245,6 +250,12 @@ export default function OrderPage({ params }: { params: Promise<{ store: string;
   // ── Online payment (Omise) — offered once the order is served (ready/delivered) ─
   const [payOrder,  setPayOrder]  = useState<PlacedOrder | null>(null)
   const [payMethod, setPayMethod] = useState<OmisePayType | null>(null)
+
+  // Bank-transfer (PromptPay slip) — for stores without Omise.
+  const [transferCfg, setTransferCfg] = useState<{
+    enabled: boolean; mode: 'auto' | 'manual'; promptpayId: string; accountName: string
+  } | null>(null)
+  const [transferOrder, setTransferOrder] = useState<PlacedOrder | null>(null)
 
   async function markPaid(orderId: string, method: OmisePayType) {
     try {
@@ -685,6 +696,15 @@ export default function OrderPage({ params }: { params: Promise<{ store: string;
                         <span className="text-xl">💳</span>{t('payCard')}
                       </button>
                     </div>
+                    {/* Bank transfer — for stores that take PromptPay/transfer (no Omise) */}
+                    {transferCfg?.enabled && transferCfg.promptpayId && (
+                      <button
+                        onClick={() => setTransferOrder(order)}
+                        className="mt-2 w-full py-3 rounded-xl border-2 border-emerald-300 bg-emerald-50 text-emerald-700 font-bold text-sm transition active:scale-95 flex items-center justify-center gap-2"
+                      >
+                        <span className="text-xl">🏦</span>โอนเงิน / PromptPay
+                      </button>
+                    )}
                   </div>
                 )}
 
@@ -721,6 +741,38 @@ export default function OrderPage({ params }: { params: Promise<{ store: string;
             onSuccess={async () => { await markPaid(payOrder.id, payMethod); setPayOrder(null); setPayMethod(null) }}
             onClose={() => { setPayOrder(null); setPayMethod(null) }}
           />
+        )}
+
+        {/* Bank-transfer slip payment (PromptPay QR + slip upload/verify) */}
+        {transferOrder && transferCfg && (
+          <div
+            className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-end sm:items-center justify-center"
+            onClick={() => setTransferOrder(null)}
+          >
+            <div
+              className="bg-white rounded-t-3xl sm:rounded-3xl shadow-2xl w-full max-w-md p-6 pb-8 flex flex-col gap-4 max-h-[90vh] overflow-y-auto"
+              onClick={e => e.stopPropagation()}
+            >
+              <div className="flex items-center justify-between">
+                <h3 className="font-black text-lg text-gray-900">🏦 โอนเงิน / PromptPay</h3>
+                <button onClick={() => setTransferOrder(null)} className="text-gray-400 hover:text-gray-800 text-xl leading-none">✕</button>
+              </div>
+              <SlipTransferPanel
+                amount={transferOrder.total}
+                orderId={transferOrder.id}
+                promptpayId={transferCfg.promptpayId}
+                accountName={transferCfg.accountName}
+                post={(path, body) => sfetch(path, {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify(body),
+                })}
+                onVerified={() => {
+                  setOrders(prev => prev.map(o => o.id === transferOrder.id ? { ...o, status: 'paid' as OrderStatus } : o))
+                }}
+              />
+            </div>
+          </div>
         )}
       </div>
     )

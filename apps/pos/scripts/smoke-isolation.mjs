@@ -112,6 +112,57 @@ async function checkPublicFlows() {
   }
 }
 
+// ─── 4. Transfer-slip verify endpoint isolation (Task 7) ──────────────────────
+// The public verify route may be called unauthenticated ONLY for a QR order in
+// the caller's own store. Prove that:
+//   a) unauth verify against a random/non-QR order id → 401 (staff required),
+//   b) a store-2 hint against a store-1 order id → 400/404 (no cross-store),
+//   c) it never leaks order data.
+// Note: the reused-transRef → SLIP_ALREADY_USED and auto-approve paths need a
+// real order + SlipOK creds, so they're covered by the manual step below, not
+// here (no secrets in CI).
+
+async function postJson(path, body, headers = {}) {
+  const res = await fetch(base + path, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...headers },
+    body: JSON.stringify(body),
+    redirect: 'manual',
+  })
+  const text = await res.text()
+  return { status: res.status, body: text }
+}
+
+async function checkSlipVerify() {
+  console.log('\n4. Transfer-slip verify endpoint (Task 7)')
+  const randomOrderId = '11111111-1111-1111-1111-111111111111'
+
+  // a) Unauthenticated, no session, no store hint → store context missing OR
+  //    (with sole-store resolve) a non-QR/absent order ⇒ 400/401/404, never 200.
+  {
+    const { status, body } = await postJson('/api/payment/slip/verify',
+      { orderId: randomOrderId, qrPayload: '00020101' })
+    const ok = [400, 401, 404].includes(status) && !leaksOrderData(body)
+    report('unauth verify against unknown/non-QR order → 401/400/404', ok, `status=${status}`)
+  }
+
+  // b) Store-2 hint against a (store-1) order id must not resolve cross-store.
+  {
+    const { status, body } = await postJson('/api/payment/slip/verify',
+      { orderId: randomOrderId, qrPayload: '00020101' },
+      { 'x-store-id': STORE2_ID })
+    const ok = [400, 401, 404].includes(status) && !leaksOrderData(body)
+    report('store-2 hint against store-1 order → 400/401/404', ok, `status=${status}`)
+  }
+
+  // c) Staff-only slip list must reject unauthenticated callers.
+  {
+    const { status, body } = await hit(`/api/payment/slip?orderId=${randomOrderId}`)
+    const ok = (status === 401 || status === 400) && !leaksOrderData(body)
+    report('GET /api/payment/slip (staff list) unauth → 401/400', ok, `status=${status}`)
+  }
+}
+
 // ─── Run ──────────────────────────────────────────────────────────────────────
 
 console.log(`Store-isolation smoke test → ${base}`)
@@ -128,6 +179,7 @@ await checkSensitive(
   withHint,
 )
 await checkPublicFlows()
+await checkSlipVerify()
 
 console.log(`\n${failures === 0 ? '✓ ALL CHECKS PASSED' : `✗ ${failures} CHECK(S) FAILED`}`)
 process.exit(failures === 0 ? 0 : 1)
