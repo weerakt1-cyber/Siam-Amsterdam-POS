@@ -3,6 +3,7 @@
 import { authedFetch } from "@/lib/supabase-browser"
 import { useState, useEffect, useCallback } from 'react'
 import { usePosLang } from '@/lib/pos-i18n'
+import { readCache, writeCache, hasCache } from '@/lib/api-cache'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -325,31 +326,37 @@ export default function AnalyticsPage() {
   const { t } = usePosLang()
   const [period, setPeriod]           = useState<Period>('7d')
   const [topBy, setTopBy]             = useState<'revenue' | 'qty'>('revenue')
-  const [data, setData]               = useState<AnalyticsData | null>(null)
-  const [loading, setLoading]         = useState(true)
+  const [data, setData]               = useState<AnalyticsData | null>(() => readCache<AnalyticsData>('analytics_7d'))
+  const [loading, setLoading]         = useState(!hasCache('analytics_7d'))
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null)
-  const [tierStats, setTierStats]     = useState<TierStats | null>(null)
+  const [tierStats, setTierStats]     = useState<TierStats | null>(() => readCache<TierStats>('analytics_tiers'))
 
   useEffect(() => {
     authedFetch('/api/members')
       .then(r => r.json())
       .then((d: { members?: { tier?: string }[] }) => {
         const members = d.members ?? []
-        setTierStats({
+        const stats = {
           bronze: members.filter(m => m.tier === 'bronze' || !m.tier).length,
           silver: members.filter(m => m.tier === 'silver').length,
           gold:   members.filter(m => m.tier === 'gold').length,
-        })
+        }
+        setTierStats(stats)
+        writeCache('analytics_tiers', stats)
       })
       .catch(() => {})
   }, [])
 
   const load = useCallback(async () => {
-    setLoading(true)
+    // Instant paint from the last-known analytics for this period, then revalidate.
+    const cached = readCache<AnalyticsData>(`analytics_${period}`)
+    if (cached) { setData(cached); setLoading(false) } else { setLoading(true) }
     try {
       const r = await authedFetch(`/api/analytics?period=${period}`)
       if (r.ok) {
-        setData(await r.json())
+        const d = await r.json()
+        setData(d)
+        writeCache(`analytics_${period}`, d)
         setLastUpdated(new Date())
       }
     } finally {

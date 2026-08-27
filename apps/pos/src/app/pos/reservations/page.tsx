@@ -3,6 +3,7 @@
 import { authedFetch } from '@/lib/supabase-browser'
 import { useState, useEffect, useCallback, useMemo } from 'react'
 import { usePosLang } from '@/lib/pos-i18n'
+import { readCache, writeCache } from '@/lib/api-cache'
 import type { TableTile } from '@/lib/floor'
 import type { Reservation, ReservationStatus } from '@/lib/reservations'
 
@@ -140,7 +141,7 @@ export default function ReservationsPage() {
   const { lang } = usePosLang()
   const c = CO[lang]
 
-  const [items, setItems] = useState<Reservation[]>([])
+  const [items, setItems] = useState<Reservation[]>(() => readCache<Reservation[]>('reservations') ?? [])
   const [tiles, setTiles] = useState<TableTile[]>([])
   const [tab, setTab] = useState<Tab>('pending')
   const [modal, setModal] = useState<{ r: Reservation; action: 'approve' | 'reject'; conflict: boolean } | null>(null)
@@ -150,7 +151,7 @@ export default function ReservationsPage() {
       const r = await authedFetch('/api/reservations')
       if (r.ok) {
         const d = await r.json()
-        if (Array.isArray(d.reservations)) setItems(d.reservations)
+        if (Array.isArray(d.reservations)) { setItems(d.reservations); writeCache('reservations', d.reservations) }
       }
     } catch { /* ignore */ }
   }, [])

@@ -8,6 +8,7 @@ import {
   loadDeliverySettings, type DeliverySettings,
 } from '@/lib/delivery'
 import { usePosLang } from '@/lib/pos-i18n'
+import { readCache, writeCache, hasCache } from '@/lib/api-cache'
 
 // ─── Config ───────────────────────────────────────────────────────────────────
 
@@ -401,9 +402,9 @@ function QuickEntryModal({
 
 export default function DeliveryPage() {
   const { t } = usePosLang()
-  const [orders,   setOrders]   = useState<Order[]>([])
-  const [menu,     setMenu]     = useState<MenuItem[]>([])
-  const [loading,  setLoading]  = useState(true)
+  const [orders,   setOrders]   = useState<Order[]>(() => readCache<Order[]>('delivery_orders') ?? [])
+  const [menu,     setMenu]     = useState<MenuItem[]>(() => readCache<MenuItem[]>('menu') ?? [])
+  const [loading,  setLoading]  = useState(!hasCache('delivery_orders'))
   const [showEntry, setShowEntry] = useState(false)
   const [settings] = useState<DeliverySettings>(() => loadDeliverySettings())
   const [, forceRender] = useState(0)
@@ -418,11 +419,14 @@ export default function DeliveryPage() {
       const [ro, rm] = await Promise.all([authedFetch('/api/orders'), authedFetch('/api/menu')])
       if (ro.ok) {
         const d = await ro.json()
-        setOrders((d.orders as Order[]).filter(o => o.channel))
+        const delivery = (d.orders as Order[]).filter(o => o.channel)
+        setOrders(delivery)
+        writeCache('delivery_orders', delivery)
       }
       if (rm.ok) {
         const d = await rm.json()
         setMenu(d.menu as MenuItem[])
+        writeCache('menu', d.menu)
       }
     } catch { /* ignore */ }
     finally { setLoading(false) }

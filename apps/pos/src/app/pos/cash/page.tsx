@@ -8,6 +8,7 @@ import { generateDailyReportPDF } from '@/lib/pdf-report'
 import { usePosLang } from '@/lib/pos-i18n'
 import { printReceipt, loadBarSettings, type ReceiptData } from '@/lib/printer'
 import { businessDayOf } from '@/lib/business-day'
+import { readCache, writeCache, hasCache } from '@/lib/api-cache'
 import { Skeleton, SkeletonList } from '@/components/pos/Skeleton'
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -215,24 +216,30 @@ function AddModal({
 export default function CashPage() {
   const { t } = usePosLang()
   const [date, setDate] = useState(today())
-  const [report, setReport] = useState<DailyReport>({ date, openingCash: 0, cashIns: [], expenses: [], updatedAt: '' })
-  const [orders, setOrders] = useState<Order[]>([])
+  const [report, setReport] = useState<DailyReport>(() =>
+    readCache<{ report: DailyReport; orders: Order[] }>(`report_${today()}`)?.report
+    ?? { date: today(), openingCash: 0, cashIns: [], expenses: [], updatedAt: '' })
+  const [orders, setOrders] = useState<Order[]>(() =>
+    readCache<{ report: DailyReport; orders: Order[] }>(`report_${today()}`)?.orders ?? [])
   const [modal, setModal] = useState<AddModalType>(null)
   const [showOpeningNumPad, setShowOpeningNumPad] = useState(false)
   const [openingVal, setOpeningVal] = useState('')
   const [toast, setToast] = useState<{ msg: string; ok: boolean } | null>(null)
-  const [isLoading, setIsLoading] = useState(true)
+  const [isLoading, setIsLoading] = useState(() => !hasCache(`report_${today()}`))
   const [pdfLoading, setPdfLoading] = useState(false)
   const [detailOrder, setDetailOrder] = useState<Order | null>(null)
   const [voiding, setVoiding] = useState(false)
   const [printing, setPrinting] = useState(false)
 
   const fetchReport = useCallback(async (d: string) => {
-    setIsLoading(true)
+    // Instant paint from the last-known report for this date, then revalidate.
+    const cached = readCache<{ report: DailyReport; orders: Order[] }>(`report_${d}`)
+    if (cached) { setReport(cached.report); setOrders(cached.orders); setIsLoading(false) } else { setIsLoading(true) }
     try {
       const r = await authedFetch(`/api/reports/${d}`).then(res => res.json())
       setReport(r.report)
       setOrders(r.orders ?? [])
+      writeCache(`report_${d}`, { report: r.report, orders: r.orders ?? [] })
     } finally {
       setIsLoading(false)
     }
