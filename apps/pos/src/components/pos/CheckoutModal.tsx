@@ -290,11 +290,16 @@ export default function CheckoutModal({
     if (step !== 3 || autoPrintedRef.current) return
     autoPrintedRef.current = true
     const s = loadBarSettings()
+    // Fire the print the instant the "Payment Complete" screen renders. A cash
+    // sale keeps the cashier here counting change, but a QR sale has nothing to
+    // count — they tap "Done" immediately, so any delay here races the modal
+    // closing and the receipt silently never prints. No delay = job in flight
+    // before it can be cut off. printReceipt reconnects to the printer itself.
     if ((s.printerConnectionType ?? 'bluetooth') === 'lan') {
-      if (s.printerLanIp) setTimeout(() => handleBTPrint(), 800)
+      if (s.printerLanIp) handleBTPrint()
     } else {
       loadPrinterDevice()
-        .then(saved => { if (saved) setTimeout(() => handleBTPrint(), 800) })
+        .then(saved => { if (saved) handleBTPrint() })
         .catch(() => {})
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
