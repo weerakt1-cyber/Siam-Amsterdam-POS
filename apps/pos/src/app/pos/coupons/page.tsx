@@ -1,6 +1,7 @@
 ﻿'use client'
 
 import { authedFetch } from "@/lib/supabase-browser"
+import { readCache, writeCache, hasCache } from '@/lib/api-cache'
 import { useState, useEffect, useCallback } from 'react'
 import type { Coupon, CouponUse, CouponType } from '@/lib/types'
 import NumPad from '@/components/pos/NumPad'
@@ -60,8 +61,8 @@ type NumPadTarget = 'value' | 'minOrder' | 'maxUses' | null
 export default function CouponsPage() {
   const { t } = usePosLang()
   const [tab, setTab] = useState<'coupons' | 'promotions'>('coupons')
-  const [coupons, setCoupons] = useState<Coupon[]>([])
-  const [loading, setLoading] = useState(true)
+  const [coupons, setCoupons] = useState<Coupon[]>(() => readCache<Coupon[]>('coupons') ?? [])
+  const [loading, setLoading] = useState(() => !hasCache('coupons'))
   const [uses, setUses] = useState<CouponUse[]>([])
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [isCreating, setIsCreating] = useState(false)
@@ -80,7 +81,7 @@ export default function CouponsPage() {
   const fetchAll = useCallback(async () => {
     try {
       const r = await authedFetch('/api/coupons').then(res => res.json())
-      setCoupons(r.coupons ?? [])
+      setCoupons(r.coupons ?? []); writeCache('coupons', r.coupons ?? [])
     } finally {
       setLoading(false)
     }

@@ -3,6 +3,7 @@
 import { authedFetch } from "@/lib/supabase-browser"
 import { useState, useEffect, useCallback } from 'react'
 import type { MenuItem, Order, Promotion } from '@/lib/types'
+import { readCache, writeCache, hasCache } from '@/lib/api-cache'
 import { applyPromotions } from '@/lib/promotions'
 import CheckoutModal from '@/components/pos/CheckoutModal'
 import NumPad from '@/components/pos/NumPad'
@@ -162,8 +163,8 @@ export default function POSPage() {
   const [drawerPinOpen, setDrawerPinOpen] = useState(false)
   const [category, setCategory] = useState('all')
   const [categories, setCategories] = useState<CatEntry[]>(() => loadAllCategories())
-  const [menu, setMenu] = useState<MenuItem[]>([])
-  const [menuLoading, setMenuLoading] = useState(true)
+  const [menu, setMenu] = useState<MenuItem[]>(() => readCache<MenuItem[]>('menu') ?? [])
+  const [menuLoading, setMenuLoading] = useState(() => !hasCache('menu'))   // skip the skeleton when we have last-known menu
 
   // Live-refresh category chips when Items → Categories adds/deletes/reorders —
   // covers same-tab edits (custom event), another tab/window on this device
@@ -201,7 +202,7 @@ export default function POSPage() {
 
   const [search, setSearch] = useState('')
   const [memberName, setMemberName] = useState('')
-  const [members, setMembers] = useState<{ id: string; name: string; points: number; tier?: string }[]>([])
+  const [members, setMembers] = useState<{ id: string; name: string; points: number; tier?: string }[]>(() => readCache('members') ?? [])
   const [couponCode, setCouponCode] = useState('')
   const [itemDiscountTarget, setItemDiscountTarget] = useState<string | null>(null)
   const [itemDiscountValue,  setItemDiscountValue]  = useState('')
@@ -215,7 +216,7 @@ export default function POSPage() {
   const [payingTicket, setPayingTicket] = useState<Order | null>(null)
   const [pointsToRedeem, setPointsToRedeem] = useState(0)
   const [voidConfirmId, setVoidConfirmId] = useState<string | null>(null)
-  const [orders, setOrders] = useState<Order[]>([])
+  const [orders, setOrders] = useState<Order[]>(() => readCache<Order[]>('orders') ?? [])
   const [showHistory, setShowHistory] = useState(false)
   const [showAllHistory, setShowAllHistory] = useState(false)
   const [toast, setToast] = useState<{ msg: string; ok: boolean } | null>(null)
@@ -281,6 +282,7 @@ export default function POSPage() {
       authedFetch('/api/inventory').then(r => r.json()),
     ]).then(([menuData, ingData, invData]) => {
       setMenu(menuData.menu ?? [])
+      writeCache('menu', menuData.menu ?? [])
       const invMap: Record<string, { name: string; currentStock: number; lowStockThreshold: number }> =
         Object.fromEntries((invData.items ?? []).map((i: { id: string; name: string; currentStock: number; lowStockThreshold: number }) => [i.id, i]))
       const map: Record<string, string[]> = {}
@@ -296,10 +298,13 @@ export default function POSPage() {
     authedFetch('/api/members')
       .then((r) => r.json())
       .then((d) => {
-        if (d.members?.length)
-          setMembers(d.members.map((m: { id: string; name: string; points?: number; tier?: string }) => ({
+        if (d.members?.length) {
+          const mapped = d.members.map((m: { id: string; name: string; points?: number; tier?: string }) => ({
             id: m.id, name: m.name, points: m.points ?? 0, tier: m.tier ?? 'bronze',
-          })))
+          }))
+          setMembers(mapped)
+          writeCache('members', mapped)
+        }
       })
       .catch(() => {})
   }, [])
@@ -310,6 +315,7 @@ export default function POSPage() {
       if (r.ok) {
         const d = await r.json()
         setOrders(d.orders ?? [])
+        writeCache('orders', d.orders ?? [])
       }
     } catch {}
   }, [])

@@ -1,6 +1,7 @@
 ﻿'use client'
 
 import { authedFetch } from "@/lib/supabase-browser"
+import { readCache, writeCache, hasCache } from '@/lib/api-cache'
 import { useState, useEffect, useCallback, useRef } from 'react'
 import type { InventoryItem, StockAdjustment, AdjustReason } from '@/lib/types'
 import NumPad from '@/components/pos/NumPad'
@@ -102,8 +103,8 @@ const REASON_LABELS: Record<AdjustReason, { label: string; color: string }> = {
 
 export default function InventoryPage() {
   const { t: tr, lang } = usePosLang()
-  const [items, setItems] = useState<InventoryItem[]>([])
-  const [loading, setLoading] = useState(true)
+  const [items, setItems] = useState<InventoryItem[]>(() => readCache<InventoryItem[]>('inventory') ?? [])
+  const [loading, setLoading] = useState(() => !hasCache('inventory'))
   const [adjustments, setAdjustments] = useState<StockAdjustment[]>([])
   const [search, setSearch] = useState('')
   const [catFilter, setCatFilter] = useState<string>('all')
@@ -158,7 +159,7 @@ export default function InventoryPage() {
   const fetchAll = useCallback(async () => {
     try {
       const r = await authedFetch('/api/inventory').then(res => res.json())
-      setItems(r.items ?? [])
+      setItems(r.items ?? []); writeCache('inventory', r.items ?? [])
     } finally {
       setLoading(false)
     }

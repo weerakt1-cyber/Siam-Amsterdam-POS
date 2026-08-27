@@ -3,6 +3,7 @@
 import { authedFetch } from "@/lib/supabase-browser"
 import { useState, useEffect, useCallback, useRef } from 'react'
 import type { Order, OrderStatus } from '@/lib/types'
+import { readCache, writeCache, hasCache } from '@/lib/api-cache'
 import { usePosLang, type PosStringKey } from '@/lib/pos-i18n'
 
 // ─── Config ───────────────────────────────────────────────────────────────────
@@ -170,8 +171,8 @@ function Column({
 
 export default function KitchenPage() {
   const { t } = usePosLang()
-  const [orders,     setOrders]     = useState<Order[]>([])
-  const [loading,    setLoading]    = useState(true)
+  const [orders,     setOrders]     = useState<Order[]>(() => readCache<Order[]>('kitchen_orders') ?? [])
+  const [loading,    setLoading]    = useState(() => !hasCache('kitchen_orders'))   // instant render from last-known
   const [countdown,  setCountdown]  = useState(POLL_INTERVAL)
   const [lastUpdate, setLastUpdate] = useState('')
   const [updating,   setUpdating]   = useState<Set<string>>(new Set())
@@ -190,6 +191,7 @@ export default function KitchenPage() {
           new Date(o.createdAt).toDateString() === todayStr
         )
         setOrders(active)
+        writeCache('kitchen_orders', active)
         setLastUpdate(new Date().toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit', second: '2-digit' }))
       }
     } catch { /* ignore */ }

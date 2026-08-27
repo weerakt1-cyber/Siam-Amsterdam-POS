@@ -1,6 +1,7 @@
 ﻿'use client'
 
 import { authedFetch } from "@/lib/supabase-browser"
+import { readCache, writeCache, hasCache } from '@/lib/api-cache'
 import { useState, useEffect, useCallback } from 'react'
 import type { Member, Order } from '@/lib/types'
 import NumPad from '@/components/pos/NumPad'
@@ -102,8 +103,8 @@ function StampCard({ stamps }: { stamps: number }) {
 
 export default function MembersPage() {
   const { t: tr } = usePosLang()
-  const [members, setMembers] = useState<Member[]>([])
-  const [orders, setOrders] = useState<Order[]>([])
+  const [members, setMembers] = useState<Member[]>(() => readCache<Member[]>('members_full') ?? [])
+  const [orders, setOrders] = useState<Order[]>(() => readCache<Order[]>('members_orders') ?? [])
   const [search, setSearch] = useState('')
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [isCreating, setIsCreating] = useState(false)
@@ -114,7 +115,7 @@ export default function MembersPage() {
   const [numPadTarget, setNumPadTarget] = useState<'points' | 'addPoints' | null>(null)
   const [addPointsVal, setAddPointsVal] = useState('')
   const [sortBy, setSortBy] = useState<'name' | 'visits' | 'spend' | 'tier'>('name')
-  const [loading, setLoading] = useState(true)
+  const [loading, setLoading] = useState(() => !hasCache('members_full'))
 
   const fetchAll = useCallback(async () => {
     try {
@@ -124,8 +125,8 @@ export default function MembersPage() {
         // API allows (90 days; the default of 2 would truncate lifetime totals).
         authedFetch('/api/orders?sinceDays=90').then((r) => r.json()),
       ])
-      setMembers(mr.members ?? [])
-      setOrders(or.orders ?? [])
+      setMembers(mr.members ?? []); writeCache('members_full', mr.members ?? [])
+      setOrders(or.orders ?? []); writeCache('members_orders', or.orders ?? [])
     } finally {
       setLoading(false)
     }

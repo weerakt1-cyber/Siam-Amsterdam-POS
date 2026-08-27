@@ -1,6 +1,7 @@
 ﻿'use client'
 
 import { authedFetch } from "@/lib/supabase-browser"
+import { readCache, writeCache, hasCache } from '@/lib/api-cache'
 import { useState, useEffect, useCallback } from 'react'
 import type { UserRole } from '@/lib/types'
 import { usePosLang } from '@/lib/pos-i18n'
@@ -120,10 +121,10 @@ export default function UsersPage() {
   const [tab, setTab] = useState<Tab>('staff')
 
   // ── Staff (PIN) state ────────────────────────────────────────
-  const [users, setUsers] = useState<PosUserPublic[]>([])
+  const [users, setUsers] = useState<PosUserPublic[]>(() => readCache<PosUserPublic[]>('users') ?? [])
   const [selected, setSelected] = useState<PosUserPublic | null>(null)
   const [mode, setMode] = useState<Mode>('idle')
-  const [loading, setLoading] = useState(true)
+  const [loading, setLoading] = useState(() => !hasCache('users'))
 
   // ── Pending (OAuth) state ────────────────────────────────────
   const [pending,         setPending]         = useState<PendingUser[]>([])
@@ -154,7 +155,7 @@ export default function UsersPage() {
     setLoading(true)
     try {
       const r = await authedFetch('/api/users')
-      if (r.ok) { const d = await r.json(); setUsers(d.users) }
+      if (r.ok) { const d = await r.json(); setUsers(d.users); writeCache('users', d.users) }
     } finally { setLoading(false) }
   }, [])
 

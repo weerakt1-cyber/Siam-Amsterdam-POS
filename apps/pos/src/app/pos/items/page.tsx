@@ -1,6 +1,7 @@
 ﻿'use client'
 
 import { authedFetch } from "@/lib/supabase-browser"
+import { readCache, writeCache, hasCache } from '@/lib/api-cache'
 import { useState, useEffect, useRef, useCallback } from 'react'
 import type { MenuItem, Variant, VariantOption, InventoryItem, MenuIngredient } from '@/lib/types'
 import NumPad from '@/components/pos/NumPad'
@@ -272,8 +273,8 @@ export default function ItemsPage() {
   const isManager = ['admin', 'manager'].includes(user?.role ?? '')
 
   const [tab, setTab] = useState<Tab>('items')
-  const [items, setItems] = useState<MenuItem[]>([])
-  const [itemsLoading, setItemsLoading] = useState(true)
+  const [items, setItems] = useState<MenuItem[]>(() => readCache<MenuItem[]>('menu') ?? [])
+  const [itemsLoading, setItemsLoading] = useState(() => !hasCache('menu'))
   const [filterCat, setFilterCat] = useState<string>('all')
 
   // All categories — one fully editable, reorderable, deletable list. Canonical
@@ -341,7 +342,7 @@ export default function ItemsPage() {
   const [numPadTarget, setNumPadTarget] = useState<'price' | 'cost' | null>(null)
   const fileRef = useRef<HTMLInputElement>(null)
   const [ingredients, setIngredients] = useState<FormIngredient[]>([])
-  const [inventory, setInventory] = useState<InventoryItem[]>([])
+  const [inventory, setInventory] = useState<InventoryItem[]>(() => readCache<InventoryItem[]>('inventory') ?? [])
   const [ingSearch, setIngSearch] = useState('')
   const [ingDropOpen, setIngDropOpen] = useState(false)
 
@@ -358,7 +359,7 @@ export default function ItemsPage() {
       const r = await authedFetch('/api/menu')
       if (r.ok) {
         const d = await r.json()
-        setItems(d.menu ?? [])
+        setItems(d.menu ?? []); writeCache('menu', d.menu ?? [])
       }
     } finally {
       setItemsLoading(false)
@@ -380,7 +381,7 @@ export default function ItemsPage() {
   useEffect(() => { fetchMenu() }, [fetchMenu])
 
   useEffect(() => {
-    authedFetch('/api/inventory').then(r => r.ok ? r.json() : { items: [] }).then(d => setInventory(d.items ?? []))
+    authedFetch('/api/inventory').then(r => r.ok ? r.json() : { items: [] }).then(d => { setInventory(d.items ?? []); writeCache('inventory', d.items ?? []) })
   }, [])
 
   function showToast(msg: string, ok = true) {
