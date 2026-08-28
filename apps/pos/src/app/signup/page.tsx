@@ -33,6 +33,9 @@ export default function SignupPage() {
   // Staff-invite flow
   const [invite, setInvite]       = useState('')   // token
   const [storeName, setStoreName] = useState('')   // resolved from the token
+  const [pin, setPin]             = useState('')   // 4-digit operator PIN
+
+  const INVITE_PIN_KEY = 'baze_invite_pin'         // survives the email round-trip (same device)
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search)
@@ -57,8 +60,12 @@ export default function SignupPage() {
 
         // Already signed in (returned from email verify, or logged in) → join now.
         const { data: { session } } = await getSupabaseBrowser().auth.getSession()
-        if (session) { setPhase('joining'); await joinStaff(qToken, qName || (session.user.email ?? '')) }
-        else setPhase('invite')
+        if (session) {
+          let savedPin = ''
+          try { savedPin = sessionStorage.getItem(INVITE_PIN_KEY) ?? '' } catch {}
+          setPhase('joining')
+          await joinStaff(qToken, qName || (session.user.email ?? ''), savedPin)
+        } else setPhase('invite')
       })()
       return
     }
@@ -151,16 +158,18 @@ export default function SignupPage() {
   }
 
   // ── Staff invite ──────────────────────────────────────────────────────────
-  // Link the signed-in user into the invite's store as staff, then go to /pos.
-  async function joinStaff(token: string, n: string) {
+  // Link the signed-in user into the invite's store as staff (+ create their PIN
+  // operator when a pin is supplied), then go to /pos.
+  async function joinStaff(token: string, n: string, staffPin: string) {
     setBusy(true); setError('')
     try {
       const res = await authedFetch('/api/staff-join', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ token, name: n.trim() }),
+        body: JSON.stringify({ token, name: n.trim(), pin: staffPin }),
       })
       const d = await res.json().catch(() => ({}))
       if (!res.ok) { setError(d.error || 'เข้าร่วมร้านไม่สำเร็จ'); setBusy(false); setPhase('invite'); return }
+      try { sessionStorage.removeItem(INVITE_PIN_KEY) } catch {}
       setDone(true)
       setTimeout(() => router.replace('/pos'), 1200)
     } catch {
@@ -174,9 +183,12 @@ export default function SignupPage() {
     if (!name.trim()) { setError('กรุณากรอกชื่อของคุณ'); return }
     if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email.trim())) { setError('กรุณากรอกอีเมลให้ถูกต้อง'); return }
     if (password.length < 6) { setError('รหัสผ่านอย่างน้อย 6 ตัวอักษร'); return }
+    if (!/^\d{4}$/.test(pin)) { setError('ตั้ง PIN 4 หลักสำหรับเข้ากะ'); return }
 
     setBusy(true); setError('')
     const sb = getSupabaseBrowser()
+    // Keep the PIN for the email round-trip (same device) — never put it in the URL.
+    try { sessionStorage.setItem(INVITE_PIN_KEY, pin) } catch {}
     const params = new URLSearchParams({ invite, name: name.trim() })
     const { data, error: err } = await sb.auth.signUp({
       email: email.trim(),
@@ -189,12 +201,14 @@ export default function SignupPage() {
         : err.message
       setError(msg); setBusy(false); return
     }
-    if (data.session) await joinStaff(invite, name)      // confirmation off → join now
-    else { setBusy(false); setPhase('checkEmail') }      // confirmation on → verify email
+    if (data.session) await joinStaff(invite, name, pin)  // confirmation off → join now
+    else { setBusy(false); setPhase('checkEmail') }       // confirmation on → verify email
   }
 
   async function loginGoogleInvite() {
     setError('')
+    // Carry the PIN (if set) across the OAuth round-trip via sessionStorage.
+    try { if (/^\d{4}$/.test(pin)) sessionStorage.setItem(INVITE_PIN_KEY, pin) } catch {}
     const params = new URLSearchParams({ invite })
     if (name.trim()) params.set('name', name.trim())
     const { error: e } = await getSupabaseBrowser().auth.signInWithOAuth({
@@ -268,6 +282,14 @@ export default function SignupPage() {
               <label className="text-[11px] font-bold text-gray-500 uppercase block mb-1">รหัสผ่าน</label>
               <input type="password" value={password} onChange={e => setPassword(e.target.value)}
                 placeholder="อย่างน้อย 6 ตัวอักษร" className={inputCls} />
+            </div>
+            <div>
+              <label className="text-[11px] font-bold text-gray-500 uppercase block mb-1">PIN 4 หลัก (สำหรับเข้ากะ)</label>
+              <input inputMode="numeric" autoComplete="off" value={pin}
+                onChange={e => setPin(e.target.value.replace(/\D/g, '').slice(0, 4))}
+                placeholder="เช่น 1234"
+                className={`${inputCls} tracking-[0.4em] text-center`} />
+              <p className="text-[11px] text-gray-500 mt-1">ใช้เลือกชื่อตัวเองแล้วกดเข้ากะบนหน้า POS</p>
             </div>
             <button type="submit" disabled={busy}
               className="w-full px-4 py-3.5 bg-amber-500 hover:bg-amber-400 disabled:opacity-50 rounded-xl text-black font-black text-sm transition-all active:scale-95">
