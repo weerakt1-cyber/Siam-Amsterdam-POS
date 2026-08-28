@@ -3,7 +3,7 @@ import type { CapacitorConfig } from '@capacitor/cli'
 // กำหนดค่า Capacitor สำหรับ wrapping Next.js เป็น Android APK
 const config: CapacitorConfig = {
   appId:   'com.baze.pos',
-  appName: 'Baze POS',
+  appName: 'PLOEN POS',
   webDir:  'out',
 
   // The APK is a thin native shell that loads the live web app from Vercel

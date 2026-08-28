@@ -32,7 +32,7 @@ export default async function Home({
     <div className="min-h-screen bg-gray-950 text-white flex flex-col">
       {/* header */}
       <header className="w-full max-w-5xl mx-auto px-6 py-5 flex items-center justify-between">
-        <span className="font-black text-lg tracking-tight">🚀 BAZE<span className="text-amber-500"> POS</span></span>
+        <span className="font-black text-lg tracking-tight">🚀 PLOEN<span className="text-amber-500"> POS</span></span>
         <Link href="/pos" className="text-sm text-gray-400 hover:text-white transition">เข้าสู่ระบบ</Link>
       </header>
 
