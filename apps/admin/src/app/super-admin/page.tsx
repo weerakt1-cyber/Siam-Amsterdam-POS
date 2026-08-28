@@ -162,6 +162,8 @@ export default function SuperAdminPage() {
 
         <PaymentsPanel onChange={load} onError={setErr} />
 
+        {stores && <AppUsersPanel stores={stores} onError={setErr} />}
+
         <AffiliatesPanel onChange={load} onError={setErr} />
 
         <p className="text-[11px] text-gray-400 mt-4">
@@ -375,6 +377,108 @@ function AffiliatesPanel({ onChange, onError }: { onChange: () => void; onError:
         </div>
       )}
       <p className="text-[11px] text-gray-400 mt-2">คอมเกิดอัตโนมัติทุกครั้งที่ร้าน (ที่ผูกนายหน้าไว้) จ่ายเงินและคุณกดยืนยันสลิป</p>
+    </div>
+  )
+}
+
+type PendingUser = {
+  id: string; name: string; email: string
+  requested_role: string | null; provider: string | null; created_at: string
+}
+
+const ROLE_OPTS: { value: string; label: string }[] = [
+  { value: 'admin',     label: 'Admin / ผู้ดูแลระบบ' },
+  { value: 'manager',   label: 'Manager / ผู้จัดการ' },
+  { value: 'bartender', label: 'Bartender / บาร์เทนเดอร์' },
+  { value: 'staff',     label: 'Staff / พนักงาน' },
+]
+
+// App accounts (Google/email logins) awaiting approval. The operator picks the
+// store each account joins + its role, then approves. Moved here from the POS
+// so store staff can't approve app logins into their own store.
+function AppUsersPanel({ stores, onError }: { stores: Store[]; onError: (m: string) => void }) {
+  const [pending, setPending] = useState<PendingUser[] | null>(null)
+  const [busy, setBusy] = useState<string | null>(null)
+  // Per-row store + role selection.
+  const [choice, setChoice] = useState<Record<string, { storeId: string; role: string }>>({})
+
+  const load = useCallback(async () => {
+    const r = await authedFetch('/api/admin/pending')
+    if (!r.ok) { setPending([]); return }
+    setPending((await r.json()).pending ?? [])
+  }, [])
+  useEffect(() => { load() }, [load])
+
+  function pick(id: string, patch: Partial<{ storeId: string; role: string }>) {
+    setChoice(c => {
+      const cur = c[id] ?? { storeId: '', role: 'staff' }
+      return { ...c, [id]: { ...cur, ...patch } }
+    })
+  }
+
+  async function decide(u: PendingUser, action: 'approve' | 'reject') {
+    const sel = choice[u.id] ?? { storeId: '', role: 'staff' }
+    if (action === 'approve' && !sel.storeId) { onError('เลือกร้านก่อนอนุมัติ'); return }
+    if (action === 'approve' && !confirm(`อนุมัติ "${u.name || u.email}" เข้าร้าน "${stores.find(s => s.id === sel.storeId)?.name ?? ''}" เป็น ${sel.role}?`)) return
+    if (action === 'reject' && !confirm(`ปฏิเสธ "${u.name || u.email}"?`)) return
+    setBusy(u.id)
+    try {
+      const body = action === 'approve'
+        ? { action, storeId: sel.storeId, role: sel.role || 'staff' }
+        : { action }
+      const r = await authedFetch(`/api/admin/pending/${u.id}`, {
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
+      })
+      if (!r.ok) { const d = await r.json().catch(() => ({})); onError(d.error || 'ทำรายการไม่สำเร็จ'); return }
+      await load()
+    } finally { setBusy(null) }
+  }
+
+  if (pending === null) return null
+  return (
+    <div className="mt-6">
+      <h2 className="text-lg font-black text-gray-900 mb-2">👤 App Users รออนุมัติ ({pending.length})</h2>
+      {pending.length === 0 ? (
+        <p className="text-sm text-gray-400">ไม่มีบัญชีรออนุมัติ</p>
+      ) : (
+        <div className="bg-white rounded-2xl border border-gray-100 divide-y divide-gray-50">
+          {pending.map(u => {
+            const sel = choice[u.id] ?? { storeId: '', role: 'staff' }
+            return (
+              <div key={u.id} className="flex flex-wrap items-center justify-between gap-3 p-4">
+                <div>
+                  <div className="font-bold text-gray-900">{u.name || '—'}</div>
+                  <div className="text-xs text-gray-400">
+                    {u.email || '—'} · ขอสิทธิ์ {u.requested_role ?? '—'} · {u.provider ?? '—'} · {u.created_at?.slice(0, 10)}
+                  </div>
+                </div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <select
+                    value={sel.storeId}
+                    onChange={e => pick(u.id, { storeId: e.target.value })}
+                    className="border border-gray-200 rounded-lg px-2 py-1.5 text-xs max-w-[160px]"
+                  >
+                    <option value="">— เลือกร้าน —</option>
+                    {stores.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                  </select>
+                  <select
+                    value={sel.role || 'staff'}
+                    onChange={e => pick(u.id, { role: e.target.value })}
+                    className="border border-gray-200 rounded-lg px-2 py-1.5 text-xs"
+                  >
+                    {ROLE_OPTS.map(r => <option key={r.value} value={r.value}>{r.label}</option>)}
+                  </select>
+                  <button disabled={busy === u.id} onClick={() => decide(u, 'approve')}
+                    className="text-[11px] font-bold px-3 py-1.5 rounded-lg bg-emerald-500 text-white disabled:opacity-40">อนุมัติ</button>
+                  <button disabled={busy === u.id} onClick={() => decide(u, 'reject')}
+                    className="text-[11px] font-bold px-3 py-1.5 rounded-lg bg-red-50 text-red-600 disabled:opacity-40">ปฏิเสธ</button>
+                </div>
+              </div>
+            )
+          })}
+        </div>
+      )}
+      <p className="text-[11px] text-gray-400 mt-2">บัญชีที่ล็อกอินด้วย Google/อีเมลแต่ยังไม่ผูกร้าน จะมารออนุมัติที่นี่ — เลือกร้าน + สิทธิ์ แล้วกดอนุมัติ</p>
     </div>
   )
 }
