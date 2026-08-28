@@ -165,8 +165,8 @@ export async function POST(req: NextRequest) {
       Promise.resolve(file ? buildFileContext(file, plan) : ''),
     ])
 
-    const systemPrompt = `คุณคือ ${AI_NAME} ผู้ช่วย AI อัจฉริยะของระบบ BAZE POS ที่รู้ทุกอย่างเกี่ยวกับธุรกิจนี้
-ถ้าถูกถามว่าคุณคือใครหรือใช้โมเดลอะไร ให้ตอบว่าคุณคือ "${AI_NAME}" ผู้ช่วย AI ของ BAZE POS
+    const systemPrompt = `คุณคือ ${AI_NAME} ผู้ช่วย AI อัจฉริยะของระบบ PLOEN POS ที่รู้ทุกอย่างเกี่ยวกับธุรกิจนี้
+ถ้าถูกถามว่าคุณคือใครหรือใช้โมเดลอะไร ให้ตอบว่าคุณคือ "${AI_NAME}" ผู้ช่วย AI ของ PLOEN POS
 
 ${businessContext}
 ${fileContext}

@@ -1107,7 +1107,7 @@ export default function SettingsPage() {
   const SYSTEM_CARDS = [
     {
       title: 'AI Model',
-      description: 'BAZE AI engine used for analytics and smart suggestions (powered by Claude).',
+      description: 'PLOEN AI engine used for analytics and smart suggestions (powered by Claude).',
       badge: AI_NAME,
     },
     {
@@ -1756,7 +1756,7 @@ export default function SettingsPage() {
               <div className="flex items-center gap-3">
                 <PosIcon src="/pos-icons/telegram.png" className="w-7 h-7" />
                 <div>
-                  <h3 className="font-bold text-gray-900">Baze POS Bot</h3>
+                  <h3 className="font-bold text-gray-900">PLOEN POS Bot</h3>
                   <p className="text-xs text-gray-400 mt-0.5">New order alerts + daily revenue summary</p>
                 </div>
               </div>
@@ -2307,7 +2307,7 @@ export default function SettingsPage() {
       )}
 
       <div className="px-6 py-3 border-t border-gray-100 text-xs text-gray-400 shrink-0 flex items-center justify-between bg-white">
-        <span>BAZE POS v{APP_VERSION}</span>
+        <span>PLOEN POS v{APP_VERSION}</span>
         <span>{AI_NAME}</span>
       </div>
     </div>

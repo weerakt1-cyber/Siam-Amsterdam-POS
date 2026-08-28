@@ -121,7 +121,7 @@ export default async function Home({
       </main>
 
       <footer className="w-full max-w-5xl mx-auto px-6 py-8 text-center text-gray-600 text-xs border-t border-gray-900">
-        © BAZE POS
+        © PLOEN POS
       </footer>
     </div>
     </LandingGate>

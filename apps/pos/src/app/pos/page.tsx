@@ -1872,7 +1872,7 @@ export default function POSPage() {
 
       {/* Status bar */}
       <div className="grid grid-cols-3 items-center px-4 py-1.5 bg-white border-t border-stone-100 text-xs text-stone-400 shrink-0">
-        <span>BAZE POS v1.0</span>
+        <span>PLOEN POS v1.0</span>
         <button
           onClick={() => { setShowHistory(true); setShowAllHistory(false) }}
           className="justify-self-center hover:text-stone-600 transition"

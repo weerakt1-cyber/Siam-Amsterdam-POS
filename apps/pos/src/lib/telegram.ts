@@ -68,7 +68,7 @@ export async function sendOrderAlert(data: OrderNotifyData): Promise<boolean> {
   // No "Paid" line here — orders (especially QR self-orders) aren't
   // necessarily settled yet when this alert fires. Ends at Subtotal.
   const text = [
-    `🍹 <b>New Order</b> — Baze POS`,
+    `🍹 <b>New Order</b> — PLOEN POS`,
     `━━━━━━━━━━━━━━━━`,
     `🪑 Table: <b>${esc(data.tableNo)}</b>  |  #${shortId}${staffLine}${memberLine}${customerLine}${noteLine}`,
     ``,
@@ -226,7 +226,7 @@ export async function sendDailySummary(data: EndOfDayData): Promise<boolean> {
     : ''
 
   const text = [
-    `📊 <b>End of Day Report</b> — Baze POS`,
+    `📊 <b>End of Day Report</b> — PLOEN POS`,
     `📅 ${data.date}`,
     `━━━━━━━━━━━━━━━━`,
     `🧾 <b>SALES</b>`,
@@ -243,7 +243,7 @@ export async function sendDailySummary(data: EndOfDayData): Promise<boolean> {
     `💰 <b>CASH DRAWER</b>`,
     drawerLines,
     `━━━━━━━━━━━━━━━━`,
-    `🍹 Baze POS`,
+    `🍹 PLOEN POS`,
   ].join('\n')
 
   return sendMessage(text)

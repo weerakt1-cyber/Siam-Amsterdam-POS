@@ -17,7 +17,8 @@ import { businessDayOf, businessDayRange } from './business-day'
 // Store-context helpers + the subscription/billing/payments/AI-credit data layer
 // now live in @baze/db (monorepo M2). Re-export them so existing `@/lib/store`
 // imports keep working; import requireStoreId for the POS-domain functions below.
-import { requireStoreId } from '@baze/db'
+import { requireStoreId, getStore, getAffiliateByCode } from '@baze/db'
+import { transliterate } from 'transliteration'
 export * from '@baze/db'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -1743,4 +1744,214 @@ export async function uploadOrderSlip(
 export async function signedOrderSlipUrl(path: string): Promise<string | null> {
   const { data } = await supabase.storage.from(ORDER_SLIP_BUCKET).createSignedUrl(path, 600)
   return data?.signedUrl ?? null
+}
+
+// ─── Store provisioning (self-serve signup) ──────────────────────────────────
+// When a new owner signs up (email/password or OAuth) they arrive with an auth
+// session but no store. provisionStoreForUser() turns that session into a fully
+// usable store on first authenticated visit: it creates the `stores` row, makes
+// the user its owner (an 'admin' profile — the app's top role; the DB CHECK on
+// profiles.role forbids a literal 'owner'), and seeds enough sample data that the
+// POS never opens to a blank screen.
+//
+// It is IDEMPOTENT and CONCURRENCY-SAFE:
+//   • Idempotent — a user who already has a store just gets that store back; a
+//     user who has a non-store profile (a pending join/approval) is left alone.
+//   • Concurrency-safe — the profiles row (PK = auth uid) is the claim: the store
+//     id is written INTO the profile insert, so two parallel calls both create a
+//     candidate store but only one wins the insert; the loser rolls its orphan
+//     store back and returns the winner's store. Net result: exactly one store.
+
+const SEGMENTS = ['restaurant', 'cafe', 'bar', 'massage', 'salon', 'nails', 'other'] as const
+export type StoreSegment = (typeof SEGMENTS)[number]
+export function normalizeSegment(v: unknown): StoreSegment {
+  const s = String(v ?? '').trim().toLowerCase()
+  return (SEGMENTS as readonly string[]).includes(s) ? (s as StoreSegment) : 'other'
+}
+
+// Turn a (possibly Thai / non-Latin) store name into a url-safe slug, then make
+// it unique with a numeric suffix. Slugs appear in public QR/reserve links, so
+// they must be [a-z0-9-]; transliteration romanizes Thai (ร้านสยาม → ran-siam).
+export function slugifyStoreName(name: string): string {
+  const base = transliterate(String(name ?? ''))
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 40)
+    .replace(/-+$/g, '')
+  return base || 'store'
+}
+
+async function uniqueStoreSlug(name: string): Promise<string> {
+  const base = slugifyStoreName(name)
+  // Pull every slug that shares the base once, then pick the first free suffix —
+  // avoids a per-candidate round-trip and a race between check-then-insert.
+  const { data } = await supabase.from('stores').select('slug').like('slug', `${base}%`)
+  const taken = new Set((data ?? []).map(r => (r.slug as string)))
+  if (!taken.has(base)) return base
+  for (let i = 2; i < 10000; i++) {
+    const cand = `${base}-${i}`
+    if (!taken.has(cand)) return cand
+  }
+  return `${base}-${crypto.randomUUID().slice(0, 8)}`
+}
+
+// Create the stores row for a fresh signup: Free plan, active (no trial expiry),
+// with the referring affiliate attributed when a valid code was used.
+async function createProvisionedStore(input: {
+  name: string; slug: string; affiliateId: string | null
+}): Promise<{ id: string; slug: string }> {
+  const { data, error } = await supabase.from('stores').insert({
+    name: input.name,
+    slug: input.slug,
+    plan: 'free',
+    subscription_status: 'active',
+    subscription_until: null,
+    affiliate_id: input.affiliateId,
+  }).select('id, slug').single()
+  if (error) throw error
+  return { id: data.id as string, slug: data.slug as string }
+}
+
+// A tiny, segment-agnostic starter menu so the POS' first paint is never empty.
+// Everything is marked (ตัวอย่าง) so the owner knows to replace it.
+const SEED_CATEGORIES: CatEntry[] = [
+  { value: 'food',    label: 'อาหาร',      color: 'bg-red-600 text-gray-900',    icon: '🍔' },
+  { value: 'drink',   label: 'เครื่องดื่ม', color: 'bg-cyan-600 text-gray-900',   icon: '🥤' },
+  { value: 'dessert', label: 'ของหวาน',    color: 'bg-pink-600 text-gray-900',   icon: '🍰' },
+  { value: 'other',   label: 'อื่นๆ',       color: 'bg-gray-300 text-gray-700',   icon: '🏷️' },
+]
+
+const SEED_MENU: Array<{ name: string; nameTh: string; price: number; category: string }> = [
+  { name: 'Fried Rice (sample)',   nameTh: 'ข้าวผัด (ตัวอย่าง)',   price: 60,  category: 'food'    },
+  { name: 'Tom Yum (sample)',      nameTh: 'ต้มยำ (ตัวอย่าง)',     price: 120, category: 'food'    },
+  { name: 'Water (sample)',        nameTh: 'น้ำเปล่า (ตัวอย่าง)',  price: 15,  category: 'drink'   },
+  { name: 'Thai Iced Tea (sample)',nameTh: 'ชาเย็น (ตัวอย่าง)',    price: 35,  category: 'drink'   },
+  { name: 'Cake (sample)',         nameTh: 'เค้ก (ตัวอย่าง)',      price: 55,  category: 'dessert' },
+  { name: 'Ice Cream (sample)',    nameTh: 'ไอศกรีม (ตัวอย่าง)',   price: 45,  category: 'dessert' },
+]
+
+// Seed a freshly-created store's defaults. Best-effort per section — a hiccup
+// seeding, say, the sample menu must not blow away a store that is otherwise
+// provisioned (the owner can always add data by hand). Each write is explicitly
+// scoped to `storeId` — never rely on the migration-010 default, which points at
+// Store #1 and would leak seed rows into the wrong tenant.
+async function seedStoreDefaults(storeId: string, storeName: string, segment: StoreSegment): Promise<void> {
+  // Categories (full-replace is scoped to this store).
+  await saveCategories(SEED_CATEGORIES, storeId).catch(err =>
+    console.error('[provision] seed categories', err instanceof Error ? err.message : err))
+
+  // Sample menu.
+  for (let i = 0; i < SEED_MENU.length; i++) {
+    const m = SEED_MENU[i]
+    await createMenuItem({
+      name: m.name, nameTh: m.nameTh, price: m.price, category: m.category as MenuCategory,
+      available: true, description: 'ตัวอย่าง — แก้ไขหรือลบได้', sortOrder: i,
+    } as Omit<MenuItem, 'id'>, storeId).catch(err =>
+      console.error('[provision] seed menu', err instanceof Error ? err.message : err))
+  }
+
+  // Default floor layout + bar settings in app_config (the (store_id, key) shape
+  // read by /api/settings). Floor tiles mirror the built-in DEFAULT_TILES.
+  const floorTiles = [
+    { id: 'dt-T1', tableNo: 'T1', x: 40,  y: 40,  w: 120, h: 80, shape: 'rect', capacity: 4, zone: 'Indoor' },
+    { id: 'dt-T2', tableNo: 'T2', x: 200, y: 40,  w: 120, h: 80, shape: 'rect', capacity: 4, zone: 'Indoor' },
+    { id: 'dt-T3', tableNo: 'T3', x: 360, y: 40,  w: 120, h: 80, shape: 'rect', capacity: 4, zone: 'Indoor' },
+    { id: 'dt-T4', tableNo: 'T4', x: 40,  y: 200, w: 160, h: 80, shape: 'rect', capacity: 6, zone: 'Indoor' },
+  ]
+  await setConfig('floor_layout', JSON.stringify(floorTiles), storeId).catch(err =>
+    console.error('[provision] seed floor', err instanceof Error ? err.message : err))
+
+  const barSettings = {
+    barName: storeName, address: '', phone: '', taxId: '',
+    footer: 'ขอบคุณที่ใช้บริการ\nThank you! 🙏',
+    promptpayNumber: '', width: 32, receiptTemplate: 'classic',
+    printerConnectionType: 'bluetooth', openTime: '10:00', closeTime: '23:00',
+    businessDayCutoff: '00:00',
+  }
+  await setConfig('bar_settings', JSON.stringify(barSettings), storeId).catch(err =>
+    console.error('[provision] seed bar_settings', err instanceof Error ? err.message : err))
+
+  // Segment + provisioning source stamp (kept in app_config so no schema change
+  // is needed; plan='free' already lives on the stores row).
+  await setConfig('store_segment', segment, storeId).catch(() => {})
+  await setConfig('store_source', 'self-signup', storeId).catch(() => {})
+}
+
+export type ProvisionResult =
+  | { ok: true; storeId: string; slug: string | null; created: boolean; ownerPin?: string }
+  | { ok: false; reason: 'pending'; status: string }
+
+// Provision (or resolve) the signed-in user's store. See the block comment above
+// for the idempotency + concurrency contract.
+export async function provisionStoreForUser(input: {
+  userId: string
+  storeName: string
+  segment?: unknown
+  displayName?: string | null
+  email?: string | null
+  ref?: string | null
+}): Promise<ProvisionResult> {
+  // 1. Already resolved? (idempotent re-run) — or a non-store profile we must not
+  //    hijack (a pending join/approval from /auth/setup).
+  const { data: existing } = await supabase.from('profiles')
+    .select('store_id, status').eq('id', input.userId).maybeSingle()
+  if (existing?.store_id) {
+    const s = await getStore(existing.store_id as string)
+    return { ok: true, storeId: existing.store_id as string, slug: s?.slug ?? null, created: false }
+  }
+  if (existing) {
+    return { ok: false, reason: 'pending', status: (existing.status as string) ?? 'pending' }
+  }
+
+  const name = String(input.storeName ?? '').trim()
+  if (!name) throw new Error('storeName is required')
+  const segment = normalizeSegment(input.segment)
+
+  // Referral attribution (best-effort — an unknown/inactive code just drops).
+  let affiliateId: string | null = null
+  const ref = input.ref ? String(input.ref).trim() : ''
+  if (ref) { const aff = await getAffiliateByCode(ref); if (aff && aff.status === 'active') affiliateId = aff.id }
+
+  const slug = await uniqueStoreSlug(name)
+  const store = await createProvisionedStore({ name, slug, affiliateId })
+
+  // 2. Atomic claim: write the store id straight into the owner's profile. The
+  //    PK (auth uid) makes this the single point of serialization.
+  const displayName = (input.displayName || input.email || name || 'Owner').toString().trim() || 'Owner'
+  const { error: claimErr } = await supabase.from('profiles').insert({
+    id: input.userId, name: displayName, role: 'admin', status: 'approved',
+    provider: 'oauth', store_id: store.id,
+  })
+
+  if (claimErr) {
+    // Lost the race (or a stale profile appeared) → roll back our orphan store.
+    await supabase.from('stores').delete().eq('id', store.id)
+    const code = (claimErr as { code?: string }).code
+    if (code === '23505') {
+      const { data: again } = await supabase.from('profiles')
+        .select('store_id, status').eq('id', input.userId).maybeSingle()
+      if (again?.store_id) {
+        const s = await getStore(again.store_id as string)
+        return { ok: true, storeId: again.store_id as string, slug: s?.slug ?? null, created: false }
+      }
+      return { ok: false, reason: 'pending', status: (again?.status as string) ?? 'pending' }
+    }
+    throw claimErr
+  }
+
+  // 3. We own the store — seed it, then also create the owner's PIN operator so
+  //    they can start a shift immediately (mirrors the invite-join PIN pattern).
+  //    The PIN is random (not a guessable default) and returned once so the UI
+  //    can show it to the owner; they change it in Settings → Users.
+  await seedStoreDefaults(store.id, name, segment)
+  let ownerPin: string | undefined
+  try {
+    const pin = String(Math.floor(1000 + Math.random() * 9000)) // 4 digits, 1000-9999
+    await createStaffMember({ name: displayName, role: 'admin', pin, color: '#f59e0b' }, store.id)
+    ownerPin = pin
+  } catch (err) {
+    console.error('[provision] owner PIN operator', err instanceof Error ? err.message : err)
+  }
+  return { ok: true, storeId: store.id, slug: store.slug, created: true, ownerPin }
 }

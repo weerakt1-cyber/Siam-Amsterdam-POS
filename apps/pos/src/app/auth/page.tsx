@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { getSupabaseBrowser, fetchProfile } from '@/lib/supabase-browser'
+import { getSupabaseBrowser, fetchProfile, provisionFromSession } from '@/lib/supabase-browser'
 
 const ROLE_COLORS: Record<string, string> = {
   admin:      '#f59e0b',
@@ -23,7 +23,14 @@ export default function AuthPage() {
   // login method).
   async function routeAfterLogin(userId: string) {
     const profile = await fetchProfile(userId)
-    if (!profile) router.replace('/auth/setup')
+    if (!profile) {
+      // No profile: provision a fresh signup's store from its metadata, else
+      // fall through to the join/approval setup flow.
+      const outcome = await provisionFromSession()
+      if (outcome.kind === 'provisioned') router.replace(outcome.created ? '/welcome' : '/pos')
+      else if (outcome.kind === 'pending') router.replace('/auth/status')
+      else router.replace('/auth/setup')
+    }
     else if (profile.status !== 'approved') router.replace('/auth/status')
     else router.replace('/pos')
   }
@@ -107,7 +114,7 @@ export default function AuthPage() {
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src="/logo.png" alt="Bar logo" className="w-24 h-24 object-contain" />
           <div className="text-center">
-            <h1 className="text-2xl font-black text-white tracking-tight">BAZE POS</h1>
+            <h1 className="text-2xl font-black text-white tracking-tight">PLOEN POS</h1>
           </div>
         </div>
 

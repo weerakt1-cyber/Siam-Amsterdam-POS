@@ -66,3 +66,43 @@ export const ROLE_HOME: Record<string, string> = {
   bartender: '/pos',
   staff:     '/pos',
 }
+
+// ─── Post-login provisioning ─────────────────────────────────────────────────
+// Decide what to do with an authenticated user who has NO profile yet. A fresh
+// signup stashes the store name/segment in user_metadata (survives the OAuth /
+// email-confirm round-trip), so a store-intent signup is provisioned into its
+// own store; anyone else (a plain login with no signup intent) falls through to
+// the join/approval flow at /auth/setup. This is the single choke point shared
+// by /signup, /auth, /auth/callback and the in-app guard so the decision is made
+// the same way wherever the session first lands with no profile.
+export type ProvisionOutcome =
+  | { kind: 'provisioned'; slug: string | null; created: boolean; ownerPin?: string }
+  | { kind: 'pending' }      // account awaiting approval (invite/join flow)
+  | { kind: 'setup' }        // no store intent — send to /auth/setup
+  | { kind: 'error'; message: string }
+
+// Read the store name a signup stashed in user_metadata (any of a few key spellings).
+export function storeIntentFromMetadata(meta: Record<string, unknown> | null | undefined): string {
+  const m = meta ?? {}
+  return String(m.storeName ?? m.store_name ?? '').trim()
+}
+
+// Attempt to provision the signed-in user's store from their signup metadata.
+// Only call this once you already know the user has no profile row.
+export async function provisionFromSession(): Promise<ProvisionOutcome> {
+  const { data: { session } } = await getSupabaseBrowser().auth.getSession()
+  if (!session) return { kind: 'setup' }
+  const intent = storeIntentFromMetadata(session.user.user_metadata as Record<string, unknown>)
+  if (!intent) return { kind: 'setup' }   // no store intent → join/approval flow
+  try {
+    const res = await authedFetch('/api/provision', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}',
+    })
+    const d = await res.json().catch(() => ({}))
+    if (res.status === 409 && d.pending) return { kind: 'pending' }
+    if (!res.ok) return { kind: 'error', message: d.error || 'provision failed' }
+    return { kind: 'provisioned', slug: d.slug ?? null, created: !!d.created, ownerPin: d.ownerPin }
+  } catch {
+    return { kind: 'error', message: 'network' }
+  }
+}
