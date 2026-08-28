@@ -4,32 +4,45 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { getSupabaseBrowser, authedFetch } from '@/lib/supabase-browser'
 
-// Self-service store signup. The standard path is email + password (works fully
-// inside the native app WebView, same as /auth login) — the owner registers an
-// account and creates their store in one form. Google stays as a secondary
-// option. /api/signup is provider-agnostic: it only needs a session + name/slug.
+// Self-service store signup for PLOEN POS. The standard path is email + password
+// (works fully inside the native Android WebView, same as /auth login) — the
+// owner registers an account and their store is provisioned in one step. Google
+// stays as a secondary option. The store's URL slug is derived automatically
+// from the store name server-side (transliterated), so the owner never types one.
 //
-// Email confirmation is handled both ways:
-//  • confirmation OFF → signUp returns a session immediately → create the store now.
-//  • confirmation ON  → no session yet → show "check your email"; the verify link
-//    returns here with name/slug/ref in the URL + a session, and we finish
-//    creating the store automatically.
+// The store name + business segment are stashed in user_metadata at signup so
+// provisioning can read them after the OAuth / email-confirmation round-trip,
+// and are also carried in the return URL as a fallback. /api/provision is
+// provider-agnostic and idempotent: it only needs a session + store name.
+//
 // 'invite'/'joining' are the staff-invite flow: an admin's link
 // (…/signup?invite=TOKEN) auto-joins the signer-up to that store as staff — no
 // store to create, the store is fixed by the token.
 type Phase = 'loading' | 'register' | 'store' | 'checkEmail' | 'invite' | 'joining'
+
+const SEGMENTS: { value: string; label: string }[] = [
+  { value: 'restaurant', label: 'ร้านอาหาร' },
+  { value: 'cafe',       label: 'คาเฟ่ / กาแฟ' },
+  { value: 'bar',        label: 'บาร์ / ผับ' },
+  { value: 'massage',    label: 'นวด / สปา' },
+  { value: 'salon',      label: 'ร้านเสริมสวย' },
+  { value: 'nails',      label: 'ร้านทำเล็บ' },
+  { value: 'other',      label: 'อื่นๆ' },
+]
 
 export default function SignupPage() {
   const router = useRouter()
   const [phase, setPhase] = useState<Phase>('loading')
   const [ref, setRef]     = useState('')
   const [name, setName]   = useState('')
-  const [slug, setSlug]   = useState('')
+  const [segment, setSegment] = useState('restaurant')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [busy, setBusy]   = useState(false)
   const [error, setError] = useState('')
   const [done, setDone]   = useState(false)
+  const [ownerPin, setOwnerPin] = useState('')
+  const [resent, setResent] = useState(false)
   // Staff-invite flow
   const [invite, setInvite]       = useState('')   // token
   const [storeName, setStoreName] = useState('')   // resolved from the token
@@ -39,13 +52,13 @@ export default function SignupPage() {
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search)
-    const qRef   = params.get('ref')  ?? ''
-    const qName  = params.get('name') ?? ''
-    const qSlug  = params.get('slug') ?? ''
-    const qToken = params.get('invite') ?? ''
+    const qRef     = params.get('ref')  ?? ''
+    const qName    = params.get('name') ?? ''
+    const qSegment = params.get('segment') ?? ''
+    const qToken   = params.get('invite') ?? ''
     setRef(qRef)
     if (qName) setName(qName)
-    if (qSlug) setSlug(qSlug)
+    if (qSegment) setSegment(qSegment)
 
     // ── Staff invite flow ──────────────────────────────────────────────────
     if (qToken) {
@@ -71,13 +84,16 @@ export default function SignupPage() {
     }
 
     getSupabaseBrowser().auth.getSession().then(async ({ data: { session } }) => {
-      if (session && qName && qSlug) {
-        // Returned from the email-verification link — finish automatically.
-        setPhase('store')
-        await createStore(qName, qSlug, qRef)
-      } else if (session) {
-        // Already signed in (e.g. via Google) but no store yet → collect details.
-        setPhase('store')
+      if (session) {
+        // Signed in (returned from Google OAuth or the email-verify link, or an
+        // owner revisiting). Provision from the URL/metadata store details. If no
+        // store intent is known yet, collect it (the 'store' phase).
+        const metaName    = String(session.user.user_metadata?.storeName ?? '').trim()
+        const metaSegment = String(session.user.user_metadata?.segment ?? '').trim()
+        const n = qName || metaName
+        const s = qSegment || metaSegment || 'restaurant'
+        if (n) { setPhase('store'); await provision(n, s, qRef) }
+        else setPhase('store')
       } else {
         setPhase('register')
       }
@@ -87,28 +103,34 @@ export default function SignupPage() {
 
   function validStoreFields(): string | null {
     if (!name.trim()) return 'กรุณากรอกชื่อร้าน'
-    if (!/^[a-z0-9-]{3,}$/.test(slug.trim())) return 'ชื่อลิงก์ร้าน (slug): ตัวอังกฤษพิมพ์เล็ก/ตัวเลข/ขีด อย่างน้อย 3 ตัว'
     return null
   }
 
-  // Create the store for the currently-signed-in user, then head to /welcome.
-  async function createStore(n: string, s: string, r: string) {
+  // Provision (or resolve) the store for the currently-signed-in user, then head
+  // to /welcome. Idempotent server-side — safe if called more than once.
+  async function provision(n: string, seg: string, r: string) {
     setBusy(true); setError('')
     try {
-      const res = await authedFetch('/api/signup', {
+      const res = await authedFetch('/api/provision', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: n.trim(), slug: s.trim(), ref: r }),
+        body: JSON.stringify({ storeName: n.trim(), segment: seg, ref: r }),
       })
       const d = await res.json().catch(() => ({}))
+      if (res.status === 409 && d.pending) {
+        // The account is tied to a pending join/approval — not a fresh store.
+        router.replace('/auth/status'); return
+      }
       if (!res.ok) { setError(d.error || 'สร้างร้านไม่สำเร็จ'); setBusy(false); return }
+      if (d.ownerPin) setOwnerPin(String(d.ownerPin))
       setDone(true)
-      setTimeout(() => router.replace('/welcome'), 1200)
+      setTimeout(() => router.replace('/welcome'), d.ownerPin ? 3500 : 1200)
     } catch {
       setError('เชื่อมต่อไม่ได้ กรุณาลองใหม่'); setBusy(false)
     }
   }
 
-  // Email + password registration.
+  // Email + password registration. Store name + segment go into user_metadata so
+  // provisioning can read them after the (optional) email-confirmation round-trip.
   async function register(e: React.FormEvent) {
     e.preventDefault()
     const fieldErr = validStoreFields()
@@ -119,35 +141,54 @@ export default function SignupPage() {
     setBusy(true); setError('')
     const sb = getSupabaseBrowser()
     // Carry the store details through the (optional) email-verification round-trip.
-    const params = new URLSearchParams({ name: name.trim(), slug: slug.trim() })
+    const params = new URLSearchParams({ name: name.trim(), segment })
     if (ref) params.set('ref', ref)
     const { data, error: err } = await sb.auth.signUp({
       email: email.trim(),
       password,
-      options: { emailRedirectTo: `${location.origin}/signup?${params.toString()}` },
+      options: {
+        emailRedirectTo: `${location.origin}/signup?${params.toString()}`,
+        data: { storeName: name.trim(), segment, ref: ref || undefined },
+      },
     })
 
     if (err) {
       const msg = /already registered|already exists/i.test(err.message)
-        ? 'อีเมลนี้ถูกใช้แล้ว — กรุณาเข้าสู่ระบบแทน'
+        ? 'อีเมลนี้ถูกใช้แล้ว — หากเป็นของคุณ กรุณาเข้าสู่ระบบ (ลืมรหัสผ่าน? รีเซ็ตได้ที่หน้าเข้าสู่ระบบ)'
         : err.message
       setError(msg); setBusy(false); return
     }
 
     if (data.session) {
-      // Confirmation is off — we already have a session, create the store now.
-      await createStore(name, slug, ref)
+      // Confirmation is off — we already have a session, provision now.
+      await provision(name, segment, ref)
     } else {
       // Confirmation is on — wait for the user to click the email link.
       setBusy(false); setPhase('checkEmail')
     }
   }
 
+  // Resend the confirmation email (confirmation-on flow).
+  async function resendConfirmation() {
+    setError(''); setResent(false)
+    const params = new URLSearchParams({ name: name.trim(), segment })
+    if (ref) params.set('ref', ref)
+    const { error: err } = await getSupabaseBrowser().auth.resend({
+      type: 'signup',
+      email: email.trim(),
+      options: { emailRedirectTo: `${location.origin}/signup?${params.toString()}` },
+    })
+    if (err) { setError(err.message); return }
+    setResent(true)
+  }
+
   async function loginGoogle() {
     setError('')
-    const params = new URLSearchParams()
-    if (name.trim()) params.set('name', name.trim())
-    if (slug.trim()) params.set('slug', slug.trim())
+    const fieldErr = validStoreFields()
+    if (fieldErr) { setError(fieldErr); return }
+    // OAuth can't set user_metadata directly, so carry the store details in the
+    // return URL; the page reads them back and provisions on return.
+    const params = new URLSearchParams({ name: name.trim(), segment })
     if (ref) params.set('ref', ref)
     const q = params.toString()
     const { error: e } = await getSupabaseBrowser().auth.signInWithOAuth({
@@ -223,10 +264,17 @@ export default function SignupPage() {
 
   if (done) return (
     <div className="min-h-screen bg-gray-950 flex items-center justify-center px-6">
-      <div className="text-center">
+      <div className="text-center max-w-sm">
         <p className="text-5xl mb-3">🎉</p>
         <p className="text-white font-black text-lg">{invite ? 'เข้าร่วมร้านสำเร็จ!' : 'สร้างร้านสำเร็จ!'}</p>
         <p className="text-gray-400 text-sm mt-1">{invite ? 'กำลังเข้าสู่ระบบ…' : 'กำลังเตรียมการติดตั้ง…'}</p>
+        {!invite && ownerPin && (
+          <div className="mt-5 bg-gray-900 border border-amber-500/30 rounded-2xl p-4">
+            <p className="text-[11px] text-gray-400 uppercase tracking-wider">PIN เข้ากะของคุณ</p>
+            <p className="text-3xl font-black text-amber-400 tracking-[0.3em] mt-1">{ownerPin}</p>
+            <p className="text-[11px] text-gray-500 mt-2">จดไว้แล้วเปลี่ยนได้ที่ ตั้งค่า → พนักงาน</p>
+          </div>
+        )}
       </div>
     </div>
   )
@@ -249,6 +297,12 @@ export default function SignupPage() {
           เราส่งลิงก์ยืนยันไปที่<br /><span className="text-amber-400 font-semibold">{email.trim()}</span><br />
           คลิกลิงก์ในอีเมลเพื่อ{invite ? 'เข้าร่วมร้านให้เสร็จสมบูรณ์' : 'เปิดร้านให้เสร็จสมบูรณ์'}
         </p>
+        <button onClick={resendConfirmation}
+          className="mt-5 w-full px-4 py-2.5 bg-gray-800 hover:bg-gray-700 border border-gray-700 rounded-xl text-white font-semibold text-sm transition-all active:scale-95">
+          ส่งอีเมลอีกครั้ง
+        </button>
+        {resent && <p className="text-emerald-400 text-xs mt-2">✓ ส่งอีเมลยืนยันใหม่แล้ว</p>}
+        {error && <p className="text-red-400 text-xs mt-2 bg-red-400/10 rounded-lg py-2 px-3">{error}</p>}
         <p className="text-gray-600 text-[11px] mt-4">ไม่พบอีเมล? ลองเช็คในกล่อง Spam / Junk</p>
       </div>
     </div>
@@ -321,8 +375,8 @@ export default function SignupPage() {
     <div className="min-h-screen bg-gray-950 flex flex-col items-center justify-center px-6 py-12">
       <div className="w-full max-w-sm flex flex-col gap-6">
         <div className="text-center">
-          <h1 className="text-2xl font-black text-white tracking-tight">🚀 เปิดร้านกับ BAZE</h1>
-          <p className="text-gray-400 text-sm mt-1">ทดลองใช้ฟรี 15 วัน · ไม่ต้องใส่บัตร</p>
+          <h1 className="text-2xl font-black text-white tracking-tight">🚀 เปิดร้านกับ PLOEN POS</h1>
+          <p className="text-gray-400 text-sm mt-1">เริ่มใช้ฟรี · ไม่ต้องใส่บัตร</p>
           {ref && <p className="text-[11px] text-amber-500 mt-2">แนะนำโดยนายหน้า · โค้ด {ref}</p>}
         </div>
 
@@ -330,12 +384,13 @@ export default function SignupPage() {
           {/* Store details — collected in both phases */}
           <div>
             <label className="text-[11px] font-bold text-gray-500 uppercase block mb-1">ชื่อร้าน</label>
-            <input value={name} onChange={e => setName(e.target.value)} placeholder="เช่น Siam Bar" className={inputCls} />
+            <input value={name} onChange={e => setName(e.target.value)} placeholder="เช่น ร้านสยาม" className={inputCls} />
           </div>
           <div>
-            <label className="text-[11px] font-bold text-gray-500 uppercase block mb-1">ชื่อลิงก์ร้าน (slug)</label>
-            <input value={slug} onChange={e => setSlug(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ''))} placeholder="siam-bar" className={inputCls} />
-            <p className="text-[11px] text-gray-500 mt-1">ใช้ในลิงก์ QR ลูกค้า · ตัวอังกฤษพิมพ์เล็ก/ตัวเลข/ขีด</p>
+            <label className="text-[11px] font-bold text-gray-500 uppercase block mb-1">ประเภทธุรกิจ</label>
+            <select value={segment} onChange={e => setSegment(e.target.value)} className={inputCls}>
+              {SEGMENTS.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
+            </select>
           </div>
 
           {phase === 'register' ? (
@@ -353,7 +408,7 @@ export default function SignupPage() {
               </div>
               <button type="submit" disabled={busy}
                 className="w-full px-4 py-3.5 bg-amber-500 hover:bg-amber-400 disabled:opacity-50 rounded-xl text-black font-black text-sm transition-all active:scale-95">
-                {busy ? 'กำลังสร้างร้าน…' : 'สร้างร้าน + เริ่มทดลองใช้'}
+                {busy ? 'กำลังสร้างร้าน…' : 'สร้างร้าน + เริ่มใช้งานฟรี'}
               </button>
 
               <div className="flex items-center gap-3">
@@ -373,9 +428,9 @@ export default function SignupPage() {
             </form>
           ) : (
             // phase === 'store' — already signed in, just need the store details.
-            <button onClick={() => { const err = validStoreFields(); if (err) { setError(err); return } createStore(name, slug, ref) }} disabled={busy}
+            <button onClick={() => { const err = validStoreFields(); if (err) { setError(err); return } provision(name, segment, ref) }} disabled={busy}
               className="w-full px-4 py-3.5 bg-amber-500 hover:bg-amber-400 disabled:opacity-50 rounded-xl text-black font-black text-sm transition-all active:scale-95">
-              {busy ? 'กำลังสร้างร้าน…' : 'สร้างร้าน + เริ่มทดลองใช้'}
+              {busy ? 'กำลังสร้างร้าน…' : 'สร้างร้าน + เริ่มใช้งานฟรี'}
             </button>
           )}
 

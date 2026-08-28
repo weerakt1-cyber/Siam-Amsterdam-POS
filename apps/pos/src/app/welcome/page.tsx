@@ -72,7 +72,7 @@ export default function WelcomePage() {
               <path d="M8.5 8h7M8.5 11.2h7M8.5 14.4h4.2" stroke="#D97706" strokeWidth="1.5" strokeLinecap="round" />
             </svg>
           </div>
-          <p className="text-2xl font-black tracking-tight">BAZE<span className="text-amber-500"> POS</span></p>
+          <p className="text-2xl font-black tracking-tight">PLOEN<span className="text-amber-500"> POS</span></p>
           <p className="text-gray-400 text-sm leading-relaxed max-w-[27ch]">
             ร้านของคุณพร้อมแล้ว 🎉 ติดตั้งแอปลงเครื่องเพื่อใช้งานได้เต็มที่
           </p>

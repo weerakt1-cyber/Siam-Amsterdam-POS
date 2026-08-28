@@ -21,13 +21,13 @@ type AttachedFile = {
 }
 
 // ─── AI Add-On access ─────────────────────────────────────────────────────────
-// BAZE AI is a paid Add-On — NOT gated behind any Free/Pro/Max tier. It is OFF
+// PLOEN AI is a paid Add-On — NOT gated behind any Free/Pro/Max tier. It is OFF
 // by default: a venue that hasn't bought the add-on sees a teaser (a live
 // "typing" preview of what AI can answer) instead of the chat, to entice them
 // to enable it. Turn it ON for a paying venue by setting NEXT_PUBLIC_AI_ADDON=true.
 const AI_ENABLED = process.env.NEXT_PUBLIC_AI_ADDON === 'true'
 
-// Real, high-value questions BAZE AI can answer — used for the teaser typewriter.
+// Real, high-value questions PLOEN AI can answer — used for the teaser typewriter.
 const TEASER_PROMPTS = [
   'เมนูไหนทำกำไรดีที่สุดเดือนนี้?',
   'ควรสั่งวัตถุดิบอะไรเพิ่มก่อนของหมด?',
@@ -477,7 +477,7 @@ export default function AIChatPanel() {
               </div>
 
               <button
-                onPointerDown={() => alert('สนใจเปิดใช้ AI Add-On? ติดต่อทีมงาน Baze POS ได้เลย')}
+                onPointerDown={() => alert('สนใจเปิดใช้ AI Add-On? ติดต่อทีมงาน PLOEN POS ได้เลย')}
                 className="w-full py-3 rounded-2xl bg-amber-500 hover:bg-amber-400 active:scale-95 text-white font-bold text-sm transition shadow-lg shadow-amber-200/60"
               >
                 ✨ เปิดใช้ AI Add-On

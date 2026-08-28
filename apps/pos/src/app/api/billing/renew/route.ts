@@ -51,7 +51,7 @@ export async function POST(req: NextRequest) {
 
   const payment = await createStorePayment({ storeId, kind, plan, cycle: kind === 'ai_topup' ? 'topup' : cycle, amount, months })
 
-  const payload = buildPromptPayQR(promptpayId, amount, 'BAZE POS')
+  const payload = buildPromptPayQR(promptpayId, amount, 'PLOEN POS')
   const svg = await QRCode.toString(payload, { type: 'svg', width: 280, margin: 1 })
   const qrDataUrl = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`
 

@@ -17,7 +17,19 @@
 //                            dummy — the assertion is "still 401" either way)
 //   STORE2_SLUG  (optional)  a store-2 slug to inject as ?store= (default dummy)
 //
+// OPTIONAL authenticated cross-store block (section 5) — runs only when all of
+// these are set, otherwise it is SKIPPED (so the unauth checks stay CI-friendly):
+//   SUPABASE_URL                   (or NEXT_PUBLIC_SUPABASE_URL)
+//   SUPABASE_SERVICE_KEY           (or SUPABASE_SERVICE_ROLE_KEY) — service role
+//   NEXT_PUBLIC_SUPABASE_ANON_KEY  (or SUPABASE_ANON_KEY)
+// It creates two throwaway owners, provisions each a store through the real
+// POST /api/provision, then proves a store-2 session can never read store-1's
+// data (and the sole-store fallback returns null/400 with 2 stores present).
+// It cleans up everything it creates. Point it at a NON-production database.
+//
 // Exit code: 0 if every check PASSes, 1 if any FAILs.
+
+import { createClient } from '@supabase/supabase-js'
 
 const BASE_URL = process.env.BASE_URL
 if (!BASE_URL) {
@@ -163,6 +175,120 @@ async function checkSlipVerify() {
   }
 }
 
+// ─── 5. Authenticated cross-store isolation (signup → provision store #2) ─────
+// The real test the signup work order asks for: after a SECOND store is
+// provisioned, a store-2 session must get 401/404/empty on every store-1
+// resource, store-1 is unaffected, and the sole-store fallback no longer
+// resolves a store (returns null/400) now that ≥2 stores exist.
+
+const SB_URL     = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL
+const SB_SERVICE = process.env.SUPABASE_SERVICE_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY
+const SB_ANON    = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY
+
+async function authedHit(path, token) {
+  return hit(path, { headers: { Authorization: `Bearer ${token}` } })
+}
+
+async function checkCrossStoreAuth() {
+  console.log('\n5. Authenticated cross-store isolation (provision store #2)')
+  if (!SB_URL || !SB_SERVICE || !SB_ANON) {
+    console.log('  [SKIP] set SUPABASE_URL + SUPABASE_SERVICE_KEY + NEXT_PUBLIC_SUPABASE_ANON_KEY to run this block')
+    return
+  }
+
+  const admin = createClient(SB_URL, SB_SERVICE, { auth: { persistSession: false } })
+  const anon  = createClient(SB_URL, SB_ANON,    { auth: { persistSession: false } })
+  const stamp = Date.now()
+  const created = { userIds: [], storeIds: [], menuIds: [] }
+
+  try {
+    // 1. Two throwaway owners, each carrying store intent in user_metadata.
+    const owners = []
+    for (const n of [1, 2]) {
+      const email = `smoke-owner-${stamp}-${n}@example.com`
+      const password = `Smoke!pw-${stamp}-${n}`
+      const { data, error } = await admin.auth.admin.createUser({
+        email, password, email_confirm: true,
+        user_metadata: { storeName: `Smoke Store ${stamp}-${n}`, segment: 'restaurant' },
+      })
+      if (error || !data?.user) { report(`create owner ${n}`, false, error?.message); return }
+      created.userIds.push(data.user.id)
+      owners.push({ n, email, password })
+    }
+
+    // 2. Sign each in and provision their store through the REAL route.
+    for (const o of owners) {
+      const { data, error } = await anon.auth.signInWithPassword({ email: o.email, password: o.password })
+      if (error || !data?.session) { report(`sign in owner ${o.n}`, false, error?.message); return }
+      o.token = data.session.access_token
+      const res = await fetch(base + '/api/provision', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${o.token}`, 'Content-Type': 'application/json' },
+        body: '{}',
+      })
+      const d = await res.json().catch(() => ({}))
+      o.storeId = d.storeId
+      if (o.storeId) created.storeIds.push(o.storeId)
+      report(`provision store #${o.n} via POST /api/provision`, res.ok && !!d.storeId, `status=${res.status}`)
+    }
+    const [o1, o2] = owners
+    if (!o1?.storeId || !o2?.storeId || o1.storeId === o2.storeId) {
+      report('two distinct stores provisioned', false, `store1=${o1?.storeId} store2=${o2?.storeId}`)
+      return
+    }
+    report('two distinct stores provisioned', true, `store1≠store2`)
+
+    // 3. Plant a uniquely-named menu item in store-1 as the cross-store marker.
+    const marker = `SMOKE-MARKER-${stamp}`
+    const markerId = crypto.randomUUID()
+    const { error: insErr } = await admin.from('menu_items')
+      .insert({ id: markerId, name: marker, store_id: o1.storeId, price: 99, category: 'food' })
+    if (insErr) { report('plant store-1 marker menu item', false, insErr.message); return }
+    created.menuIds.push(markerId)
+    report('plant store-1 marker menu item', true, marker)
+
+    // 4. A store-2 session must never see the store-1 marker, and must never
+    //    leak store-1 order/cash data, on any tenant-scoped endpoint.
+    const store2Endpoints = [
+      ['/api/orders',            '/api/orders'],
+      ['/api/menu',              '/api/menu'],
+      [`/api/reports/${today}`,  `/api/reports/${today}`],
+      ['/api/settings',          '/api/settings'],
+      ['/api/members',           '/api/members'],
+      ['/api/users',             '/api/users'],
+    ]
+    for (const [name, path] of store2Endpoints) {
+      const { status, body } = await authedHit(path, o2.token)
+      const seesMarker = body.includes(marker) || body.includes(markerId)
+      const ok = status < 500 && !seesMarker && !leaksOrderData(body)
+      report(`store-2 session ${name} → no store-1 data`, ok,
+        `status=${status}${seesMarker ? ' SAW store-1 marker' : ''}`)
+    }
+
+    // 5. Store-1 is unaffected — its own session still sees its own marker menu.
+    {
+      const { status, body } = await authedHit('/api/menu', o1.token)
+      report('store-1 session GET /api/menu still sees its own data', status === 200 && body.includes(marker), `status=${status}`)
+    }
+
+    // 6. Sole-store fallback with 2 stores present: an UNAUTHENTICATED staff
+    //    endpoint must resolve no store (401/400), never fall back to store-1.
+    {
+      const { status, body } = await hit('/api/orders')
+      report('sole-store fallback disabled with 2 stores (unauth /api/orders → 401/400)',
+        (status === 401 || status === 400) && !leaksOrderData(body), `status=${status}`)
+    }
+  } finally {
+    // Cleanup — best-effort, in dependency order. Stores cascade-delete their
+    // tenant rows (FK on delete cascade, migration 010), so this also removes
+    // the provisioned profiles/menu/categories/config for those stores.
+    for (const id of created.menuIds) await admin.from('menu_items').delete().eq('id', id).then(() => {}, () => {})
+    for (const id of created.userIds) await admin.from('profiles').delete().eq('id', id).then(() => {}, () => {})
+    for (const id of created.storeIds) await admin.from('stores').delete().eq('id', id).then(() => {}, () => {})
+    for (const id of created.userIds) await admin.auth.admin.deleteUser(id).then(() => {}, () => {})
+  }
+}
+
 // ─── Run ──────────────────────────────────────────────────────────────────────
 
 console.log(`Store-isolation smoke test → ${base}`)
@@ -180,6 +306,7 @@ await checkSensitive(
 )
 await checkPublicFlows()
 await checkSlipVerify()
+await checkCrossStoreAuth()
 
 console.log(`\n${failures === 0 ? '✓ ALL CHECKS PASSED' : `✗ ${failures} CHECK(S) FAILED`}`)
 process.exit(failures === 0 ? 0 : 1)

@@ -29,7 +29,7 @@ export async function POST(req: NextRequest) {
   }
 
   const ok = await sendLineMessage(
-    '🍹 Test from Baze POS\nLINE Messaging API is connected and working!'
+    '🍹 Test from PLOEN POS\nLINE Messaging API is connected and working!'
   )
 
   if (!ok) {

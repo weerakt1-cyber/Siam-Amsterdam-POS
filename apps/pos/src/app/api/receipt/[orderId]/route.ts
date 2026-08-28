@@ -68,7 +68,7 @@ ${order.discount && order.discount.amount > 0 ? `
 ${order.paymentMethod ? `<div class="row" style="margin-top:4px"><span class="bold">${PAY_LABEL[order.paymentMethod] ?? order.paymentMethod.toUpperCase()}</span></div>` : ''}
 ${order.note ? `<div class="sep"></div><div class="small">Note: ${order.note}</div>` : ''}
 <div class="sep"></div>
-<div class="footer">Thank you for visiting!<br><span style="font-size:10px;color:#bbb">Baze POS</span></div>
+<div class="footer">Thank you for visiting!<br><span style="font-size:10px;color:#bbb">PLOEN POS</span></div>
 </body></html>`
 
   return new NextResponse(html, {

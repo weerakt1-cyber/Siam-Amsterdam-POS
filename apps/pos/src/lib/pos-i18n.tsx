@@ -653,7 +653,7 @@ const DICT = {
   invLow:            { en: 'Low', th: 'ใกล้หมด' },
 
   // ── Install app (PWA) ──
-  installTitle:      { en: 'Install Baze POS', th: 'ติดตั้งแอป Baze POS' },
+  installTitle:      { en: 'Install PLOEN POS', th: 'ติดตั้งแอป PLOEN POS' },
   installDesc:       { en: 'Add to your home screen for a full-screen, app-like experience.', th: 'เพิ่มลงหน้าจอโฮมเพื่อใช้งานแบบเต็มจอเหมือนแอปจริง' },
   installBtn:        { en: 'Install app', th: 'ติดตั้งแอป' },
   installLater:      { en: 'Not now', th: 'ไว้ก่อน' },
