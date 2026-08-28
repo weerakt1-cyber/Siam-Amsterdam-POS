@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { getSupabaseBrowser, fetchProfile, authedFetch } from "@/lib/supabase-browser"
 import { useAuth } from '@/lib/pos-auth'
+import { SEEN_POS_KEY } from '@/components/LandingGate'
 
 type State = 'checking' | 'ready' | 'unauthenticated'
 
@@ -52,6 +53,9 @@ export default function AppAuthGuard({ children }: { children: React.ReactNode }
           login({ id: profile.id, name: profile.name, role: profile.role, color: profile.color })
         }
       }
+      // Remember this device reached the POS, so the public landing is skipped
+      // on the next app open (LandingGate reads this flag).
+      try { localStorage.setItem(SEEN_POS_KEY, '1') } catch {}
       setState('ready')
     }
 
