@@ -477,3 +477,42 @@ export async function rejectPendingProfile(userId: string): Promise<void> {
     .eq('id', userId)
   if (error) throw error
 }
+
+// ── Staff invite links ──────────────────────────────────────────────────────
+// A store admin shares a link (…/signup?invite=TOKEN). Staff who sign up through
+// it get their app account (Google/email login = device access) auto-joined to
+// that store as an approved 'staff' member — no super-admin approval needed,
+// because the admin who generated the link vouched for them. The token lives in
+// app_config (per store) and can be regenerated to revoke every old link at once.
+const STAFF_INVITE_KEY = 'staff_invite_token'
+
+export async function getStaffInviteToken(storeId: string): Promise<string | null> {
+  const { data } = await supabase.from('app_config')
+    .select('value').eq('store_id', storeId).eq('key', STAFF_INVITE_KEY).maybeSingle()
+  return (data?.value as string | null) ?? null
+}
+
+export async function setStaffInviteToken(storeId: string, token: string): Promise<void> {
+  const { error } = await supabase.from('app_config')
+    .upsert({ store_id: storeId, key: STAFF_INVITE_KEY, value: token, updated_at: new Date().toISOString() },
+            { onConflict: 'store_id,key' })
+  if (error) throw error
+}
+
+// Public resolve: a valid invite token → its store (name shown on the signup
+// page). Returns null for an unknown/revoked token.
+export async function findStoreByInviteToken(token: string): Promise<StoreInfo | null> {
+  if (!token) return null
+  const { data } = await supabase.from('app_config')
+    .select('store_id').eq('key', STAFF_INVITE_KEY).eq('value', token).maybeSingle()
+  const sid = data?.store_id as string | undefined
+  return sid ? getStore(sid) : null
+}
+
+// Link a signed-up user into a store as approved staff (invite flow).
+export async function linkStaffProfile(userId: string, name: string, storeId: string): Promise<void> {
+  const { error } = await supabase.from('profiles').upsert({
+    id: userId, name, role: 'staff', status: 'approved', store_id: storeId, provider: 'oauth',
+  }, { onConflict: 'id' })
+  if (error) throw error
+}
