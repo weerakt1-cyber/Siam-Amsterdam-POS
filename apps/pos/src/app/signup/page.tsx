@@ -14,7 +14,10 @@ import { getSupabaseBrowser, authedFetch } from '@/lib/supabase-browser'
 //  • confirmation ON  → no session yet → show "check your email"; the verify link
 //    returns here with name/slug/ref in the URL + a session, and we finish
 //    creating the store automatically.
-type Phase = 'loading' | 'register' | 'store' | 'checkEmail'
+// 'invite'/'joining' are the staff-invite flow: an admin's link
+// (…/signup?invite=TOKEN) auto-joins the signer-up to that store as staff — no
+// store to create, the store is fixed by the token.
+type Phase = 'loading' | 'register' | 'store' | 'checkEmail' | 'invite' | 'joining'
 
 export default function SignupPage() {
   const router = useRouter()
@@ -27,15 +30,38 @@ export default function SignupPage() {
   const [busy, setBusy]   = useState(false)
   const [error, setError] = useState('')
   const [done, setDone]   = useState(false)
+  // Staff-invite flow
+  const [invite, setInvite]       = useState('')   // token
+  const [storeName, setStoreName] = useState('')   // resolved from the token
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search)
-    const qRef  = params.get('ref')  ?? ''
-    const qName = params.get('name') ?? ''
-    const qSlug = params.get('slug') ?? ''
+    const qRef   = params.get('ref')  ?? ''
+    const qName  = params.get('name') ?? ''
+    const qSlug  = params.get('slug') ?? ''
+    const qToken = params.get('invite') ?? ''
     setRef(qRef)
     if (qName) setName(qName)
     if (qSlug) setSlug(qSlug)
+
+    // ── Staff invite flow ──────────────────────────────────────────────────
+    if (qToken) {
+      setInvite(qToken)
+      ;(async () => {
+        // Resolve the token → store name (public endpoint).
+        try {
+          const r = await fetch(`/api/invite/${encodeURIComponent(qToken)}`)
+          if (r.ok) { const d = await r.json(); setStoreName(d.store?.name ?? '') }
+          else { setError('ลิงก์เชิญไม่ถูกต้องหรือถูกยกเลิกแล้ว') }
+        } catch { setError('เชื่อมต่อไม่ได้ กรุณาลองใหม่') }
+
+        // Already signed in (returned from email verify, or logged in) → join now.
+        const { data: { session } } = await getSupabaseBrowser().auth.getSession()
+        if (session) { setPhase('joining'); await joinStaff(qToken, qName || (session.user.email ?? '')) }
+        else setPhase('invite')
+      })()
+      return
+    }
 
     getSupabaseBrowser().auth.getSession().then(async ({ data: { session } }) => {
       if (session && qName && qSlug) {
@@ -124,6 +150,60 @@ export default function SignupPage() {
     if (e) setError(e.message)
   }
 
+  // ── Staff invite ──────────────────────────────────────────────────────────
+  // Link the signed-in user into the invite's store as staff, then go to /pos.
+  async function joinStaff(token: string, n: string) {
+    setBusy(true); setError('')
+    try {
+      const res = await authedFetch('/api/staff-join', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token, name: n.trim() }),
+      })
+      const d = await res.json().catch(() => ({}))
+      if (!res.ok) { setError(d.error || 'เข้าร่วมร้านไม่สำเร็จ'); setBusy(false); setPhase('invite'); return }
+      setDone(true)
+      setTimeout(() => router.replace('/pos'), 1200)
+    } catch {
+      setError('เชื่อมต่อไม่ได้ กรุณาลองใหม่'); setBusy(false); setPhase('invite')
+    }
+  }
+
+  // Email + password registration for an invited staff member.
+  async function registerStaff(e: React.FormEvent) {
+    e.preventDefault()
+    if (!name.trim()) { setError('กรุณากรอกชื่อของคุณ'); return }
+    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email.trim())) { setError('กรุณากรอกอีเมลให้ถูกต้อง'); return }
+    if (password.length < 6) { setError('รหัสผ่านอย่างน้อย 6 ตัวอักษร'); return }
+
+    setBusy(true); setError('')
+    const sb = getSupabaseBrowser()
+    const params = new URLSearchParams({ invite, name: name.trim() })
+    const { data, error: err } = await sb.auth.signUp({
+      email: email.trim(),
+      password,
+      options: { emailRedirectTo: `${location.origin}/signup?${params.toString()}` },
+    })
+    if (err) {
+      const msg = /already registered|already exists/i.test(err.message)
+        ? 'อีเมลนี้ถูกใช้แล้ว — กรุณาเข้าสู่ระบบแทน'
+        : err.message
+      setError(msg); setBusy(false); return
+    }
+    if (data.session) await joinStaff(invite, name)      // confirmation off → join now
+    else { setBusy(false); setPhase('checkEmail') }      // confirmation on → verify email
+  }
+
+  async function loginGoogleInvite() {
+    setError('')
+    const params = new URLSearchParams({ invite })
+    if (name.trim()) params.set('name', name.trim())
+    const { error: e } = await getSupabaseBrowser().auth.signInWithOAuth({
+      provider: 'google',
+      options: { redirectTo: `${location.origin}/signup?${params.toString()}` },
+    })
+    if (e) setError(e.message)
+  }
+
   // ── Screens ──────────────────────────────────────────────────────────────
   if (phase === 'loading') return <div className="min-h-screen bg-gray-950" />
 
@@ -131,8 +211,17 @@ export default function SignupPage() {
     <div className="min-h-screen bg-gray-950 flex items-center justify-center px-6">
       <div className="text-center">
         <p className="text-5xl mb-3">🎉</p>
-        <p className="text-white font-black text-lg">สร้างร้านสำเร็จ!</p>
-        <p className="text-gray-400 text-sm mt-1">กำลังเตรียมการติดตั้ง…</p>
+        <p className="text-white font-black text-lg">{invite ? 'เข้าร่วมร้านสำเร็จ!' : 'สร้างร้านสำเร็จ!'}</p>
+        <p className="text-gray-400 text-sm mt-1">{invite ? 'กำลังเข้าสู่ระบบ…' : 'กำลังเตรียมการติดตั้ง…'}</p>
+      </div>
+    </div>
+  )
+
+  if (phase === 'joining') return (
+    <div className="min-h-screen bg-gray-950 flex items-center justify-center px-6">
+      <div className="flex flex-col items-center gap-4">
+        <div className="w-7 h-7 border-2 border-amber-500/30 border-t-amber-500 rounded-full animate-spin" />
+        <p className="text-gray-400 text-sm">กำลังเข้าร่วมร้าน…</p>
       </div>
     </div>
   )
@@ -144,7 +233,7 @@ export default function SignupPage() {
         <p className="text-white font-black text-lg">ยืนยันอีเมลของคุณ</p>
         <p className="text-gray-400 text-sm mt-2 leading-relaxed">
           เราส่งลิงก์ยืนยันไปที่<br /><span className="text-amber-400 font-semibold">{email.trim()}</span><br />
-          คลิกลิงก์ในอีเมลเพื่อเปิดร้านให้เสร็จสมบูรณ์
+          คลิกลิงก์ในอีเมลเพื่อ{invite ? 'เข้าร่วมร้านให้เสร็จสมบูรณ์' : 'เปิดร้านให้เสร็จสมบูรณ์'}
         </p>
         <p className="text-gray-600 text-[11px] mt-4">ไม่พบอีเมล? ลองเช็คในกล่อง Spam / Junk</p>
       </div>
@@ -152,6 +241,59 @@ export default function SignupPage() {
   )
 
   const inputCls = 'w-full px-4 py-3 bg-gray-800 border border-gray-700 rounded-xl text-white text-sm placeholder-gray-500 outline-none focus:border-amber-500 transition'
+
+  // ── Staff invite: register/join a fixed store (no store creation) ──────────
+  if (phase === 'invite') return (
+    <div className="min-h-screen bg-gray-950 flex flex-col items-center justify-center px-6 py-12">
+      <div className="w-full max-w-sm flex flex-col gap-6">
+        <div className="text-center">
+          <h1 className="text-2xl font-black text-white tracking-tight">👋 เข้าร่วมทีมงาน</h1>
+          {storeName
+            ? <p className="text-gray-400 text-sm mt-1">ร้าน <span className="text-amber-400 font-bold">{storeName}</span> เชิญคุณเข้าร่วม</p>
+            : <p className="text-gray-500 text-sm mt-1">สมัครบัญชีพนักงานเพื่อเริ่มใช้งาน</p>}
+        </div>
+
+        <div className="w-full bg-gray-900 border border-gray-800 rounded-2xl p-6 flex flex-col gap-4 shadow-2xl">
+          <form onSubmit={registerStaff} className="flex flex-col gap-4">
+            <div>
+              <label className="text-[11px] font-bold text-gray-500 uppercase block mb-1">ชื่อของคุณ</label>
+              <input value={name} onChange={e => setName(e.target.value)} placeholder="เช่น สมชาย" className={inputCls} />
+            </div>
+            <div>
+              <label className="text-[11px] font-bold text-gray-500 uppercase block mb-1">อีเมล</label>
+              <input type="email" inputMode="email" autoCapitalize="none" autoCorrect="off"
+                value={email} onChange={e => setEmail(e.target.value)} placeholder="you@email.com" className={inputCls} />
+            </div>
+            <div>
+              <label className="text-[11px] font-bold text-gray-500 uppercase block mb-1">รหัสผ่าน</label>
+              <input type="password" value={password} onChange={e => setPassword(e.target.value)}
+                placeholder="อย่างน้อย 6 ตัวอักษร" className={inputCls} />
+            </div>
+            <button type="submit" disabled={busy}
+              className="w-full px-4 py-3.5 bg-amber-500 hover:bg-amber-400 disabled:opacity-50 rounded-xl text-black font-black text-sm transition-all active:scale-95">
+              {busy ? 'กำลังเข้าร่วม…' : 'สมัคร + เข้าร่วมร้าน'}
+            </button>
+
+            <div className="flex items-center gap-3">
+              <div className="flex-1 h-px bg-gray-800" />
+              <span className="text-[10px] text-gray-600 uppercase tracking-widest">หรือ</span>
+              <div className="flex-1 h-px bg-gray-800" />
+            </div>
+            <button type="button" onClick={loginGoogleInvite} disabled={busy}
+              className="w-full flex items-center justify-center gap-3 px-4 py-3.5 bg-white hover:bg-gray-100 disabled:opacity-50 rounded-xl text-gray-900 font-semibold text-sm transition-all active:scale-95">
+              <svg className="w-5 h-5" viewBox="0 0 48 48"><path fill="#FFC107" d="M43.6 20H24v8h11.3C33.6 33.1 29.3 36 24 36c-6.6 0-12-5.4-12-12s5.4-12 12-12c3 0 5.8 1.1 7.9 3l5.7-5.7C34.1 6.5 29.3 4 24 4 12.9 4 4 12.9 4 24s8.9 20 20 20c11 0 19.7-8 19.7-20 0-1.3-.1-2.7-.1-4z"/><path fill="#FF3D00" d="M6.3 14.7l6.6 4.8C14.5 15.1 18.9 12 24 12c3 0 5.8 1.1 7.9 3l5.7-5.7C34.1 6.5 29.3 4 24 4 16.3 4 9.7 8.4 6.3 14.7z"/><path fill="#4CAF50" d="M24 44c5.2 0 9.9-1.9 13.5-5l-6.2-5.2C29.4 35.5 26.8 36 24 36c-5.2 0-9.6-2.9-11.3-7.1l-6.5 5C9.7 39.6 16.3 44 24 44z"/><path fill="#1976D2" d="M43.6 20H24v8h11.3c-.8 2.3-2.3 4.3-4.2 5.8l6.2 5.2C41.1 35.6 44 30.3 44 24c0-1.3-.1-2.7-.4-4z"/></svg>
+              เข้าร่วมด้วย Google
+            </button>
+
+            <p className="text-center text-xs text-gray-500">
+              มีบัญชีแล้ว? <a href="/auth" className="text-amber-400 font-semibold">เข้าสู่ระบบ</a>
+            </p>
+          </form>
+          {error && <p className="text-red-400 text-xs text-center bg-red-400/10 rounded-lg py-2 px-3">{error}</p>}
+        </div>
+      </div>
+    </div>
+  )
 
   return (
     <div className="min-h-screen bg-gray-950 flex flex-col items-center justify-center px-6 py-12">

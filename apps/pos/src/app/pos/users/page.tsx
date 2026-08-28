@@ -6,6 +6,7 @@ import { useState, useEffect, useCallback } from 'react'
 import type { UserRole } from '@/lib/types'
 import { usePosLang } from '@/lib/pos-i18n'
 import { SkeletonList } from '@/components/pos/Skeleton'
+import InviteStaffButton from '@/components/pos/InviteStaffButton'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -514,10 +515,13 @@ export default function UsersPage() {
         {/* Staff header */}
         <div className="px-4 py-3 flex items-center justify-between border-b border-gray-100">
           <p className="text-xs text-gray-400">{users.length} accounts</p>
-          <button
-            onPointerDown={startNew}
-            className="w-7 h-7 rounded-lg bg-amber-500 hover:bg-amber-400 text-black flex items-center justify-center text-base font-bold transition-all active:scale-95"
-          >+</button>
+          <div className="flex items-center gap-2">
+            <InviteStaffButton />
+            <button
+              onPointerDown={startNew}
+              className="w-7 h-7 rounded-lg bg-amber-500 hover:bg-amber-400 text-black flex items-center justify-center text-base font-bold transition-all active:scale-95"
+            >+</button>
+          </div>
         </div>
 
         {/* Staff list */}
