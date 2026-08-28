@@ -16,13 +16,13 @@ const notoSansThai = Noto_Sans_Thai({
 });
 
 export const metadata: Metadata = {
-  title: "Baze POS",
-  description: "Baze POS — Point of Sale for bars & restaurants",
+  title: "PLOEN POS",
+  description: "PLOEN POS — Point of Sale for bars & restaurants",
   manifest: "/manifest.json",
   appleWebApp: {
     capable: true,
     statusBarStyle: "black-translucent",
-    title: "Baze POS",
+    title: "PLOEN POS",
   },
   icons: {
     icon: "/icons/icon-192.png",
