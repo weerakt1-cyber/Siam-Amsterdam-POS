@@ -1,5 +1,6 @@
 import Link from 'next/link'
 import { PLANS, TRIAL_DAYS, INTRO_MONTHLY } from '@/lib/plans'
+import LandingGate from '@/components/LandingGate'
 
 // Public marketing landing. This is where an affiliate's "ลิงก์ชวนร้าน"
 // (…/?ref=CODE or …/signup?ref=CODE) can safely land: the ref is read here and
@@ -27,6 +28,7 @@ export default async function Home({
   const signupHref = code ? `/signup?ref=${encodeURIComponent(code)}` : '/signup'
 
   return (
+    <LandingGate disabled={!!code}>
     <div className="min-h-screen bg-gray-950 text-white flex flex-col">
       {/* header */}
       <header className="w-full max-w-5xl mx-auto px-6 py-5 flex items-center justify-between">
@@ -122,5 +124,6 @@ export default async function Home({
         © BAZE POS
       </footer>
     </div>
+    </LandingGate>
   )
 }
