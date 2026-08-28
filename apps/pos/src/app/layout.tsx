@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Inter, Noto_Sans_Thai } from "next/font/google";
 import "./globals.css";
+import ServiceWorkerRegister from "@/components/pos/ServiceWorkerRegister";
 
 const inter = Inter({
   subsets: ["latin"],
@@ -16,13 +17,13 @@ const notoSansThai = Noto_Sans_Thai({
 });
 
 export const metadata: Metadata = {
-  title: "Baze POS",
-  description: "Baze POS — Point of Sale for bars & restaurants",
+  title: "PLOEN POS",
+  description: "PLOEN POS — Point of Sale for restaurants, cafés & bars",
   manifest: "/manifest.json",
   appleWebApp: {
     capable: true,
     statusBarStyle: "black-translucent",
-    title: "Baze POS",
+    title: "PLOEN POS",
   },
   icons: {
     icon: "/icons/icon-192.png",
@@ -40,7 +41,12 @@ export default function RootLayout({
       lang="en"
       className={`${inter.variable} ${notoSansThai.variable} h-full antialiased`}
     >
-      <body className="min-h-full flex flex-col">{children}</body>
+      <body className="min-h-full flex flex-col">
+        {/* Register the PWA service worker app-wide (not just under /pos) so
+            Android's install prompt can fire on the public landing/order pages. */}
+        <ServiceWorkerRegister />
+        {children}
+      </body>
     </html>
   );
 }

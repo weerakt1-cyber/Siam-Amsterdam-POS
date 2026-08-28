@@ -1,5 +1,5 @@
 /**
- * BluetoothManager — Stable Bluetooth for Baze POS (Android / Capacitor)
+ * BluetoothManager — Stable Bluetooth for PLOEN POS (Android / Capacitor)
  *
  * NOTE ON "CORE BLUETOOTH":
  *   Core Bluetooth คือ framework ของ Apple/iOS เท่านั้น
@@ -103,7 +103,7 @@ class BluetoothManager {
       const { BluetoothPermission } = await import('./bluetooth-permission')
       const status = await BluetoothPermission.requestPermissions()
       if (status.allGranted) return true
-      this.emit({ type: 'error', message: 'ไม่ได้รับสิทธิ์ Bluetooth/Location — ไปที่ Settings → Apps → Baze POS → Permissions' })
+      this.emit({ type: 'error', message: 'ไม่ได้รับสิทธิ์ Bluetooth/Location — ไปที่ Settings → Apps → PLOEN POS → Permissions' })
       return false
     } catch {
       // native plugin ยังไม่ถูก register (APK เก่าที่ยังไม่ cap sync) → ลองทางที่ 2
@@ -117,7 +117,7 @@ class BluetoothManager {
         const result = await plugin.requestPermissions()
         const granted = Object.values(result ?? {}).every(v => v === 'granted')
         if (!granted) {
-          this.emit({ type: 'error', message: 'ไม่ได้รับสิทธิ์ Bluetooth — ไปที่ Settings → Apps → Baze POS → Permissions' })
+          this.emit({ type: 'error', message: 'ไม่ได้รับสิทธิ์ Bluetooth — ไปที่ Settings → Apps → PLOEN POS → Permissions' })
         }
         return granted
       }

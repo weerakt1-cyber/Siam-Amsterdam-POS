@@ -7,13 +7,13 @@ import PrinterAutoConnect from '@/components/pos/PrinterAutoConnect'
 import QrOrderAutoPrint from '@/components/pos/QrOrderAutoPrint'
 import SettingsSync from '@/components/pos/SettingsSync'
 import SubscriptionBanner from '@/components/pos/SubscriptionBanner'
-import ServiceWorkerRegister from '@/components/pos/ServiceWorkerRegister'
 import InstallPrompt from '@/components/pos/InstallPrompt'
+import OnboardingChecklist from '@/components/pos/OnboardingChecklist'
 import { PosAuthProvider } from '@/lib/pos-auth'
 import { PosLangProvider } from '@/lib/pos-i18n'
 
 export const metadata = {
-  title: 'BAR POS — Staff Dashboard',
+  title: 'PLOEN POS — Staff Dashboard',
   description: 'POS tablet interface for bar staff',
 }
 
@@ -26,6 +26,7 @@ export default function POSLayout({ children }: { children: React.ReactNode }) {
           <Sidebar />
           <main className="flex-1 overflow-hidden flex flex-col pb-16 sm:pb-0">
             <SubscriptionBanner />
+            <OnboardingChecklist />
             {children}
           </main>
         </div>
@@ -35,7 +36,6 @@ export default function POSLayout({ children }: { children: React.ReactNode }) {
         <PrinterAutoConnect />
         <QrOrderAutoPrint />
         <SettingsSync />
-        <ServiceWorkerRegister />
         <InstallPrompt />
       </AppAuthGuard>
       </PosLangProvider>

@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { getSupabaseBrowser, fetchProfile, authedFetch } from "@/lib/supabase-browser"
+import { getSupabaseBrowser, fetchProfile, authedFetch, provisionFromSession } from "@/lib/supabase-browser"
 import { useAuth } from '@/lib/pos-auth'
 import { SEEN_POS_KEY } from '@/components/LandingGate'
 
@@ -24,7 +24,18 @@ export default function AppAuthGuard({ children }: { children: React.ReactNode }
       const profile = await fetchProfile(session.user.id)
 
       if (!profile) {
-        router.replace('/auth/setup'); return
+        // Reached /pos with a session but no profile: provision a fresh signup's
+        // store from its metadata (idempotent), else route to the setup/approval
+        // flow. A provisioned owner continues straight into the POS below.
+        const outcome = await provisionFromSession()
+        if (outcome.kind === 'pending') { router.replace('/auth/status'); return }
+        if (outcome.kind !== 'provisioned') { router.replace('/auth/setup'); return }
+        // provisioned → re-fetch the freshly-created profile and continue.
+        const fresh = await fetchProfile(session.user.id)
+        if (!fresh) { router.replace('/auth/setup'); return }
+        try { login({ id: fresh.id, name: fresh.name, role: fresh.role!, color: fresh.color }) } catch {}
+        try { localStorage.setItem(SEEN_POS_KEY, '1') } catch {}
+        setState('ready'); return
       }
       if (profile.status === 'pending' || profile.status === 'rejected') {
         router.replace('/auth/status'); return

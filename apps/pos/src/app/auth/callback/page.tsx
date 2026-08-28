@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { getSupabaseBrowser, fetchProfile } from '@/lib/supabase-browser'
+import { getSupabaseBrowser, fetchProfile, provisionFromSession } from '@/lib/supabase-browser'
 
 export default function AuthCallbackPage() {
   const router = useRouter()
@@ -23,7 +23,13 @@ export default function AuthCallbackPage() {
 
       const profile = await fetchProfile(session.user.id)
       if (!profile) {
-        router.replace('/auth/setup')
+        // No profile yet: a fresh signup (store intent in metadata) gets its
+        // store provisioned here; anyone else drops to the join/approval flow.
+        setStatus('กำลังเตรียมร้านของคุณ…')
+        const outcome = await provisionFromSession()
+        if (outcome.kind === 'provisioned') router.replace(outcome.created ? '/welcome' : '/pos')
+        else if (outcome.kind === 'pending') router.replace('/auth/status')
+        else router.replace('/auth/setup')
       } else if (profile.status === 'pending' || profile.status === 'rejected') {
         router.replace('/auth/status')
       } else {

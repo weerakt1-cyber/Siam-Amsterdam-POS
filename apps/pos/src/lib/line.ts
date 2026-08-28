@@ -66,7 +66,7 @@ function formatOrderAlert(data: OrderNotifyData): string {
   // No "Paid" line here — orders (especially QR self-orders) aren't
   // necessarily settled yet when this alert fires. Ends at Subtotal.
   return [
-    `🍹 New Order — Baze POS`,
+    `🍹 New Order — PLOEN POS`,
     `━━━━━━━━━━━━`,
     `🪑 Table: ${data.tableNo}  |  #${shortId}${staffLine}${memberLine}${customerLine}${noteLine}`,
     ``,
@@ -117,7 +117,7 @@ function formatDailySummary(data: EndOfDayData): string {
     : ''
 
   return [
-    `📊 End of Day — Baze POS`,
+    `📊 End of Day — PLOEN POS`,
     `📅 ${data.date}`,
     `━━━━━━━━━━━━`,
     `🧾 SALES`,
@@ -134,7 +134,7 @@ function formatDailySummary(data: EndOfDayData): string {
     `💰 CASH DRAWER`,
     drawerLines,
     `━━━━━━━━━━━━`,
-    `🍹 Baze POS`,
+    `🍹 PLOEN POS`,
   ].join('\n')
 }
 
