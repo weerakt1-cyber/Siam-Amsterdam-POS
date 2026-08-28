@@ -420,3 +420,60 @@ export async function addAiCredit(storeId: string, amount: number): Promise<void
   const { data: row } = await supabase.from('stores').select('ai_credit_balance').eq('id', sid).maybeSingle()
   await supabase.from('stores').update({ ai_credit_balance: Number(row?.ai_credit_balance ?? 0) + amount }).eq('id', sid)
 }
+
+// ── App-user approvals (super-admin console) ─────────────────────────────────
+// Users who logged in via Google/email but aren't yet scoped to a store sit at
+// status='pending'. Approving them is a platform-operator (super-admin) action:
+// the operator picks which store the account joins and its role. (Previously a
+// per-store admin did this inside the POS; moved out so store staff can't
+// self-approve app accounts.)
+export type PendingProfile = {
+  id: string; name: string; color: string | null
+  requested_role: string | null; status: string
+  created_at: string; provider: string | null; email: string
+}
+
+export async function listPendingProfiles(): Promise<PendingProfile[]> {
+  const { data, error } = await supabase
+    .from('profiles')
+    .select('id, name, color, requested_role, status, created_at, provider')
+    .eq('status', 'pending')
+    .order('created_at', { ascending: true })
+  if (error) throw error
+  const rows = (data ?? []) as Array<Record<string, unknown>>
+
+  // Attach the auth email/phone for display (service-role admin API).
+  const ids = rows.map(r => r.id as string)
+  const emails: Record<string, string> = {}
+  if (ids.length > 0) {
+    const { data: { users } } = await supabase.auth.admin.listUsers()
+    for (const u of users ?? []) {
+      if (ids.includes(u.id)) emails[u.id] = u.email ?? u.phone ?? ''
+    }
+  }
+
+  return rows.map(r => ({
+    id:             r.id as string,
+    name:           (r.name as string) ?? '',
+    color:          (r.color as string | null) ?? null,
+    requested_role: (r.requested_role as string | null) ?? null,
+    status:         r.status as string,
+    created_at:     r.created_at as string,
+    provider:       (r.provider as string | null) ?? null,
+    email:          emails[r.id as string] ?? '',
+  }))
+}
+
+export async function approvePendingProfile(userId: string, storeId: string, role: string): Promise<void> {
+  const { error } = await supabase.from('profiles')
+    .update({ status: 'approved', role, store_id: storeId })
+    .eq('id', userId)
+  if (error) throw error
+}
+
+export async function rejectPendingProfile(userId: string): Promise<void> {
+  const { error } = await supabase.from('profiles')
+    .update({ status: 'rejected' })
+    .eq('id', userId)
+  if (error) throw error
+}
