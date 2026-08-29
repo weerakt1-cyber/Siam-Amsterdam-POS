@@ -33,7 +33,10 @@ export default async function Home({
       {/* header */}
       <header className="w-full max-w-5xl mx-auto px-6 py-5 flex items-center justify-between">
         <span className="font-black text-lg tracking-tight">🚀 PLOEN<span className="text-amber-500"> POS</span></span>
-        <Link href="/pos" className="text-sm text-gray-400 hover:text-white transition">เข้าสู่ระบบ</Link>
+        <div className="flex items-center gap-5">
+          <Link href="/download" className="text-sm text-gray-400 hover:text-white transition">ดาวน์โหลดแอป</Link>
+          <Link href="/pos" className="text-sm text-gray-400 hover:text-white transition">เข้าสู่ระบบ</Link>
+        </div>
       </header>
 
       {/* hero */}
@@ -62,6 +65,10 @@ export default async function Home({
             มีบัญชีแล้ว · เข้าสู่ระบบ
           </Link>
         </div>
+
+        <Link href="/download" className="mt-5 text-sm text-gray-500 hover:text-amber-400 transition">
+          📲 ดาวน์โหลดแอปลงเครื่อง — แท็บเล็ต &amp; มือถือ →
+        </Link>
 
         {/* features */}
         <div className="mt-16 grid grid-cols-1 sm:grid-cols-2 gap-4 w-full max-w-3xl text-left">
