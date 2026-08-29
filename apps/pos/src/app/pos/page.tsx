@@ -209,6 +209,7 @@ export default function POSPage() {
   const [appliedCoupon, setAppliedCoupon] = useState<AppliedCoupon | null>(null)
   const [couponError, setCouponError] = useState('')
   const [showCheckout, setShowCheckout] = useState(false)
+  const [mobileCartOpen, setMobileCartOpen] = useState(false)   // phone: cart bottom-sheet open
   const [showSplitBill, setShowSplitBill] = useState(false)
   const [showOpenTickets, setShowOpenTickets] = useState(false)
   const [showMergeBill, setShowMergeBill] = useState(false)
@@ -1448,9 +1449,9 @@ export default function POSPage() {
           </div>
 
           {/* Menu grid */}
-          <div className="flex-1 overflow-y-auto p-3">
+          <div className="flex-1 overflow-y-auto p-3 pb-24 sm:pb-3">
             {menuLoading ? (
-              <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                 {Array.from({ length: 12 }).map((_, i) => (
                   <div key={i} className="rounded-2xl border border-stone-100 shadow-sm overflow-hidden flex flex-col animate-pulse">
                     <div className="w-full aspect-[3/2] bg-stone-100" />
@@ -1468,7 +1469,7 @@ export default function POSPage() {
                 <p>{search ? `${t('noResultsFor')} "${search}"` : t('noItemsCategory')}</p>
               </div>
             ) : (
-              <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                 {filteredMenu.map((item) => {
                   const inCartQty = cart.filter(c => c.menuId === item.id).reduce((s, c) => s + c.qty, 0)
                   const inCart    = inCartQty > 0
@@ -1539,8 +1540,17 @@ export default function POSPage() {
           </div>
         </div>
 
-        {/* Cart Panel */}
-        <div className="flex flex-col flex-2 bg-white overflow-hidden min-w-60 border-l border-stone-100">
+        {/* Cart Panel — static right column on sm+, slide-up bottom sheet on phone */}
+        <div className={`flex flex-col flex-2 bg-white overflow-hidden min-w-60 border-l border-stone-100
+          fixed inset-x-0 bottom-0 top-14 z-40 rounded-t-3xl shadow-2xl transition-transform duration-300
+          ${mobileCartOpen ? 'translate-y-0' : 'translate-y-full'}
+          sm:static sm:inset-auto sm:top-auto sm:translate-y-0 sm:z-auto sm:rounded-none sm:shadow-none`}>
+
+          {/* Mobile grab handle — closes the sheet */}
+          <button onClick={() => setMobileCartOpen(false)} className="sm:hidden shrink-0 pt-2.5 pb-1 flex flex-col items-center gap-1">
+            <span className="w-10 h-1 rounded-full bg-stone-200" />
+            <span className="text-[11px] font-semibold text-stone-400">แตะเพื่อย่อ ▾</span>
+          </button>
 
           {/* Cart header */}
           <div className="flex items-center justify-between px-4 py-3 border-b border-stone-100 bg-stone-50 shrink-0">
@@ -1820,7 +1830,7 @@ export default function POSPage() {
               </div>
               {/* Checkout */}
               <button
-                onClick={() => setShowCheckout(true)}
+                onClick={() => { setMobileCartOpen(false); setShowCheckout(true) }}
                 disabled={cart.length === 0}
                 className={`flex-1 py-3.5 rounded-2xl font-black text-base tracking-wide transition active:scale-95 ${
                   cart.length > 0
@@ -1840,6 +1850,25 @@ export default function POSPage() {
             </div>
           </div>
         </div>
+
+        {/* Mobile cart bar — peeks above the bottom nav; tap to open the cart sheet */}
+        {cart.length > 0 && !mobileCartOpen && (
+          <button
+            onClick={() => setMobileCartOpen(true)}
+            className="sm:hidden fixed left-3 right-3 bottom-[4.5rem] z-30 bg-stone-900 text-white rounded-2xl px-4 py-3 flex items-center gap-3 shadow-xl shadow-stone-900/30 active:scale-[0.98] transition"
+          >
+            <span className="w-8 h-8 rounded-lg bg-white/15 grid place-items-center font-black text-sm">
+              {cart.reduce((s, c) => s + c.qty, 0)}
+            </span>
+            <span className="flex flex-col items-start leading-tight">
+              <span className="text-[11px] text-stone-300">ดูตะกร้า</span>
+              <span className="font-black text-lg tabular-nums">{baht(finalTotal)}</span>
+            </span>
+            <span className="ml-auto flex items-center gap-1.5 bg-amber-500 text-black font-black text-sm px-4 py-2 rounded-xl">
+              ตะกร้า ▴
+            </span>
+          </button>
+        )}
       </div>
 
       {/* Per-item Discount NumPad */}

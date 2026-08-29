@@ -385,10 +385,9 @@ export default function CheckoutModal({
   // ─── Render ───────────────────────────────────────────────────────────────────
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
+    <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-end justify-center p-0 sm:items-center sm:p-4">
       <div
-        className="bg-[#FAF8F4] rounded-2xl w-full max-w-md shadow-2xl overflow-hidden flex flex-col border border-stone-200"
-        style={{ maxHeight: '90vh' }}
+        className="bg-[#FAF8F4] rounded-t-3xl sm:rounded-2xl w-full max-w-none sm:max-w-md shadow-2xl overflow-hidden flex flex-col border border-stone-200 max-h-[94vh] sm:max-h-[90vh]"
       >
         {/* Step bar */}
         <div className="flex border-b border-stone-200 shrink-0 bg-white">
