@@ -1544,7 +1544,8 @@ export default function POSPage() {
         <div className={`flex flex-col flex-2 bg-white overflow-hidden min-w-60 border-l border-stone-100
           fixed inset-x-0 bottom-0 top-14 z-40 rounded-t-3xl shadow-2xl transition-transform duration-300
           ${mobileCartOpen ? 'translate-y-0' : 'translate-y-full'}
-          sm:static sm:inset-auto sm:top-auto sm:translate-y-0 sm:z-auto sm:rounded-none sm:shadow-none`}>
+          sm:static sm:inset-auto sm:top-auto sm:translate-y-0 sm:z-auto sm:rounded-none sm:shadow-none`}
+          style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}>
 
           {/* Mobile grab handle — closes the sheet */}
           <button onClick={() => setMobileCartOpen(false)} className="sm:hidden shrink-0 pt-2.5 pb-1 flex flex-col items-center gap-1">
@@ -1851,11 +1852,17 @@ export default function POSPage() {
           </div>
         </div>
 
+        {/* Dim backdrop behind the cart sheet — tap to close */}
+        {mobileCartOpen && (
+          <div className="sm:hidden fixed inset-0 z-30 bg-black/40 backdrop-blur-[1px]" onClick={() => setMobileCartOpen(false)} />
+        )}
+
         {/* Mobile cart bar — peeks above the bottom nav; tap to open the cart sheet */}
         {cart.length > 0 && !mobileCartOpen && (
           <button
             onClick={() => setMobileCartOpen(true)}
-            className="sm:hidden fixed left-3 right-3 bottom-[4.5rem] z-30 bg-stone-900 text-white rounded-2xl px-4 py-3 flex items-center gap-3 shadow-xl shadow-stone-900/30 active:scale-[0.98] transition"
+            className="sm:hidden fixed left-3 right-3 z-30 bg-stone-900 text-white rounded-2xl px-4 py-3 flex items-center gap-3 shadow-xl shadow-stone-900/30 active:scale-[0.98] transition"
+            style={{ bottom: 'calc(4.5rem + env(safe-area-inset-bottom, 0px))' }}
           >
             <span className="w-8 h-8 rounded-lg bg-white/15 grid place-items-center font-black text-sm">
               {cart.reduce((s, c) => s + c.qty, 0)}
