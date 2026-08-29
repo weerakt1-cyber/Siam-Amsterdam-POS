@@ -58,6 +58,7 @@ const DICT = {
   setBillingDesc: { en: 'Manage your subscription plan and billing.', th: 'จัดการแพ็คเกจและการเรียกเก็บเงินของร้าน' },
   setOpenBilling: { en: 'Open billing', th: 'เปิดหน้าแพ็คเกจ' },
   navSuperAdmin:{ en: 'Super-admin', th: 'ผู้ดูแลระบบ' },
+  navShift:     { en: 'My Shift',    th: 'กะของฉัน' },
   menu:         { en: 'Menu',       th: 'เมนู' },
   login:        { en: 'Login',      th: 'เข้าสู่ระบบ' },
   switchUser:   { en: 'switch user', th: 'สลับผู้ใช้' },
