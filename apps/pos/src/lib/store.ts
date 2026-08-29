@@ -1955,3 +1955,86 @@ export async function provisionStoreForUser(input: {
   }
   return { ok: true, storeId: store.id, slug: store.slug, created: true, ownerPin }
 }
+
+// ── Staff time clock (shifts) ────────────────────────────────────────────────
+// Clock in/out + breaks per store + PIN operator. Meal/other breaks don't count
+// toward worked hours. A shift left open past its business-day cutoff is
+// auto-closed at that cutoff (staff forgot to clock out).
+export type ShiftBreakType = 'meal' | 'restroom' | 'other'
+type ShiftBreak = { start: string; end: string | null; type: ShiftBreakType }
+export type Shift = {
+  id: string; staffId: string; clockIn: string; clockOut: string | null
+  breaks: ShiftBreak[]; status: 'open' | 'closed'; autoClosed: boolean
+}
+
+function mapShift(r: Record<string, unknown>): Shift {
+  return {
+    id: r.id as string,
+    staffId: r.staff_id as string,
+    clockIn: r.clock_in as string,
+    clockOut: (r.clock_out as string | null) ?? null,
+    breaks: Array.isArray(r.breaks) ? (r.breaks as ShiftBreak[]) : [],
+    status: (r.status as 'open' | 'closed') ?? 'open',
+    autoClosed: !!r.auto_closed,
+  }
+}
+
+// If an open shift belongs to an earlier business day, close it at that day's
+// cutoff (and close any dangling break there too). Returns true if it closed.
+async function autoCloseStaleShift(row: Record<string, unknown>, cutoff: string): Promise<boolean> {
+  const bDay  = businessDayOf(row.clock_in as string, cutoff)
+  const today = businessDayOf(new Date(), cutoff)
+  if (bDay >= today) return false
+  const closeAt = businessDayRange(bDay, cutoff).end
+  const breaks = (Array.isArray(row.breaks) ? (row.breaks as ShiftBreak[]) : []).map(b => b.end ? b : { ...b, end: closeAt })
+  await supabase.from('time_entries').update({
+    status: 'closed', clock_out: closeAt, auto_closed: true, breaks, updated_at: new Date().toISOString(),
+  }).eq('id', row.id as string)
+  return true
+}
+
+export async function getOpenShift(storeId: string, staffId: string): Promise<Shift | null> {
+  const { data } = await supabase.from('time_entries')
+    .select('*').eq('store_id', storeId).eq('staff_id', staffId).eq('status', 'open')
+    .order('clock_in', { ascending: false }).limit(1).maybeSingle()
+  if (!data) return null
+  const cutoff = await getBusinessCutoff(storeId)
+  if (await autoCloseStaleShift(data, cutoff)) return null
+  return mapShift(data)
+}
+
+export async function shiftClockIn(storeId: string, staffId: string): Promise<Shift> {
+  const existing = await getOpenShift(storeId, staffId)   // auto-closes stale; returns today's open if any
+  if (existing) return existing
+  const { data, error } = await supabase.from('time_entries')
+    .insert({ store_id: storeId, staff_id: staffId, clock_in: new Date().toISOString(), breaks: [], status: 'open' })
+    .select('*').single()
+  if (error) throw error
+  return mapShift(data)
+}
+
+export async function shiftBreakStart(storeId: string, staffId: string, type: ShiftBreakType): Promise<Shift | null> {
+  const open = await getOpenShift(storeId, staffId)
+  if (!open) return null
+  if (open.breaks.some(b => !b.end)) return open   // a break is already running
+  const breaks = [...open.breaks, { start: new Date().toISOString(), end: null, type }]
+  const { data } = await supabase.from('time_entries').update({ breaks, updated_at: new Date().toISOString() }).eq('id', open.id).select('*').single()
+  return data ? mapShift(data) : open
+}
+
+export async function shiftBreakEnd(storeId: string, staffId: string): Promise<Shift | null> {
+  const open = await getOpenShift(storeId, staffId)
+  if (!open) return null
+  const now = new Date().toISOString()
+  const breaks = open.breaks.map(b => b.end ? b : { ...b, end: now })
+  const { data } = await supabase.from('time_entries').update({ breaks, updated_at: now }).eq('id', open.id).select('*').single()
+  return data ? mapShift(data) : open
+}
+
+export async function shiftClockOut(storeId: string, staffId: string): Promise<void> {
+  const open = await getOpenShift(storeId, staffId)
+  if (!open) return
+  const now = new Date().toISOString()
+  const breaks = open.breaks.map(b => b.end ? b : { ...b, end: now })   // close a dangling break
+  await supabase.from('time_entries').update({ status: 'closed', clock_out: now, breaks, updated_at: now }).eq('id', open.id)
+}
