@@ -6,7 +6,8 @@
 create table if not exists time_entries (
   id          uuid primary key default gen_random_uuid(),
   store_id    uuid not null references stores(id) on delete cascade,
-  staff_id    uuid not null references staff(id) on delete cascade,
+  -- staff.id is a TEXT primary key (like orders.id), so staff_id must be text too.
+  staff_id    text not null references staff(id) on delete cascade,
   clock_in    timestamptz not null default now(),
   clock_out   timestamptz,
   -- [{ "start": iso, "end": iso|null, "type": "meal" | "restroom" | "other" }]
