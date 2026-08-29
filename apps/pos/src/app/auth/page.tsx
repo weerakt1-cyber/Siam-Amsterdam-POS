@@ -151,6 +151,9 @@ export default function AuthPage() {
             >
               {loading === 'password' ? 'กำลังเข้าสู่ระบบ…' : 'เข้าสู่ระบบ'}
             </button>
+            <a href="/auth/reset" className="text-center text-xs text-gray-500 hover:text-amber-400 transition">
+              ลืมรหัสผ่าน?
+            </a>
           </form>
 
           {/* Divider */}
