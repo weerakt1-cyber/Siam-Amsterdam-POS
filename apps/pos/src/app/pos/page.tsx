@@ -604,15 +604,21 @@ export default function POSPage() {
     const manualItems = cart.filter(c => !c.fromOrderId)
     let representativeId = ''
 
-    for (const orderId of mergedOrderIds) {
-      const r = await authedFetch(`/api/orders/${orderId}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status: 'paid', paymentMethod: method }),
-      })
-      if (r.ok) {
-        const d = await r.json()
-        representativeId = d.order?.id ?? representativeId
+    // Mark every merged order paid CONCURRENTLY. These are independent updates,
+    // so firing them in parallel turns N sequential round-trips (the old for-await
+    // loop — the dominant checkout stall on multi-order bills) into one.
+    if (mergedOrderIds.size > 0) {
+      const results = await Promise.all([...mergedOrderIds].map(orderId =>
+        authedFetch(`/api/orders/${orderId}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ status: 'paid', paymentMethod: method }),
+        })
+          .then(r => r.ok ? r.json() : null)
+          .catch(() => null)
+      ))
+      for (const d of results) {
+        if (d?.order?.id) representativeId = d.order.id
       }
     }
 
