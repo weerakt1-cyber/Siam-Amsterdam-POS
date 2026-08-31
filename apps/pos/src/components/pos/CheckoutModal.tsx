@@ -5,7 +5,7 @@ import SlipTransferPanel from "@/components/pos/SlipTransferPanel"
 import { useState, useEffect, useRef } from 'react'
 import {
   loadBarSettings, loadPrinterDevice,
-  printReceipt, openCashDrawer, DEFAULT_BAR_SETTINGS,
+  printReceiptWarm, warmBluetoothSocket, openCashDrawer, DEFAULT_BAR_SETTINGS,
   type BarSettings, type ReceiptData,
 } from '@/lib/printer'
 import { getTierByName, computePointsEarned, TIERS } from '@/lib/loyalty'
@@ -286,6 +286,10 @@ export default function CheckoutModal({
   // Synchronous re-entry lock — blocks a fast double-tap before the disabled
   // state re-renders, so payment/order creation can never fire twice.
   const confirmingRef = useRef(false)
+  // Bluetooth socket opened up front (in parallel with the server order-save) so
+  // the ~1.5 s connect overlaps the save instead of following it. Holds the
+  // in-flight warm-up promise; the print step awaits it, then just transmits.
+  const warmupRef = useRef<Promise<boolean> | null>(null)
   useEffect(() => {
     if (step !== 3 || autoPrintedRef.current) return
     autoPrintedRef.current = true
@@ -340,7 +344,13 @@ export default function CheckoutModal({
       // than firing it as a separate connection afterwards — that separate kick
       // raced with the printer still feeding the bill and usually didn't open
       // the till even though the bytes flushed. One job = reliable.
-      await printReceipt(data, cfg, { openDrawer: payment === 'cash', reviewQR: true })
+      //
+      // If the socket was warmed up front during the order-save, printReceiptWarm
+      // transmits straight onto it; otherwise (retry, or warm-up failed) it falls
+      // back to the full atomic reconnect. Consume the warm-up either way.
+      const warmed = warmupRef.current ? await warmupRef.current.catch(() => false) : false
+      warmupRef.current = null
+      await printReceiptWarm(data, cfg, warmed, { openDrawer: payment === 'cash', reviewQR: true })
       printed = true
     } catch (err) {
       setBtError(err instanceof Error ? err.message : 'เกิดข้อผิดพลาด')
@@ -358,13 +368,26 @@ export default function CheckoutModal({
     if (confirmingRef.current) return          // already processing — ignore the extra tap
     confirmingRef.current = true
     setIsConfirming(true)
+    // Open the Bluetooth socket NOW, concurrently with the server order-save, so
+    // the slow connect overlaps the save. The print step (step 3) awaits this and
+    // only then pushes the bytes — so the paper still feeds after the sale is
+    // saved, just without paying for the connect twice. LAN needs no warm-up.
+    if (cfg && (cfg.printerConnectionType ?? 'bluetooth') !== 'lan') {
+      warmupRef.current = warmBluetoothSocket().catch(() => false)
+    }
     try {
       const id = await onConfirm(payment, payment === 'cash' ? amt : undefined)
       if (receivedOverride != null) setReceived(String(receivedOverride))
       setOrderRef(id.slice(-8).toUpperCase())
       setStep(3)
       setBtStatus('idle')
-    } catch { /* parent shows toast */ } finally {
+    } catch {
+      // Save failed — we never reach step 3, so drop the warmed socket. The next
+      // print starts with a fresh disconnect/connect regardless, so leaving the
+      // link open is harmless; just clear the ref so nothing awaits a stale one.
+      warmupRef.current = null
+      /* parent shows toast */
+    } finally {
       confirmingRef.current = false
       setIsConfirming(false)
     }

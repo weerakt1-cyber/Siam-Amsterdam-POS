@@ -717,6 +717,37 @@ export async function printReceiptBluetooth(d: ReceiptData, cfg: BarSettings): P
   await reconnectAndWrite(await buildReceiptBytes(d, cfg))
 }
 
+// ─── Fast-checkout two-phase print ───────────────────────────────────────────
+// The slow part of a Bluetooth receipt is opening the SPP socket (disconnect →
+// settle → connect ≈ 1.5 s), NOT pushing the bytes. Splitting it lets the socket
+// open IN PARALLEL with the server order-save, so the two costs overlap instead
+// of stacking. The paper still only feeds in phase 2 — after the sale is saved —
+// so nothing prints for an order that failed to persist.
+
+// Phase 1: open the socket. Returns true if the link is live. Safe to call
+// speculatively; on failure phase 2 falls back to the full atomic reconnect.
+export async function warmBluetoothSocket(): Promise<boolean> {
+  const native = getNativePrinter()
+  if (!native) return false
+  const saved = await loadPrinterDevice()
+  if (!saved) return false
+  await native.disconnect().catch(() => {})
+  await new Promise(res => setTimeout(res, 350)) // let RFCOMM release the DLCI
+  const device = await native.connect({ address: saved.address })
+  return !!device
+}
+
+// Phase 2 helper: write to an ALREADY-OPEN socket. No connect() here — a second
+// connect on a live SPP link is exactly what wedges Android RFCOMM, so this must
+// only run after warmBluetoothSocket() returned true.
+async function writeToOpenSocket(bytes: Uint8Array): Promise<void> {
+  const native = getNativePrinter()
+  if (!native) throw new Error('เครื่องพิมพ์ใช้ได้เฉพาะใน Android app')
+  await native.begin({})
+  await native.raw({ data: bytesToBase64(bytes) })
+  await native.write({})
+}
+
 export async function openCashDrawerBluetooth(): Promise<void> {
   // Standalone "Open Drawer" (no sale): use the plugin's native openDrawer()
   // content-action instead of writing raw ESC/POS bytes as a print job. Sending
@@ -763,6 +794,27 @@ export async function printReceipt(
   } else {
     await reconnectAndWrite(bytes) // single job: drawer kick (if any) + receipt
   }
+}
+
+// Like printReceipt, but for the fast checkout path: if the socket was warmed up
+// front (warmedOk), just transmit onto it; otherwise — warm-up failed/skipped, or
+// LAN — fall back to the proven single-shot path so behaviour is never worse than
+// before. The drawer kick is still bundled into the bytes (openDrawer flag).
+export async function printReceiptWarm(
+  d: ReceiptData, cfg: BarSettings, warmedOk: boolean,
+  opts?: { openDrawer?: boolean; reviewQR?: boolean },
+): Promise<void> {
+  const bytes = await buildReceiptBytes(d, cfg, opts)
+  if ((cfg.printerConnectionType ?? 'bluetooth') === 'lan') {
+    if (!cfg.printerLanIp) throw new Error('ยังไม่ได้ตั้งค่า IP ปริ้นเตอร์ — ไปที่ Settings → Printer')
+    await sendBytesViaLan(bytes, cfg.printerLanIp, cfg.printerLanPort ?? 9100)
+    return
+  }
+  if (warmedOk) {
+    // Socket already open (overlapped the server save) — just push the bytes.
+    try { await writeToOpenSocket(bytes); return } catch { /* socket went stale — reconnect below */ }
+  }
+  await reconnectAndWrite(bytes)
 }
 
 export async function openCashDrawer(cfg: BarSettings): Promise<void> {
