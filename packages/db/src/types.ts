@@ -180,6 +180,10 @@ export type InventoryItem = {
   currentStock: number
   lowStockThreshold: number
   costPerUnit?: number
+  // Content size — how much of a fine measure sits inside one stock unit, so
+  // recipes can cut stock in ml/g. e.g. bottle → contentAmount 700, contentUnit 'ml'.
+  contentAmount?: number
+  contentUnit?: string
   notes?: string
   createdAt: string
   updatedAt: string

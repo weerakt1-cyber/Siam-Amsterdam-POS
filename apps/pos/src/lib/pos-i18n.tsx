@@ -392,6 +392,7 @@ const DICT = {
   fVatPct:           { en: 'VAT (%)',         th: 'VAT (%)' },
   fSelectionsVariants:{ en: 'Selections / Variants', th: 'ตัวเลือก / รูปแบบ' },
   fIngredients:      { en: 'Ingredients',     th: 'วัตถุดิบ' },
+  fIngredientsHint:  { en: 'Pick what each serving uses and its unit (ml / g / shot…) — stock auto-cuts, precise to the ml, when orders are paid', th: 'เลือกวัตถุดิบและหน่วยที่ใช้ต่อ 1 ที่ (มล./ก./ช็อต…) — ระบบตัดสต๊อกอัตโนมัติละเอียดถึง มล. เมื่อชำระเงิน' },
   fCategoryName:     { en: 'Category Name',   th: 'ชื่อหมวดหมู่' },
   fColor:            { en: 'Color',           th: 'สี' },
 
@@ -410,6 +411,9 @@ const DICT = {
   fInvStock:         { en: 'Current Stock',   th: 'สต๊อกปัจจุบัน' },
   fInvThreshold:     { en: 'Alert Threshold', th: 'เกณฑ์แจ้งเตือน' },
   fInvCost:          { en: 'Cost per Unit (฿)', th: 'ต้นทุนต่อหน่วย (฿)' },
+  fInvContent:       { en: 'Content per Unit', th: 'ปริมาณต่อหน่วย' },
+  fInvContentHint:   { en: 'How much is inside one unit — lets recipes cut stock in ml / g', th: 'ปริมาณใน 1 หน่วย — ให้สูตรตัดสต๊อกเป็น มล./ก. ได้' },
+  fInvContentEg:     { en: 'e.g. 700 ml per bottle', th: 'เช่น 700 มล. ต่อขวด' },
   fInvNotes:         { en: 'Notes',           th: 'หมายเหตุ' },
 
   // ── Coupon edit form ──
@@ -546,6 +550,13 @@ const DICT = {
   itApplyPriceFail:  { en: 'Failed to apply price', th: 'ปรับราคาไม่สำเร็จ' },
   itNoMatchingItems: { en: 'No matching items', th: 'ไม่พบสินค้าที่ตรงกัน' },
   itAllInvAdded:     { en: 'All inventory items already added', th: 'เพิ่มวัตถุดิบครบทุกรายการแล้ว' },
+  itIngQty:          { en: 'Amount',          th: 'ปริมาณ' },
+  itIngUnit:         { en: 'Unit',            th: 'หน่วย' },
+  itIngDeducts:      { en: 'cuts',            th: 'ตัด' },
+  itIngPerServing:   { en: '/ serving',       th: '/ ที่' },
+  itIngNoConvert:    { en: "Can't convert to stock unit — will cut as-is", th: 'แปลงหน่วยไม่ได้ — จะตัดตามจำนวนที่กรอก' },
+  itIngSetContent:   { en: 'Set “Content per Unit” on this stock item to cut in ml / g', th: 'ตั้ง “ปริมาณต่อหน่วย” ของวัตถุดิบนี้ เพื่อตัดเป็น มล./ก.' },
+  inStockShort:      { en: 'in stock',        th: 'คงเหลือ' },
   itApplyAll:        { en: 'Apply All', th: 'ใช้ทั้งหมด' },
   itAllApplied:      { en: 'All Applied', th: 'ใช้แล้วทั้งหมด' },
   itSearchNameSku:   { en: 'Search name, SKU...', th: 'ค้นหาชื่อ, SKU...' },

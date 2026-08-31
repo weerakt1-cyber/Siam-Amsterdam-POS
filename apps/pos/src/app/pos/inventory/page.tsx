@@ -5,7 +5,8 @@ import { readCache, writeCache, hasCache } from '@/lib/api-cache'
 import { useState, useEffect, useCallback, useRef } from 'react'
 import type { InventoryItem, StockAdjustment, AdjustReason } from '@/lib/types'
 import NumPad from '@/components/pos/NumPad'
-import { usePosLang, type PosLang } from '@/lib/pos-i18n'
+import { usePosLang } from '@/lib/pos-i18n'
+import { UNITS, unitLabel, MEASURE_UNITS } from '@/lib/units'
 import { SkeletonList } from '@/components/pos/Skeleton'
 import {
   type InvCat, loadInvCategories, fetchInvCategories, persistInvCategories,
@@ -35,29 +36,21 @@ const STATUS_BAR: Record<string, string> = {
   good: 'bg-emerald-500',
 }
 
-// Stock units, translated to the configured POS language (value stays the
-// English key so existing data + CSV export are unchanged).
-const UNIT_LABELS: Record<string, { en: string; th: string }> = {
-  bottle:  { en: 'Bottle',  th: 'ขวด' },
-  can:     { en: 'Can',     th: 'กระป๋อง' },
-  pcs:     { en: 'Pcs',     th: 'ชิ้น' },
-  kg:      { en: 'Kg',      th: 'กก.' },
-  liter:   { en: 'Liter',   th: 'ลิตร' },
-  portion: { en: 'Portion', th: 'ที่' },
-  bag:     { en: 'Bag',     th: 'ถุง' },
-  box:     { en: 'Box',     th: 'กล่อง' },
-}
-const UNITS = Object.keys(UNIT_LABELS)
-function unitLabel(unit: string, lang: PosLang): string {
-  return UNIT_LABELS[unit]?.[lang] ?? unit
-}
+// Stock units + labels + conversion live in @/lib/units (shared with the recipe
+// editor and server-side stock deduction).
 
 function baht(n: number) {
   return '฿' + new Intl.NumberFormat('en').format(Math.round(n))
 }
 
+// Stock can be fractional now (a 50 ml pour cuts 0.07 of a bottle). Show at most
+// 2 decimals and trim trailing zeros so whole counts still read "12", not "12.00".
+function fmtQty(n: number) {
+  return Number(n.toFixed(2)).toString()
+}
+
 function emptyForm() {
-  return { name: '', unit: 'bottle', category: '', currentStock: '0', lowStockThreshold: '5', costPerUnit: '', notes: '' }
+  return { name: '', unit: 'bottle', category: '', currentStock: '0', lowStockThreshold: '5', costPerUnit: '', contentAmount: '', contentUnit: 'ml', notes: '' }
 }
 
 function exportCSV(items: InventoryItem[]) {
@@ -189,6 +182,8 @@ export default function InventoryPage() {
       currentStock: String(item.currentStock),
       lowStockThreshold: String(item.lowStockThreshold),
       costPerUnit: item.costPerUnit ? String(item.costPerUnit) : '',
+      contentAmount: item.contentAmount ? String(item.contentAmount) : '',
+      contentUnit: item.contentUnit ?? 'ml',
       notes: item.notes ?? '',
     })
     setShowLog(false)
@@ -212,6 +207,8 @@ export default function InventoryPage() {
         currentStock: Number(form.currentStock) || 0,
         lowStockThreshold: Number(form.lowStockThreshold) || 5,
         costPerUnit: form.costPerUnit ? Number(form.costPerUnit) : undefined,
+        contentAmount: form.contentAmount ? Number(form.contentAmount) : null,
+        contentUnit: form.contentAmount ? form.contentUnit : null,
         notes: form.notes || undefined,
       }
       if (isCreating) {
@@ -314,7 +311,7 @@ export default function InventoryPage() {
                 onClick={() => selectItem(i)}
                 className={`text-xs rounded-full px-3 py-1 border font-semibold whitespace-nowrap transition hover:opacity-80 ${STATUS_COLOR[stockStatus(i)]}`}
               >
-                {i.name} ({i.currentStock} {unitLabel(i.unit, lang)})
+                {i.name} ({fmtQty(i.currentStock)} {unitLabel(i.unit, lang)})
               </button>
             ))}
           </div>
@@ -382,7 +379,7 @@ export default function InventoryPage() {
                     <div className="flex items-center justify-between mb-1">
                       <span className="font-semibold text-sm truncate pr-2">{item.name}</span>
                       <span className={`text-xs font-bold px-2 py-0.5 rounded-full border shrink-0 ${STATUS_COLOR[st]}`}>
-                        {item.currentStock}{' '}{unitLabel(item.unit, lang)}
+                        {fmtQty(item.currentStock)}{' '}{unitLabel(item.unit, lang)}
                       </span>
                     </div>
                     <StockBar item={item} />
@@ -429,7 +426,7 @@ export default function InventoryPage() {
               return (
                 <div className="grid grid-cols-3 gap-3">
                   <div className={`col-span-1 rounded-2xl border p-4 text-center ${STATUS_COLOR[st]}`}>
-                    <p className="text-3xl font-black">{selected.currentStock}</p>
+                    <p className="text-3xl font-black">{fmtQty(selected.currentStock)}</p>
                     <p className="text-xs mt-1 opacity-70">{unitLabel(selected.unit, lang)} on hand</p>
                   </div>
                   <div className="bg-white border border-gray-200 rounded-2xl p-4 text-center">
@@ -594,6 +591,35 @@ export default function InventoryPage() {
                     {form.costPerUnit || 'Optional — for stock valuation'}
                   </span>
                 </button>
+              </div>
+
+              {/* Content per unit — enables ml / g level recipe deduction */}
+              <div>
+                <label className="text-xs text-gray-500 mb-1 block">{tr('fInvContent')}</label>
+                <div className="flex gap-2">
+                  <input
+                    type="number"
+                    min="0"
+                    step="any"
+                    inputMode="decimal"
+                    value={form.contentAmount}
+                    onChange={e => setForm(f => ({ ...f, contentAmount: e.target.value }))}
+                    placeholder={tr('fInvContentEg')}
+                    className="flex-1 bg-gray-100 border border-gray-200 rounded-xl px-3 py-2.5 text-sm text-gray-900 outline-none focus:border-amber-500/60 transition"
+                  />
+                  <select value={form.contentUnit} onChange={e => setForm(f => ({ ...f, contentUnit: e.target.value }))}
+                    className="w-28 bg-gray-100 border border-gray-200 rounded-xl px-3 py-2.5 text-sm text-gray-900 outline-none focus:border-amber-500/60 transition">
+                    {MEASURE_UNITS.map(u => (
+                      <option key={u} value={u}>{unitLabel(u, lang)}</option>
+                    ))}
+                  </select>
+                </div>
+                <p className="text-xs text-gray-400 mt-1">
+                  {tr('fInvContentHint')}
+                  {form.contentAmount && Number(form.contentAmount) > 0
+                    ? ` · 1 ${unitLabel(form.unit, lang)} = ${form.contentAmount} ${unitLabel(form.contentUnit, lang)}`
+                    : ''}
+                </p>
               </div>
 
               <div>

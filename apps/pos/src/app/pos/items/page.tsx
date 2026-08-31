@@ -9,6 +9,7 @@ import { useAuth } from '@/lib/pos-auth'
 import { type CatEntry, loadAllCategories, fetchCategories, persistCategories } from '@/lib/categories'
 import { AI_NAME } from '@/lib/ai-brand'
 import { usePosLang } from '@/lib/pos-i18n'
+import { UNITS as INGREDIENT_UNITS, unitLabel, toStockQuantity, canConvert } from '@/lib/units'
 import { SkeletonList } from '@/components/pos/Skeleton'
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -268,7 +269,7 @@ function VariantEditor({
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
 export default function ItemsPage() {
-  const { t: tr } = usePosLang()
+  const { t: tr, lang } = usePosLang()
   const { user } = useAuth()
   const isManager = ['admin', 'manager'].includes(user?.role ?? '')
 
@@ -1053,7 +1054,7 @@ export default function ItemsPage() {
                   <div>
                     <h3 className="text-xs font-bold text-gray-400 uppercase tracking-widest">{tr('fIngredients')}</h3>
                     <p className="text-xs text-gray-400 mt-1">
-                      Link inventory items consumed per serving — stock auto-deducts when orders are paid
+                      {tr('fIngredientsHint')}
                     </p>
                   </div>
 
@@ -1061,28 +1062,62 @@ export default function ItemsPage() {
                     <div className="flex flex-col gap-2">
                       {ingredients.map((ing) => {
                         const invItem = inventory.find(i => i.id === ing.inventoryItemId)
+                        // How much stock one serving cuts, in the item's stock unit,
+                        // and whether the chosen recipe unit converts cleanly.
+                        const converts = invItem ? canConvert(ing.unit, invItem) : true
+                        const cut = invItem
+                          ? toStockQuantity(ing.quantityPerServing || 0, ing.unit, invItem)
+                          : 0
+                        const cutStr = Number.isFinite(cut)
+                          ? (cut < 1 ? cut.toFixed(3).replace(/\.?0+$/, '') : cut.toFixed(2).replace(/\.?0+$/, ''))
+                          : '0'
                         return (
-                          <div key={ing._key} className="flex items-center gap-2 bg-gray-100 rounded-xl px-3 py-2">
-                            <span className="flex-1 text-sm font-medium text-gray-800 truncate">
-                              {invItem?.name ?? ing.inventoryItemId}
-                            </span>
-                            <input
-                              type="number"
-                              min="0.001"
-                              step="0.001"
-                              value={ing.quantityPerServing}
-                              onChange={e => setIngredients(prev => prev.map(i =>
-                                i._key === ing._key ? { ...i, quantityPerServing: Number(e.target.value) || 0 } : i
-                              ))}
-                              className="w-20 bg-white border border-gray-200 rounded-lg px-2 py-1 text-sm text-right text-gray-900 outline-none focus:border-amber-500/60"
-                            />
-                            <span className="text-xs text-gray-400 w-12 shrink-0">{ing.unit}</span>
-                            <button
-                              onClick={() => setIngredients(prev => prev.filter(i => i._key !== ing._key))}
-                              className="w-6 h-6 rounded-md bg-slate-200 hover:bg-red-700/60 text-gray-500 hover:text-white flex items-center justify-center text-xs transition shrink-0"
-                            >
-                              ×
-                            </button>
+                          <div key={ing._key} className="bg-gray-100 rounded-xl px-3 py-2">
+                            <div className="flex items-center gap-2">
+                              <span className="flex-1 text-sm font-medium text-gray-800 truncate">
+                                {invItem?.name ?? ing.inventoryItemId}
+                              </span>
+                              <input
+                                type="number"
+                                min="0"
+                                step="any"
+                                inputMode="decimal"
+                                value={ing.quantityPerServing}
+                                onChange={e => setIngredients(prev => prev.map(i =>
+                                  i._key === ing._key ? { ...i, quantityPerServing: Number(e.target.value) || 0 } : i
+                                ))}
+                                className="w-20 bg-white border border-gray-200 rounded-lg px-2 py-1 text-sm text-right text-gray-900 outline-none focus:border-amber-500/60"
+                              />
+                              <select
+                                value={ing.unit}
+                                onChange={e => setIngredients(prev => prev.map(i =>
+                                  i._key === ing._key ? { ...i, unit: e.target.value } : i
+                                ))}
+                                className="w-24 bg-white border border-gray-200 rounded-lg px-1.5 py-1 text-sm text-gray-900 outline-none focus:border-amber-500/60 shrink-0"
+                              >
+                                {INGREDIENT_UNITS.map(u => (
+                                  <option key={u} value={u}>{unitLabel(u, lang)}</option>
+                                ))}
+                              </select>
+                              <button
+                                onClick={() => setIngredients(prev => prev.filter(i => i._key !== ing._key))}
+                                className="w-6 h-6 rounded-md bg-slate-200 hover:bg-red-700/60 text-gray-500 hover:text-white flex items-center justify-center text-xs transition shrink-0"
+                              >
+                                ×
+                              </button>
+                            </div>
+                            {/* Conversion preview — makes stock cutting transparent */}
+                            {invItem && (
+                              converts ? (
+                                <p className="text-[11px] text-gray-400 mt-1 pl-0.5">
+                                  {tr('itIngDeducts')} {cutStr} {unitLabel(invItem.unit, lang)} {tr('itIngPerServing')}
+                                </p>
+                              ) : (
+                                <p className="text-[11px] text-amber-600 mt-1 pl-0.5">
+                                  ⚠ {tr('itIngNoConvert')} · {tr('itIngSetContent')}
+                                </p>
+                              )
+                            )}
                           </div>
                         )
                       })}
@@ -1114,7 +1149,9 @@ export default function ItemsPage() {
                                   _key: `${i.id}-${prev.length}`,
                                   inventoryItemId: i.id,
                                   quantityPerServing: 1,
-                                  unit: i.unit,
+                                  // Default to the item's fine measure (e.g. ml for a
+                                  // bottle with content set) so pours are entered in ml.
+                                  unit: i.contentUnit ?? i.unit,
                                 }])
                                 setIngSearch('')
                                 setIngDropOpen(false)
@@ -1122,7 +1159,11 @@ export default function ItemsPage() {
                               className="w-full text-left px-4 py-2.5 text-sm hover:bg-amber-50 flex items-center justify-between border-b border-gray-100 last:border-0"
                             >
                               <span className="font-medium text-gray-900">{i.name}</span>
-                              <span className="text-xs text-gray-400">{i.unit} · {i.currentStock} in stock</span>
+                              <span className="text-xs text-gray-400">
+                                {unitLabel(i.unit, lang)}
+                                {i.contentAmount && i.contentUnit ? ` · ${i.contentAmount} ${unitLabel(i.contentUnit, lang)}` : ''}
+                                {' · '}{i.currentStock} {tr('inStockShort')}
+                              </span>
                             </button>
                           ))
                         }

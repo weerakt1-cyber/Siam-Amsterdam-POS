@@ -108,6 +108,8 @@ function mapInventoryItem(row: Record<string, unknown>): InventoryItem {
     currentStock:       Number(row.current_stock),
     lowStockThreshold:  Number(row.low_stock_threshold),
     costPerUnit:        row.cost_per_unit != null ? Number(row.cost_per_unit) : undefined,
+    contentAmount:      row.content_amount != null ? Number(row.content_amount) : undefined,
+    contentUnit:        row.content_unit as string | undefined,
     notes:              row.notes as string | undefined,
     createdAt:          row.created_at as string,
     updatedAt:          row.updated_at as string,
@@ -705,6 +707,8 @@ export async function createInventoryItem(data: Omit<InventoryItem, 'id' | 'crea
       current_stock:       data.currentStock,
       low_stock_threshold: data.lowStockThreshold,
       cost_per_unit:       data.costPerUnit ?? null,
+      content_amount:      data.contentAmount ?? null,
+      content_unit:        data.contentUnit ?? null,
       notes:               data.notes ?? null,
       created_at:          ts,
       updated_at:          ts,
@@ -724,6 +728,8 @@ export async function updateInventoryItem(id: string, data: Partial<Omit<Invento
   if (data.currentStock       !== undefined) update.current_stock       = data.currentStock
   if (data.lowStockThreshold  !== undefined) update.low_stock_threshold = data.lowStockThreshold
   if (data.costPerUnit        !== undefined) update.cost_per_unit       = data.costPerUnit ?? null
+  if (data.contentAmount      !== undefined) update.content_amount      = data.contentAmount ?? null
+  if (data.contentUnit        !== undefined) update.content_unit        = data.contentUnit ?? null
   if (data.notes              !== undefined) update.notes               = data.notes ?? null
 
   const { data: row, error } = await supabase
