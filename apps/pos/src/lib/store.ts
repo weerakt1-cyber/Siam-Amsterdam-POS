@@ -2038,3 +2038,42 @@ export async function shiftClockOut(storeId: string, staffId: string): Promise<v
   const breaks = open.breaks.map(b => b.end ? b : { ...b, end: now })   // close a dangling break
   await supabase.from('time_entries').update({ status: 'closed', clock_out: now, breaks, updated_at: now }).eq('id', open.id)
 }
+
+// Manager oversight: everyone currently clocked in (open shifts) for the store,
+// with staff name/colour + break state. Stale shifts (from an earlier business
+// day, i.e. a forgotten clock-out) are excluded so they don't read as "on now".
+export type ActiveShift = {
+  staffId: string; name: string; color: string | null
+  clockIn: string; onBreak: boolean; breakType: ShiftBreakType | null
+}
+export async function getActiveShifts(storeId: string): Promise<ActiveShift[]> {
+  const { data } = await supabase.from('time_entries')
+    .select('staff_id, clock_in, breaks')
+    .eq('store_id', storeId).eq('status', 'open')
+    .order('clock_in', { ascending: true })
+  const rows = data ?? []
+  if (!rows.length) return []
+
+  const cutoff = await getBusinessCutoff(storeId)
+  const today = businessDayOf(new Date(), cutoff)
+  const fresh = rows.filter(r => businessDayOf(r.clock_in as string, cutoff) === today)
+  if (!fresh.length) return []
+
+  const ids = fresh.map(r => r.staff_id as string)
+  const { data: staff } = await supabase.from('staff').select('id, name, color').in('id', ids)
+  const smap = new Map((staff ?? []).map(s => [s.id as string, s as { name: string; color: string | null }]))
+
+  return fresh.map(r => {
+    const breaks = Array.isArray(r.breaks) ? (r.breaks as ShiftBreak[]) : []
+    const open = breaks.find(b => !b.end)
+    const s = smap.get(r.staff_id as string)
+    return {
+      staffId: r.staff_id as string,
+      name: s?.name ?? '—',
+      color: s?.color ?? null,
+      clockIn: r.clock_in as string,
+      onBreak: !!open,
+      breakType: open?.type ?? null,
+    }
+  })
+}

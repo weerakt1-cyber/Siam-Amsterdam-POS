@@ -95,9 +95,9 @@ export default function ShiftPage() {
               <div className="text-5xl font-black text-stone-900 tabular-nums tracking-tight" style={{ fontVariantNumeric: 'tabular-nums' }}>{hms(workedMs)}</div>
               <p className="text-[13px] text-stone-500 mt-2.5">เข้ากะเมื่อ <b className="text-stone-900">{clockOf(shift.clockIn)}</b> น.</p>
 
-              <button onClick={() => router.push('/pos')}
+              <button onClick={() => router.push(user?.role === 'manager' ? '/pos/manager' : '/pos')}
                 className="w-full mt-5 py-4 rounded-2xl bg-stone-900 text-white font-bold text-[15px] transition active:scale-[.98] flex items-center justify-center gap-2">
-                เปิดหน้า POS →
+                {user?.role === 'manager' ? 'ไปแดชบอร์ด →' : 'เปิดหน้า POS →'}
               </button>
 
               <p className="text-[11px] font-bold text-stone-400 uppercase tracking-wide mt-6 mb-2 text-left">พักเบรค</p>
