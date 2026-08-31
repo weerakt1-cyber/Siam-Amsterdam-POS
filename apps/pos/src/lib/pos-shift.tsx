@@ -11,9 +11,11 @@ export type Shift = {
   breaks: ShiftBreak[]; status: 'open' | 'closed'; autoClosed: boolean
 } | null
 
-// Roles that must clock in before using the POS. Managers/admins are exempt
-// (their tailored experience comes later).
+// Pure operator roles — a stripped-down app (POS + their own shift).
 export const STAFF_ROLES = new Set(['staff', 'bartender'])
+// Roles required to clock in before using the app. Managers clock in too (they
+// land on the Manager Dashboard afterwards); admins/owners are exempt.
+export const CLOCK_IN_ROLES = new Set(['staff', 'bartender', 'manager'])
 
 type Ctx = {
   shift: Shift

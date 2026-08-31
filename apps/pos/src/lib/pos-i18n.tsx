@@ -59,6 +59,7 @@ const DICT = {
   setOpenBilling: { en: 'Open billing', th: 'เปิดหน้าแพ็คเกจ' },
   navSuperAdmin:{ en: 'Super-admin', th: 'ผู้ดูแลระบบ' },
   navShift:     { en: 'My Shift',    th: 'กะของฉัน' },
+  navDashboard: { en: 'Dashboard',   th: 'แดชบอร์ด' },
   menu:         { en: 'Menu',       th: 'เมนู' },
   login:        { en: 'Login',      th: 'เข้าสู่ระบบ' },
   switchUser:   { en: 'switch user', th: 'สลับผู้ใช้' },
