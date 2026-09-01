@@ -6,7 +6,7 @@
 import type { Order, InventoryItem, MenuItem, MenuIngredient } from './types'
 
 export type AlertSeverity = 'critical' | 'warning' | 'info' | 'success'
-export type AlertCategory = 'stock' | 'target' | 'suggestion' | 'variance'
+export type AlertCategory = 'stock' | 'target' | 'suggestion' | 'variance' | 'payment'
 
 export type Alert = {
   id:       string          // stable — used for de-dup + "seen" tracking on the client
@@ -195,6 +195,27 @@ export function computeAlerts(input: AlertInput): Alert[] {
         detail: `System shows ${it.currentStock} ${it.unit}, but ~${Math.round(consumedSinceUpdate)} sold since last update — expected ~${Math.max(0, Math.round(expected))}. Do a physical count.`,
       })
     }
+  }
+
+  // ── 5. Transfer payments just settled ─────────────────────────────────────
+  // Cross-device "money in" ping: every POS device polls /api/alerts, so a
+  // transfer bill closed on the cashier's phone surfaces on the manager's phone
+  // too (and fires a native notification there). Scoped to transfer/QR bills —
+  // that is the payment a manager can't see landing any other way — and to the
+  // last few minutes so the feed doesn't accumulate. De-dup is by order id, so
+  // each bill pings exactly once per device.
+  const PAYMENT_WINDOW_MS = 10 * 60 * 1000
+  const recentTransfers = paidOrders
+    .filter(o => o.paymentMethod === 'transfer'
+      && now - new Date(o.updatedAt).getTime() <= PAYMENT_WINDOW_MS)
+    .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())
+    .slice(0, 12)   // bound the feed on a busy night
+  for (const o of recentTransfers) {
+    alerts.push({
+      id: `payment-${o.id}`, severity: 'success', category: 'payment', icon: '💰',
+      title: `รับเงินโอนแล้ว ${baht(o.total)} · Transfer received`,
+      detail: `โต๊ะ ${o.tableNo} ชำระด้วยการโอน/QR — Table ${o.tableNo} paid by transfer.`,
+    })
   }
 
   // Rank: severity first, then category grouping stability.
