@@ -106,7 +106,7 @@ function Avatar({ name, color, size = 'md' }: { name: string; color: string; siz
 type Mode = 'idle' | 'new' | 'view' | 'edit-pin'
 
 export default function UsersPage() {
-  const { t } = usePosLang()
+  const { t, lang } = usePosLang()
 
   // ── Staff (PIN) state ────────────────────────────────────────
   const [users, setUsers] = useState<PosUserPublic[]>(() => readCache<PosUserPublic[]>('users') ?? [])
@@ -155,7 +155,7 @@ export default function UsersPage() {
     if (mode !== 'new' || pinStep !== 'confirm') return
     if (confirmPin.length === 4) {
       if (confirmPin !== pin) {
-        setPinError('PIN ไม่ตรงกัน — ลองใหม่')
+        setPinError(t('usPinMismatchRetry'))
         setPin('')
         setConfirmPin('')
         setPinStep('set')
@@ -214,7 +214,7 @@ export default function UsersPage() {
         showToast(t('usCreated'))
       } else {
         const e = await r.json()
-        showToast(e.error ?? 'เกิดข้อผิดพลาด')
+        showToast(e.error ?? t('usError'))
       }
     } finally { setSaving(false) }
   }
@@ -256,7 +256,7 @@ export default function UsersPage() {
 
   const handleDelete = async () => {
     if (!selected) return
-    if (!confirm(`ลบ User "${selected.name}" ออกจากระบบ?`)) return
+    if (!confirm(lang === 'en' ? `Remove user "${selected.name}"?` : `ลบ User "${selected.name}" ออกจากระบบ?`)) return
     const r = await authedFetch(`/api/users/${selected.id}`, { method: 'DELETE' })
     if (r.ok) {
       setUsers(prev => prev.filter(u => u.id !== selected.id))
@@ -294,13 +294,13 @@ export default function UsersPage() {
             <Avatar name={name || '?'} color={color} size="lg" />
             <div>
               <h2 className="text-base font-bold text-gray-900">{t('newUser')}</h2>
-              <p className="text-xs text-gray-500">กรอกข้อมูลและตั้ง PIN</p>
+              <p className="text-xs text-gray-500">{t('usFillInfo')}</p>
             </div>
           </div>
 
           {/* Name */}
           <div>
-            <label className="text-xs text-gray-500 uppercase tracking-wide">ชื่อ</label>
+            <label className="text-xs text-gray-500 uppercase tracking-wide">{t('usName')}</label>
             <input
               value={name}
               onChange={e => setName(e.target.value)}
@@ -332,7 +332,7 @@ export default function UsersPage() {
 
           {/* Color */}
           <div>
-            <label className="text-xs text-gray-500 uppercase tracking-wide">สี Avatar</label>
+            <label className="text-xs text-gray-500 uppercase tracking-wide">{t('usAvatarColor')}</label>
             <div className="flex gap-2 mt-2 flex-wrap">
               {AVATAR_COLORS.map(c => (
                 <button
@@ -351,7 +351,7 @@ export default function UsersPage() {
           {/* PIN entry */}
           <div className="bg-gray-100 rounded-2xl p-4 border border-gray-100">
             <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide text-center mb-2">
-              {pinStep === 'set' ? 'ตั้ง PIN 4 หลัก' : 'ยืนยัน PIN อีกครั้ง'}
+              {pinStep === 'set' ? t('usSetPin4') : t('usConfirmPin')}
             </p>
             {pinError && (
               <p className="text-xs text-red-400 text-center mb-2 animate-pulse">{pinError}</p>
@@ -359,7 +359,7 @@ export default function UsersPage() {
             <PinPad
               value={pinStep === 'set' ? pin : confirmPin}
               onChange={pinStep === 'set' ? setPin : setConfirmPin}
-              label={pinStep === 'set' ? 'กดตัวเลข 4 หลัก' : 'กรอก PIN เดิมอีกครั้งเพื่อยืนยัน'}
+              label={pinStep === 'set' ? t('usPinPadSet') : t('usPinPadConfirm')}
             />
           </div>
 
@@ -369,7 +369,7 @@ export default function UsersPage() {
             disabled={!isNewReady || saving}
             className="w-full py-3 bg-amber-500 hover:bg-amber-400 text-black font-bold rounded-xl transition-all active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed"
           >
-            {saving ? 'กำลังสร้าง...' : 'สร้าง User'}
+            {saving ? t('usCreating') : t('usCreateUser')}
           </button>
         </div>
       )
@@ -393,7 +393,7 @@ export default function UsersPage() {
 
         {/* Name */}
         <div>
-          <label className="text-xs text-gray-500 uppercase tracking-wide">ชื่อ</label>
+          <label className="text-xs text-gray-500 uppercase tracking-wide">{t('usName')}</label>
           <input
             value={name}
             onChange={e => setName(e.target.value)}
@@ -424,7 +424,7 @@ export default function UsersPage() {
 
         {/* Color */}
         <div>
-          <label className="text-xs text-gray-500 uppercase tracking-wide">สี Avatar</label>
+          <label className="text-xs text-gray-500 uppercase tracking-wide">{t('usAvatarColor')}</label>
           <div className="flex gap-2 mt-2 flex-wrap">
             {AVATAR_COLORS.map(c => (
               <button
@@ -446,7 +446,7 @@ export default function UsersPage() {
           disabled={!isDirty || saving}
           className="w-full py-2.5 bg-amber-500 hover:bg-amber-400 text-black font-bold rounded-xl transition-all active:scale-95 disabled:opacity-30 disabled:cursor-not-allowed text-sm"
         >
-          {saving && mode !== 'edit-pin' ? 'กำลังบันทึก...' : 'บันทึกการเปลี่ยนแปลง'}
+          {saving && mode !== 'edit-pin' ? t('saving') : t('saveChanges')}
         </button>
 
         <div className="border-t border-gray-100" />
@@ -456,21 +456,21 @@ export default function UsersPage() {
           <div className="flex items-center justify-between mb-3">
             <div>
               <p className="text-sm font-semibold text-gray-900">PIN</p>
-              <p className="text-xs text-gray-400">4 หลัก สำหรับเข้าระบบ</p>
+              <p className="text-xs text-gray-400">{t('usPinHint')}</p>
             </div>
             {mode !== 'edit-pin' ? (
               <button
                 onPointerDown={() => { setNewPin(''); setMode('edit-pin') }}
                 className="px-3 py-1.5 bg-gray-100 hover:bg-gray-300 text-gray-900 text-xs font-semibold rounded-lg transition-all active:scale-95"
               >
-                เปลี่ยน PIN
+                {t('usChangePin')}
               </button>
             ) : (
               <button
                 onPointerDown={() => { setMode('view'); setNewPin('') }}
                 className="px-3 py-1.5 bg-gray-100 hover:bg-gray-200 text-gray-500 text-xs font-semibold rounded-lg transition-all"
               >
-                ยกเลิก
+                {t('cancel')}
               </button>
             )}
           </div>
@@ -478,14 +478,14 @@ export default function UsersPage() {
           {mode === 'edit-pin' ? (
             <div className="bg-gray-100 rounded-2xl p-4 border border-gray-100">
               <p className="text-xs text-gray-500 text-center mb-1">
-                กรอก PIN ใหม่ 4 หลัก (จะบันทึกอัตโนมัติ)
+                {t('usNewPinHint')}
               </p>
               <PinPad value={newPin} onChange={setNewPin} />
             </div>
           ) : (
             <div className="flex gap-2 items-center text-gray-300">
               <span className="text-2xl tracking-widest">●●●●</span>
-              <span className="text-xs">(PIN ที่ตั้งไว้)</span>
+              <span className="text-xs">{t('usPinSet')}</span>
             </div>
           )}
         </div>
@@ -499,7 +499,7 @@ export default function UsersPage() {
             onPointerDown={handleDelete}
             className="w-full py-2.5 border border-red-500/30 text-red-400 hover:bg-red-500/10 text-sm font-semibold rounded-xl transition-all active:scale-95"
           >
-            ลบ User นี้ออกจากระบบ
+            {t('usDeleteUser')}
           </button>
         </div>
       </div>
@@ -529,7 +529,7 @@ export default function UsersPage() {
           {loading ? (
             <div className="p-3"><SkeletonList rows={5} /></div>
           ) : users.length === 0 ? (
-            <p className="text-center text-gray-400 text-sm mt-8">ยังไม่มี User</p>
+            <p className="text-center text-gray-400 text-sm mt-8">{t('usNoUsers')}</p>
           ) : (
             users.map(u => (
               <button

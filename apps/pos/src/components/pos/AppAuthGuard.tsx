@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { getSupabaseBrowser, fetchProfile, authedFetch, provisionFromSession } from "@/lib/supabase-browser"
 import { useAuth } from '@/lib/pos-auth'
+import { usePosLang } from '@/lib/pos-i18n'
 import { SEEN_POS_KEY } from '@/components/LandingGate'
 
 type State = 'checking' | 'ready' | 'unauthenticated'
@@ -98,6 +99,8 @@ function LoadingSkeleton() {
 
 function UnauthScreen() {
   const router = useRouter()
+  const { lang } = usePosLang()
+  const L = (en: string, th: string) => (lang === 'en' ? en : th)
   return (
     <div className="fixed inset-0 z-[200] bg-gray-950 flex flex-col items-center justify-center gap-6">
       <div
@@ -107,12 +110,12 @@ function UnauthScreen() {
       <div className="relative z-10 flex flex-col items-center gap-4">
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img src="/logo.png" alt="Bar logo" className="w-20 h-20 object-contain" />
-        <p className="text-gray-400 text-sm">กรุณาเข้าสู่ระบบก่อนใช้งาน</p>
+        <p className="text-gray-400 text-sm">{L('Please sign in to continue', 'กรุณาเข้าสู่ระบบก่อนใช้งาน')}</p>
         <button
           onClick={() => router.replace('/auth')}
           className="px-6 py-2.5 bg-amber-500 hover:bg-amber-400 text-black font-bold text-sm rounded-xl transition-all active:scale-95"
         >
-          เข้าสู่ระบบ
+          {L('Sign in', 'เข้าสู่ระบบ')}
         </button>
       </div>
     </div>

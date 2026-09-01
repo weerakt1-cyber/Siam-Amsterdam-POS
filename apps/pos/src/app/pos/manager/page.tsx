@@ -4,6 +4,7 @@ import { useEffect, useState, useCallback } from 'react'
 import Link from 'next/link'
 import { authedFetch } from '@/lib/supabase-browser'
 import { useAuth } from '@/lib/pos-auth'
+import { usePosLang, type PosLang } from '@/lib/pos-i18n'
 import { loadBarSettings } from '@/lib/printer'
 import { businessDayOf } from '@/lib/business-day'
 import type { Order, InventoryItem } from '@/lib/types'
@@ -11,7 +12,10 @@ import type { Order, InventoryItem } from '@/lib/types'
 const baht = (n: number) => '฿' + Math.round(n).toLocaleString()
 const pad = (n: number) => String(n).padStart(2, '0')
 const clockOf = (iso: string) => { const d = new Date(iso); return `${pad(d.getHours())}:${pad(d.getMinutes())}` }
-const elapsed = (iso: string) => { const m = Math.max(0, Math.floor((Date.now() - Date.parse(iso)) / 60000)); return `${Math.floor(m / 60)}ชม. ${pad(m % 60)}น` }
+const elapsed = (iso: string, lang: PosLang) => {
+  const m = Math.max(0, Math.floor((Date.now() - Date.parse(iso)) / 60000))
+  return lang === 'en' ? `${Math.floor(m / 60)}h ${pad(m % 60)}m` : `${Math.floor(m / 60)}ชม. ${pad(m % 60)}น`
+}
 
 type ActiveShift = { staffId: string; name: string; color: string | null; clockIn: string; onBreak: boolean; breakType: 'meal' | 'restroom' | 'other' | null }
 type Reservation = { id: string; customerName: string; reservedDate: string; startTime: string; endTime: string; partySize: number; status: string; note?: string }
@@ -20,6 +24,8 @@ const BREAK_EMOJI: Record<string, string> = { meal: '🍚', restroom: '🚻', ot
 
 export default function ManagerDashboard() {
   const { user } = useAuth()
+  const { lang } = usePosLang()
+  const L = (en: string, th: string) => (lang === 'en' ? en : th)
   const [orders, setOrders] = useState<Order[]>([])
   const [inventory, setInventory] = useState<InventoryItem[]>([])
   const [reservations, setReservations] = useState<Reservation[]>([])
@@ -96,19 +102,19 @@ export default function ManagerDashboard() {
           <div className="w-10 h-10 rounded-xl grid place-items-center text-white font-black" style={{ background: user?.color || '#3b82f6' }}>{initial}</div>
           <div className="min-w-0">
             <p className="font-bold leading-tight truncate">{user?.name ?? '—'}</p>
-            <p className="text-xs text-stone-500 mt-0.5">ตำแหน่ง <span className="text-blue-600 font-semibold">ผู้จัดการ</span></p>
+            <p className="text-xs text-stone-500 mt-0.5">{L('Role', 'ตำแหน่ง')} <span className="text-blue-600 font-semibold">{L('Manager', 'ผู้จัดการ')}</span></p>
           </div>
         </div>
 
         {/* revenue hero */}
         <div className="rounded-3xl p-5 text-white relative overflow-hidden" style={{ background: 'linear-gradient(160deg,#1C1917,#292524)' }}>
-          <p className="text-xs text-stone-300">ยอดขายวันนี้ · {new Date().toLocaleDateString('th-TH', { weekday: 'short', day: 'numeric', month: 'short' })}</p>
+          <p className="text-xs text-stone-300">{L("Today's sales", 'ยอดขายวันนี้')} · {new Date().toLocaleDateString(lang === 'en' ? 'en-US' : 'th-TH', { weekday: 'short', day: 'numeric', month: 'short' })}</p>
           <p className="text-4xl font-black mt-1 tabular-nums">฿<span className="text-amber-400">{Math.round(revenue).toLocaleString()}</span></p>
           <div className="flex gap-5 mt-3 text-[11px] text-stone-400">
-            <div>ออเดอร์<b className="block text-white text-[15px] font-bold tabular-nums">{orderCount}</b></div>
-            <div>เฉลี่ย/บิล<b className="block text-white text-[15px] font-bold tabular-nums">{baht(avg)}</b></div>
+            <div>{L('Orders', 'ออเดอร์')}<b className="block text-white text-[15px] font-bold tabular-nums">{orderCount}</b></div>
+            <div>{L('Avg/bill', 'เฉลี่ย/บิล')}<b className="block text-white text-[15px] font-bold tabular-nums">{baht(avg)}</b></div>
             {deltaPct !== null && (
-              <div>เทียบเมื่อวาน<b className={`block text-[15px] font-bold ${deltaPct >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>{deltaPct >= 0 ? '▲' : '▼'} {Math.abs(deltaPct)}%</b></div>
+              <div>{L('vs yesterday', 'เทียบเมื่อวาน')}<b className={`block text-[15px] font-bold ${deltaPct >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>{deltaPct >= 0 ? '▲' : '▼'} {Math.abs(deltaPct)}%</b></div>
             )}
           </div>
         </div>
@@ -116,9 +122,9 @@ export default function ManagerDashboard() {
         {/* 3-stat strip */}
         <div className="grid grid-cols-3 gap-2.5 mt-3">
           {[
-            ['โต๊ะเปิดอยู่', openTables, false],
-            ['บิลค้างชำระ', unpaidTickets, unpaidTickets > 0],
-            ['พนักงานเข้ากะ', shifts.length, false],
+            [L('Open tables', 'โต๊ะเปิดอยู่'), openTables, false],
+            [L('Unpaid tickets', 'บิลค้างชำระ'), unpaidTickets, unpaidTickets > 0],
+            [L('Staff on shift', 'พนักงานเข้ากะ'), shifts.length, false],
           ].map(([k, v, alert], i) => (
             <div key={i} className="bg-white border border-stone-200 rounded-2xl py-3 text-center">
               <p className={`font-black text-xl tabular-nums ${alert ? 'text-orange-500' : 'text-stone-900'}`}>{v as number}</p>
@@ -128,19 +134,19 @@ export default function ManagerDashboard() {
         </div>
 
         {/* staff on shift */}
-        <Section title="พนักงานเข้ากะ" badge={`${shifts.length} คน${onBreakCount ? ` · พัก ${onBreakCount}` : ''}`} href="/pos/users" hrefLabel="ดูทีม →">
-          {shifts.length === 0 ? <Empty>ยังไม่มีใครเข้ากะ</Empty> : (
+        <Section title={L('Staff on shift', 'พนักงานเข้ากะ')} badge={L(`${shifts.length} staff${onBreakCount ? ` · ${onBreakCount} on break` : ''}`, `${shifts.length} คน${onBreakCount ? ` · พัก ${onBreakCount}` : ''}`)} href="/pos/users" hrefLabel={L('View team →', 'ดูทีม →')}>
+          {shifts.length === 0 ? <Empty>{L('No one on shift yet', 'ยังไม่มีใครเข้ากะ')}</Empty> : (
             <div className="bg-white border border-stone-200 rounded-2xl divide-y divide-stone-100">
               {shifts.map(s => (
                 <div key={s.staffId} className="flex items-center gap-3 px-3 py-2.5">
                   <div className="w-8 h-8 rounded-lg grid place-items-center text-white font-bold text-[13px]" style={{ background: s.color || '#78716c' }}>{s.name.charAt(0).toUpperCase()}</div>
                   <div className="flex-1 min-w-0">
                     <p className="text-[13.5px] font-medium truncate">{s.name}</p>
-                    <p className="text-[11.5px] text-stone-500">เข้ากะ {clockOf(s.clockIn)} · {elapsed(s.clockIn)}</p>
+                    <p className="text-[11.5px] text-stone-500">{L('In', 'เข้ากะ')} {clockOf(s.clockIn)} · {elapsed(s.clockIn, lang)}</p>
                   </div>
                   {s.onBreak
-                    ? <span className="text-[11px] font-semibold px-2.5 py-1 rounded-full bg-orange-100 text-orange-700">{BREAK_EMOJI[s.breakType ?? 'other']} พักเบรค</span>
-                    : <span className="text-[11px] font-semibold px-2.5 py-1 rounded-full bg-emerald-100 text-emerald-700">ทำงาน</span>}
+                    ? <span className="text-[11px] font-semibold px-2.5 py-1 rounded-full bg-orange-100 text-orange-700">{BREAK_EMOJI[s.breakType ?? 'other']} {L('On break', 'พักเบรค')}</span>
+                    : <span className="text-[11px] font-semibold px-2.5 py-1 rounded-full bg-emerald-100 text-emerald-700">{L('Working', 'ทำงาน')}</span>}
                 </div>
               ))}
             </div>
@@ -149,7 +155,7 @@ export default function ManagerDashboard() {
 
         {/* low stock */}
         {lowStock.length > 0 && (
-          <Section title="สต็อกใกล้หมด" badge={`${lowStock.length} รายการ`} badgeAlert href="/pos/inventory" hrefLabel="คลัง →">
+          <Section title={L('Low stock', 'สต็อกใกล้หมด')} badge={L(`${lowStock.length} items`, `${lowStock.length} รายการ`)} badgeAlert href="/pos/inventory" hrefLabel={L('Inventory →', 'คลัง →')}>
             <div className="bg-white border border-stone-200 rounded-2xl divide-y divide-stone-100">
               {lowStock.slice(0, 4).map(i => {
                 const out = i.currentStock === 0
@@ -157,10 +163,10 @@ export default function ManagerDashboard() {
                   <div key={i.id} className="flex items-center gap-3 px-3 py-2.5">
                     <div className="flex-1 min-w-0">
                       <p className="text-[13.5px] font-medium truncate">{i.name}</p>
-                      <p className="text-[11.5px] text-stone-500">จุดสั่งซื้อ {i.lowStockThreshold} {i.unit}</p>
+                      <p className="text-[11.5px] text-stone-500">{L('Reorder at', 'จุดสั่งซื้อ')} {i.lowStockThreshold} {i.unit}</p>
                     </div>
                     <span className={`text-sm font-black tabular-nums ${out ? 'text-red-500' : 'text-orange-500'}`}>
-                      {out ? 'หมด' : `เหลือ ${i.currentStock}`}
+                      {out ? L('Out', 'หมด') : L(`${i.currentStock} left`, `เหลือ ${i.currentStock}`)}
                     </span>
                   </div>
                 )
@@ -171,20 +177,20 @@ export default function ManagerDashboard() {
 
         {/* pending reservations */}
         {pendingResv.length > 0 && (
-          <Section title="การจองรอยืนยัน" badge={`${pendingResv.length} รายการ`} badgeBlue>
+          <Section title={L('Reservations pending', 'การจองรอยืนยัน')} badge={L(`${pendingResv.length} items`, `${pendingResv.length} รายการ`)} badgeBlue>
             <div className="bg-white border border-stone-200 rounded-2xl divide-y divide-stone-100">
               {pendingResv.slice(0, 4).map(r => (
                 <div key={r.id} className="flex items-center gap-3 px-3 py-2.5">
                   <div className="w-9 h-9 rounded-lg bg-blue-50 text-blue-600 grid place-items-center text-base shrink-0">📅</div>
                   <div className="flex-1 min-w-0">
-                    <p className="text-[13px] font-semibold truncate">{r.customerName} · {r.partySize} ท่าน</p>
-                    <p className="text-[11.5px] text-stone-500">{r.reservedDate === today ? 'วันนี้' : r.reservedDate} {r.startTime}{r.note ? ` · ${r.note}` : ''}</p>
+                    <p className="text-[13px] font-semibold truncate">{r.customerName} · {L(`${r.partySize} guests`, `${r.partySize} ท่าน`)}</p>
+                    <p className="text-[11.5px] text-stone-500">{r.reservedDate === today ? L('Today', 'วันนี้') : r.reservedDate} {r.startTime}{r.note ? ` · ${r.note}` : ''}</p>
                   </div>
                   <div className="flex gap-1.5 shrink-0">
                     <button disabled={busyResv === r.id} onClick={() => decideResv(r.id, 'approved')}
-                      className="text-[12px] font-bold px-3 py-1.5 rounded-lg bg-emerald-500 text-white disabled:opacity-40">รับ</button>
+                      className="text-[12px] font-bold px-3 py-1.5 rounded-lg bg-emerald-500 text-white disabled:opacity-40">{L('Accept', 'รับ')}</button>
                     <button disabled={busyResv === r.id} onClick={() => decideResv(r.id, 'rejected')}
-                      className="text-[12px] font-bold px-2.5 py-1.5 rounded-lg bg-stone-100 text-stone-500 disabled:opacity-40">ปฏิเสธ</button>
+                      className="text-[12px] font-bold px-2.5 py-1.5 rounded-lg bg-stone-100 text-stone-500 disabled:opacity-40">{L('Reject', 'ปฏิเสธ')}</button>
                   </div>
                 </div>
               ))}
@@ -194,7 +200,7 @@ export default function ManagerDashboard() {
 
         {/* top items */}
         {topItems.length > 0 && (
-          <Section title="เมนูขายดีวันนี้" href="/pos/analytics" hrefLabel="รายงาน →">
+          <Section title={L("Today's best sellers", 'เมนูขายดีวันนี้')} href="/pos/analytics" hrefLabel={L('Report →', 'รายงาน →')}>
             <div className="bg-white border border-stone-200 rounded-2xl p-4 flex flex-col gap-2.5">
               {topItems.map(it => (
                 <div key={it.name}>
@@ -214,10 +220,10 @@ export default function ManagerDashboard() {
         {/* quick actions */}
         <div className="grid grid-cols-2 gap-2.5 mt-5">
           {[
-            ['/pos', 'เปิด POS', 'bg-stone-900 text-white'],
-            ['/pos/analytics', 'รายงานยอดขาย', 'bg-blue-50 text-blue-700'],
-            ['/pos/cash', 'เงินสด / ปิดร้าน', 'bg-emerald-50 text-emerald-700'],
-            ['/pos/users', 'จัดการพนักงาน', 'bg-purple-50 text-purple-700'],
+            ['/pos', L('Open POS', 'เปิด POS'), 'bg-stone-900 text-white'],
+            ['/pos/analytics', L('Sales report', 'รายงานยอดขาย'), 'bg-blue-50 text-blue-700'],
+            ['/pos/cash', L('Cash / close', 'เงินสด / ปิดร้าน'), 'bg-emerald-50 text-emerald-700'],
+            ['/pos/users', L('Manage staff', 'จัดการพนักงาน'), 'bg-purple-50 text-purple-700'],
           ].map(([href, label, cls]) => (
             <Link key={href} href={href} className="bg-white border border-stone-200 rounded-2xl p-3.5 flex items-center gap-2.5 active:scale-[.98] transition">
               <span className={`w-8 h-8 rounded-xl grid place-items-center text-[15px] ${cls}`}>›</span>
