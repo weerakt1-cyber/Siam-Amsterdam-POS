@@ -7,11 +7,21 @@ import { requireStaff, resolveStaffStoreId } from '@/lib/api-auth'
 import { checkAiAllowed, debitAiCredit } from '@/lib/store'
 import { AI_NAME, AI_MODEL } from '@/lib/ai-brand'
 
+// The assistant answers in the POS UI language. Everything the user sees —
+// error copy, the context the model reads, and its output instruction — is
+// picked by `lang` so an English-mode POS never surfaces Thai.
+type Lang = 'en' | 'th'
+const pick = (lang: Lang, en: string, th: string) => (lang === 'en' ? en : th)
+function reqLang(req: NextRequest): Lang {
+  return new URL(req.url).searchParams.get('lang') === 'en' ? 'en' : 'th'
+}
+const localeOf = (lang: Lang) => (lang === 'en' ? 'en-US' : 'th-TH')
+
 // AI add-on gate messages (Phase 1.5) — keyed by checkAiAllowed reason.
-const AI_BLOCK_MSG: Record<string, string> = {
-  no_subscription: 'ยังไม่ได้สมัคร AI add-on — ไปที่หน้าแพ็คเกจเพื่อเปิดใช้งาน',
-  expired:         'AI add-on หมดอายุแล้ว — กรุณาต่ออายุ',
-  no_credit:       'เครดิต AI หมดแล้ว — เติมเครดิตหรือรอรอบรีเซ็ต',
+const AI_BLOCK_MSG: Record<string, { en: string; th: string }> = {
+  no_subscription: { en: 'AI add-on not subscribed — open the Packages page to enable it', th: 'ยังไม่ได้สมัคร AI add-on — ไปที่หน้าแพ็คเกจเพื่อเปิดใช้งาน' },
+  expired:         { en: 'AI add-on has expired — please renew', th: 'AI add-on หมดอายุแล้ว — กรุณาต่ออายุ' },
+  no_credit:       { en: 'AI credit used up — top up or wait for the reset', th: 'เครดิต AI หมดแล้ว — เติมเครดิตหรือรอรอบรีเซ็ต' },
 }
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY! })
@@ -26,7 +36,7 @@ const PLAN_MONTHS: Record<string, number> = {
 
 // ─── Business context from Supabase ──────────────────────────────────────────
 
-async function buildBusinessContext(storeId: string): Promise<string> {
+async function buildBusinessContext(storeId: string, lang: Lang): Promise<string> {
   const now = new Date()
   const todayStart = new Date(now)
   todayStart.setHours(0, 0, 0, 0)
@@ -66,27 +76,28 @@ async function buildBusinessContext(storeId: string): Promise<string> {
 
   const lowStock = (inventory ?? []).filter(i => Number(i.current_stock) <= Number(i.low_stock_threshold))
 
-  const dateStr = now.toLocaleDateString('th-TH', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })
-  const timeStr = now.toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' })
+  const loc = localeOf(lang)
+  const dateStr = now.toLocaleDateString(loc, { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })
+  const timeStr = now.toLocaleTimeString(loc, { hour: '2-digit', minute: '2-digit' })
 
-  return `ข้อมูลธุรกิจ ณ ${dateStr} เวลา ${timeStr}
+  return `${pick(lang, 'Business snapshot at', 'ข้อมูลธุรกิจ ณ')} ${dateStr} ${pick(lang, 'at', 'เวลา')} ${timeStr}
 
-## ยอดขายวันนี้
-- ออเดอร์ที่ชำระแล้ว: ${paid.length} ออเดอร์
-- รายได้รวม: ฿${todayRevenue.toLocaleString('th-TH')}
-${topItems.length > 0 ? `- สินค้าขายดีวันนี้:\n${topItems.map(i => `  • ${i.name}: ${i.qty} ชิ้น (฿${i.revenue.toLocaleString()})`).join('\n')}` : '- ยังไม่มียอดขาย'}
+## ${pick(lang, "Today's sales", 'ยอดขายวันนี้')}
+- ${pick(lang, 'Paid orders', 'ออเดอร์ที่ชำระแล้ว')}: ${paid.length}
+- ${pick(lang, 'Total revenue', 'รายได้รวม')}: ฿${todayRevenue.toLocaleString(loc)}
+${topItems.length > 0 ? `- ${pick(lang, 'Best sellers today', 'สินค้าขายดีวันนี้')}:\n${topItems.map(i => `  • ${i.name}: ${i.qty}${pick(lang, ' sold', ' ชิ้น')} (฿${i.revenue.toLocaleString()})`).join('\n')}` : `- ${pick(lang, 'No sales yet', 'ยังไม่มียอดขาย')}`}
 
-## โต๊ะที่เปิดอยู่ (${openTables.length} โต๊ะ)
-${openTables.length > 0 ? openTables.map(t => `- โต๊ะ ${t.tableNo}: ${t.status} | ${t.items} รายการ | ฿${t.total.toLocaleString()}`).join('\n') : 'ไม่มีโต๊ะที่เปิดอยู่ขณะนี้'}
+## ${pick(lang, 'Open tables', 'โต๊ะที่เปิดอยู่')} (${openTables.length})
+${openTables.length > 0 ? openTables.map(t => `- ${pick(lang, 'Table', 'โต๊ะ')} ${t.tableNo}: ${t.status} | ${t.items}${pick(lang, ' items', ' รายการ')} | ฿${t.total.toLocaleString()}`).join('\n') : pick(lang, 'No tables open right now', 'ไม่มีโต๊ะที่เปิดอยู่ขณะนี้')}
 
-## เมนูที่มีบริการ (${(menuItems ?? []).length} รายการ)
+## ${pick(lang, 'Available menu', 'เมนูที่มีบริการ')} (${(menuItems ?? []).length})
 ${(menuItems ?? []).map(m => `- ${m.name}${m.name_th ? ` / ${m.name_th}` : ''}: ฿${m.price} [${m.category}]`).join('\n')}
 
-## สมาชิก
-- จำนวนสมาชิกทั้งหมด: ${memberCount ?? 0} คน
+## ${pick(lang, 'Members', 'สมาชิก')}
+- ${pick(lang, 'Total members', 'จำนวนสมาชิกทั้งหมด')}: ${memberCount ?? 0}
 
-## สินค้าคงคลังใกล้หมด (${lowStock.length} รายการ)
-${lowStock.length > 0 ? lowStock.map(i => `- ${i.name}: ${i.current_stock} ${i.unit} (เกณฑ์ ${i.low_stock_threshold})`).join('\n') : 'ไม่มีสินค้าใกล้หมด'}`
+## ${pick(lang, 'Low stock', 'สินค้าคงคลังใกล้หมด')} (${lowStock.length})
+${lowStock.length > 0 ? lowStock.map(i => `- ${i.name}: ${i.current_stock} ${i.unit} (${pick(lang, 'min', 'เกณฑ์')} ${i.low_stock_threshold})`).join('\n') : pick(lang, 'Nothing running low', 'ไม่มีสินค้าใกล้หมด')}`
 }
 
 // ─── File context builder ─────────────────────────────────────────────────────
@@ -94,19 +105,42 @@ ${lowStock.length > 0 ? lowStock.map(i => `- ${i.name}: ${i.current_stock} ${i.u
 function buildFileContext(
   file: { name: string; ext: string; content: string },
   plan: string,
+  lang: Lang,
 ): string {
   const months = PLAN_MONTHS[plan] ?? 18
   const cutoff = new Date()
   cutoff.setMonth(cutoff.getMonth() - months)
   const cutoffStr = months >= 9999
-    ? 'ไม่จำกัด'
-    : cutoff.toLocaleDateString('th-TH', { year: 'numeric', month: 'long', day: 'numeric' })
+    ? pick(lang, 'unlimited', 'ไม่จำกัด')
+    : cutoff.toLocaleDateString(localeOf(lang), { year: 'numeric', month: 'long', day: 'numeric' })
 
   // Limit content length based on plan to control token usage
   const maxChars = plan === 'enterprise' ? 60_000 : plan === 'pro' ? 35_000 : 18_000
   const content = file.content.length > maxChars
-    ? file.content.slice(0, maxChars) + '\n... [เนื้อหาถูกตัดเนื่องจากขนาดไฟล์เกิน limit ของ plan]'
+    ? file.content.slice(0, maxChars) + pick(lang, '\n... [content truncated — file exceeds the plan limit]', '\n... [เนื้อหาถูกตัดเนื่องจากขนาดไฟล์เกิน limit ของ plan]')
     : file.content
+
+  if (lang === 'en') {
+    return `
+---
+## Attached file: "${file.name}" (${file.ext.toUpperCase()})
+
+**Plan: ${plan.toUpperCase()}** — imports data going back ${months >= 9999 ? 'without limit' : `${months} months`} (from ${cutoffStr} to now)
+Rows dated earlier than ${cutoffStr} are filtered out before import
+
+File content:
+\`\`\`
+${content}
+\`\`\`
+
+## File analysis instructions
+1. Analyse the file structure (columns, data format, row count)
+2. Identify which system table it maps to (orders, menu_items, members, inventory_items)
+3. Show the first 3–5 rows as a preview to confirm
+4. Report how many rows fall within the plan's window and how many are filtered out
+5. Wait for the user to confirm before importing
+---`
+  }
 
   return `
 ---
@@ -132,17 +166,19 @@ ${content}
 // ─── POST handler ─────────────────────────────────────────────────────────────
 
 export async function POST(req: NextRequest) {
+  const lang = reqLang(req)
   const gate = await requireStaff(req)
   if (!gate.ok) return gate.res
   const storeId = gate.profile.store_id ?? (await resolveStaffStoreId(req))
   if (!storeId) return NextResponse.json({ error: 'Store context required' }, { status: 400 })
   if (!process.env.ANTHROPIC_API_KEY) {
-    return NextResponse.json({ error: 'AI ยังไม่ได้ตั้งค่า ANTHROPIC_API_KEY' }, { status: 503 })
+    return NextResponse.json({ error: pick(lang, 'AI is not configured (ANTHROPIC_API_KEY missing)', 'AI ยังไม่ได้ตั้งค่า ANTHROPIC_API_KEY') }, { status: 503 })
   }
   // AI add-on credit gate — must have an active add-on with credit remaining.
   const chk = await checkAiAllowed(storeId)
   if (!chk.allowed) {
-    return NextResponse.json({ error: AI_BLOCK_MSG[chk.reason ?? ''] ?? 'AI ไม่พร้อมใช้งาน', reason: chk.reason }, { status: 402 })
+    const msg = AI_BLOCK_MSG[chk.reason ?? '']
+    return NextResponse.json({ error: msg ? pick(lang, msg.en, msg.th) : pick(lang, 'AI unavailable', 'AI ไม่พร้อมใช้งาน'), reason: chk.reason }, { status: 402 })
   }
 
   let messages: { role: string; content: string }[]
@@ -161,11 +197,32 @@ export async function POST(req: NextRequest) {
 
   try {
     const [businessContext, fileContext] = await Promise.all([
-      buildBusinessContext(storeId),
-      Promise.resolve(file ? buildFileContext(file, plan) : ''),
+      buildBusinessContext(storeId, lang),
+      Promise.resolve(file ? buildFileContext(file, plan, lang) : ''),
     ])
 
-    const systemPrompt = `คุณคือ ${AI_NAME} ผู้ช่วย AI อัจฉริยะของระบบ PLOEN POS ที่รู้ทุกอย่างเกี่ยวกับธุรกิจนี้
+    const langRule = pick(
+      lang,
+      '- Always reply in English (the POS is set to English). Keep menu/product names as stored.',
+      '- พูดภาษาไทยเป็นหลัก ตอบภาษาอังกฤษได้ถ้าถูกถาม',
+    )
+    const systemPrompt = pick(
+      lang,
+      `You are ${AI_NAME}, the smart AI assistant of the PLOEN POS system, and you know everything about this business.
+If asked who you are or what model you use, say you are "${AI_NAME}", the AI assistant of PLOEN POS.
+
+${businessContext}
+${fileContext}
+
+## Your role
+- Answer questions about sales, menu, members, inventory, and table status
+- Help analyse and import data from files the user attaches
+${langRule}
+- Use the real numbers from the data above; never invent data that isn't in the system
+- Keep answers short and clear, suited to a tablet in a bar
+- If you don't have the data, say so directly
+- For imports: always analyse first and wait for the user to confirm before importing`,
+      `คุณคือ ${AI_NAME} ผู้ช่วย AI อัจฉริยะของระบบ PLOEN POS ที่รู้ทุกอย่างเกี่ยวกับธุรกิจนี้
 ถ้าถูกถามว่าคุณคือใครหรือใช้โมเดลอะไร ให้ตอบว่าคุณคือ "${AI_NAME}" ผู้ช่วย AI ของ PLOEN POS
 
 ${businessContext}
@@ -174,11 +231,12 @@ ${fileContext}
 ## บทบาทของคุณ
 - ตอบคำถามเกี่ยวกับยอดขาย เมนู สมาชิก สินค้าคงคลัง และสถานะโต๊ะ
 - ช่วยวิเคราะห์และนำเข้าข้อมูลจากไฟล์ที่ User แนบมา
-- พูดภาษาไทยเป็นหลัก ตอบภาษาอังกฤษได้ถ้าถูกถาม
+${langRule}
 - ใช้ตัวเลขจริงจากข้อมูลข้างต้น อย่าสร้างข้อมูลที่ไม่มีในระบบ
 - ตอบสั้นและชัดเจน เหมาะกับการใช้งานบน tablet ในบาร์
 - ถ้าไม่มีข้อมูลให้บอกตรงๆ
-- สำหรับการนำเข้าข้อมูล: วิเคราะห์ก่อนเสมอ รอการยืนยันจาก User ก่อนนำเข้าจริง`
+- สำหรับการนำเข้าข้อมูล: วิเคราะห์ก่อนเสมอ รอการยืนยันจาก User ก่อนนำเข้าจริง`,
+    )
 
     const stream = anthropic.messages.stream({
       model:      AI_MODEL,
@@ -225,6 +283,6 @@ ${fileContext}
     })
   } catch (err) {
     console.error('[AI Chat]', err)
-    return NextResponse.json({ error: 'เกิดข้อผิดพลาด กรุณาลองใหม่' }, { status: 500 })
+    return NextResponse.json({ error: pick(lang, 'Something went wrong, please try again', 'เกิดข้อผิดพลาด กรุณาลองใหม่') }, { status: 500 })
   }
 }

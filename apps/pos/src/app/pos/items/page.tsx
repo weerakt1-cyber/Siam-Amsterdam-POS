@@ -526,7 +526,7 @@ export default function ItemsPage() {
     setAiError('')
     setAppliedIds(new Set())
     try {
-      const r = await authedFetch('/api/ai/menu-optimize')
+      const r = await authedFetch(`/api/ai/menu-optimize?lang=${lang}`)
       const d = await r.json()
       if (!r.ok) throw new Error(d.error ?? tr('itAnalysisFailed'))
       setAiSuggestions(d.suggestions ?? [])

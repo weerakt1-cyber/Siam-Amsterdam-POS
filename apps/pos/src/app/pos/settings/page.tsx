@@ -178,7 +178,8 @@ function PaymentSettings() {
 // verify the customer's slip — automatically (SlipOK) or by staff confirmation.
 
 function TransferSettings() {
-  const { t: tr } = usePosLang()
+  const { t: tr, lang } = usePosLang()
+  const L = (en: string, th: string) => (lang === 'en' ? en : th)
   const [enabled, setEnabled]         = useState(false)
   const [mode, setMode]               = useState<'auto' | 'manual'>('manual')
   const [promptpayId, setPromptpayId] = useState('')
@@ -236,7 +237,7 @@ function TransferSettings() {
   // configured auto store gets a real SlipOK round-trip (expected to reject the
   // dummy); manual mode / no key degrades to pending. Either proves the wiring.
   async function test() {
-    setTestMsg('กำลังทดสอบ…')
+    setTestMsg(L('Testing…', 'กำลังทดสอบ…'))
     try {
       const r = await authedFetch('/api/payment/slip/verify', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -245,10 +246,10 @@ function TransferSettings() {
       const d = await r.json().catch(() => ({}))
       // A 404 (dummy order) still proves auth + config resolved correctly.
       setTestMsg(r.status === 404
-        ? '✓ การตั้งค่าใช้งานได้ (order ทดสอบไม่มีอยู่จริง ตามคาด)'
-        : d.error ? `ผล: ${d.error}` : `ผล: ${d.status ?? r.status}`)
+        ? L('✓ Configuration works (the test order intentionally does not exist)', '✓ การตั้งค่าใช้งานได้ (order ทดสอบไม่มีอยู่จริง ตามคาด)')
+        : d.error ? `${L('Result', 'ผล')}: ${d.error}` : `${L('Result', 'ผล')}: ${d.status ?? r.status}`)
     } catch {
-      setTestMsg('✗ เชื่อมต่อไม่สำเร็จ')
+      setTestMsg(L('✗ Connection failed', '✗ เชื่อมต่อไม่สำเร็จ'))
     }
   }
 
@@ -260,8 +261,8 @@ function TransferSettings() {
     <div className="flex flex-col gap-4 mt-8 pt-6 border-t border-gray-100">
       <div className="flex items-center justify-between">
         <div>
-          <p className="font-bold text-sm text-gray-800">โอนเงิน / PromptPay (สลิป)</p>
-          <p className="text-xs text-gray-400 mt-0.5">รับโอนเข้าบัญชีส่วนตัว แล้วตรวจสลิปอัตโนมัติหรือให้พนักงานยืนยัน</p>
+          <p className="font-bold text-sm text-gray-800">{L('Bank transfer / PromptPay (slip)', 'โอนเงิน / PromptPay (สลิป)')}</p>
+          <p className="text-xs text-gray-400 mt-0.5">{L('Receive transfers to a personal account, then verify the slip automatically or have staff confirm', 'รับโอนเข้าบัญชีส่วนตัว แล้วตรวจสลิปอัตโนมัติหรือให้พนักงานยืนยัน')}</p>
         </div>
         <button
           onClick={() => setEnabled(v => !v)}
@@ -277,8 +278,8 @@ function TransferSettings() {
           {/* Mode */}
           <div className="grid grid-cols-2 gap-2">
             {([
-              { id: 'manual', label: 'พนักงานยืนยัน', desc: 'พนักงานดูสลิปแล้วกดยืนยัน' },
-              { id: 'auto',   label: 'ตรวจอัตโนมัติ',  desc: 'ตรวจสลิปผ่าน SlipOK' },
+              { id: 'manual', label: L('Staff confirm', 'พนักงานยืนยัน'), desc: L('Staff review the slip and tap confirm', 'พนักงานดูสลิปแล้วกดยืนยัน') },
+              { id: 'auto',   label: L('Auto verify', 'ตรวจอัตโนมัติ'),  desc: L('Verify the slip via SlipOK', 'ตรวจสลิปผ่าน SlipOK') },
             ] as const).map(m => (
               <button
                 key={m.id}
@@ -294,31 +295,31 @@ function TransferSettings() {
           </div>
 
           <div>
-            <label className="text-xs text-gray-500 mb-1 block">PromptPay (เบอร์โทร / เลขบัตร ปชช. / e-Wallet)</label>
+            <label className="text-xs text-gray-500 mb-1 block">{L('PromptPay (phone / national ID / e-Wallet)', 'PromptPay (เบอร์โทร / เลขบัตร ปชช. / e-Wallet)')}</label>
             <input value={promptpayId} onChange={e => setPromptpayId(e.target.value)} placeholder="0812345678" className={inputCls} />
           </div>
           <div>
-            <label className="text-xs text-gray-500 mb-1 block">ชื่อบัญชีผู้รับ</label>
-            <input value={accountName} onChange={e => setAccountName(e.target.value)} placeholder="นาย…" className={inputCls} />
+            <label className="text-xs text-gray-500 mb-1 block">{L('Account holder name', 'ชื่อบัญชีผู้รับ')}</label>
+            <input value={accountName} onChange={e => setAccountName(e.target.value)} placeholder={L('Name…', 'นาย…')} className={inputCls} />
           </div>
 
           {mode === 'auto' && (
             <div className="flex flex-col gap-3 bg-gray-50 border border-gray-100 rounded-xl p-3">
               <p className="text-[11px] text-gray-500">
-                ตรวจสลิปอัตโนมัติผ่าน SlipOK — ต้องสมัครที่ slipok.com เพื่อรับ API key + Branch ID
-                (ถ้ายังไม่ตั้งค่าหรือเครดิตหมด ระบบจะเปลี่ยนเป็นให้พนักงานยืนยันแทน)
+                {L('Auto-verify slips via SlipOK — sign up at slipok.com to get an API key + Branch ID (if not configured or out of credit, the system falls back to staff confirmation)',
+                   'ตรวจสลิปอัตโนมัติผ่าน SlipOK — ต้องสมัครที่ slipok.com เพื่อรับ API key + Branch ID (ถ้ายังไม่ตั้งค่าหรือเครดิตหมด ระบบจะเปลี่ยนเป็นให้พนักงานยืนยันแทน)')}
               </p>
               <div>
                 <label className="text-xs text-gray-500 mb-1 block">
                   SlipOK API Key
-                  {slipokSet && <span className="text-emerald-600 font-semibold ml-2">✓ ตั้งค่าแล้ว</span>}
+                  {slipokSet && <span className="text-emerald-600 font-semibold ml-2">{L('✓ Configured', '✓ ตั้งค่าแล้ว')}</span>}
                 </label>
                 <input type="password" value={slipokKey} onChange={e => setSlipokKey(e.target.value)}
-                  placeholder={slipokSet ? 'พิมพ์ใหม่เพื่อแทนที่' : 'SLIPOK…'} autoComplete="off" className={`${inputCls} font-mono`} />
+                  placeholder={slipokSet ? L('Type again to replace', 'พิมพ์ใหม่เพื่อแทนที่') : 'SLIPOK…'} autoComplete="off" className={`${inputCls} font-mono`} />
               </div>
               <div>
                 <label className="text-xs text-gray-500 mb-1 block">SlipOK Branch ID</label>
-                <input value={branchId} onChange={e => setBranchId(e.target.value)} placeholder="เช่น 12345" className={inputCls} />
+                <input value={branchId} onChange={e => setBranchId(e.target.value)} placeholder={L('e.g. 12345', 'เช่น 12345')} className={inputCls} />
               </div>
             </div>
           )}
@@ -336,7 +337,7 @@ function TransferSettings() {
         {enabled && (
           <button onClick={test}
             className="px-5 py-2.5 rounded-xl border border-gray-300 text-gray-600 font-bold text-sm transition active:scale-95 hover:bg-gray-50">
-            ทดสอบ
+            {L('Test', 'ทดสอบ')}
           </button>
         )}
       </div>
@@ -532,6 +533,7 @@ export default function SettingsPage() {
   const isManager = ['admin', 'manager'].includes(role)
   const isAdmin   = role === 'admin'   // Owner-only — gates the secret sections
   const { t: tr, lang, setLang } = usePosLang()
+  const L = (en: string, th: string) => (lang === 'en' ? en : th)
 
   // Page-level guard: Settings is manager+ only. Hiding the nav link isn't
   // access control — a bartender/staff hitting /pos/settings directly must be
@@ -613,7 +615,7 @@ export default function SettingsPage() {
       setTimeout(() => setDrawerStatus('idle'), 3000)
     } catch (err) {
       setDrawerStatus('error')
-      setDrawerError(err instanceof Error ? err.message : 'เปิด drawer ล้มเหลว')
+      setDrawerError(err instanceof Error ? err.message : L('Failed to open drawer', 'เปิด drawer ล้มเหลว'))
       setTimeout(() => setDrawerStatus('idle'), 4000)
     }
   }
@@ -847,7 +849,7 @@ export default function SettingsPage() {
         setTgDetectResult({ chatId: data.chatId, from: data.from ?? '' })
         setTgDetect('done')
       } else {
-        setTgTestMsg(data.error ?? 'ไม่พบ Chat ID')
+        setTgTestMsg(data.error ?? L('Chat ID not found', 'ไม่พบ Chat ID'))
         setTgDetect('error')
         setTimeout(() => setTgDetect('idle'), 6000)
       }
@@ -1502,8 +1504,8 @@ export default function SettingsPage() {
                 <div className="flex flex-col gap-3">
                   <div className="bg-sky-50 border border-sky-100 rounded-xl p-3 text-xs text-sky-700 leading-relaxed">
                     <p className="font-semibold mb-0.5">LAN / Wi-Fi Mode</p>
-                    <p>ใช้ได้ทั้งบน Browser และ Android APK — ปริ้นเตอร์ต้องอยู่ใน Wi-Fi เดียวกัน</p>
-                    <p className="mt-1 text-sky-500">Port มาตรฐาน ESC/POS: <strong>9100</strong> (Epson · Xprinter · Star · Citizen)</p>
+                    <p>{L('Works in both Browser and the Android APK — the printer must be on the same Wi-Fi', 'ใช้ได้ทั้งบน Browser และ Android APK — ปริ้นเตอร์ต้องอยู่ใน Wi-Fi เดียวกัน')}</p>
+                    <p className="mt-1 text-sky-500">{L('Standard ESC/POS port', 'Port มาตรฐาน ESC/POS')}: <strong>9100</strong> (Epson · Xprinter · Star · Citizen)</p>
                   </div>
 
                   <div className="flex items-center gap-4">
@@ -1557,8 +1559,8 @@ export default function SettingsPage() {
                   {!native && (
                     <div className="bg-blue-50 border border-blue-100 rounded-xl p-3 text-xs text-blue-700 leading-relaxed mb-4">
                       <p className="font-semibold mb-0.5">Browser Mode</p>
-                      <p>Bluetooth SPP ใช้งานได้เฉพาะใน Android APK (Capacitor) เท่านั้น</p>
-                      <p className="mt-1 text-blue-500">Build APK ด้วย <code className="font-mono bg-blue-100 px-1 rounded">npx cap run android</code></p>
+                      <p>{L('Bluetooth SPP works only in the Android APK (Capacitor)', 'Bluetooth SPP ใช้งานได้เฉพาะใน Android APK (Capacitor) เท่านั้น')}</p>
+                      <p className="mt-1 text-blue-500">{L('Build the APK with', 'Build APK ด้วย')} <code className="font-mono bg-blue-100 px-1 rounded">npx cap run android</code></p>
                     </div>
                   )}
 
@@ -1601,14 +1603,14 @@ export default function SettingsPage() {
                         <div className="flex items-center gap-3">
                           <div className="flex-1 flex items-center gap-2 py-2.5 px-4 bg-blue-50 border border-blue-100 rounded-xl">
                             <div className="w-2 h-2 rounded-full bg-blue-400 animate-pulse shrink-0" />
-                            <span className="text-sm text-blue-700 font-medium">กำลังสแกน...</span>
+                            <span className="text-sm text-blue-700 font-medium">{L('Scanning...', 'กำลังสแกน...')}</span>
                           </div>
                           <button onClick={handleStopScan} className="px-4 py-2.5 rounded-xl text-sm font-semibold border border-gray-200 text-gray-500 hover:bg-gray-100 transition">{tr('setStop')}</button>
                         </div>
                       )}
                       {scanResults.length > 0 && (
                         <div className="flex flex-col gap-1.5">
-                          <p className="text-xs text-gray-400 font-semibold px-1">พบ {scanResults.length} เครื่อง — เลือกเพื่อเชื่อมต่อ</p>
+                          <p className="text-xs text-gray-400 font-semibold px-1">{L(`Found ${scanResults.length} device(s) — tap to connect`, `พบ ${scanResults.length} เครื่อง — เลือกเพื่อเชื่อมต่อ`)}</p>
                           {scanResults.map(device => (
                             <button key={device.address} onClick={() => handleConnect(device)} disabled={btBusy}
                               className="flex items-center justify-between px-4 py-3 bg-gray-50 hover:bg-amber-50 border border-gray-100 hover:border-amber-200 rounded-xl transition active:scale-[0.98]">
@@ -1622,7 +1624,7 @@ export default function SettingsPage() {
                         </div>
                       )}
                       {scanning && scanResults.length === 0 && (
-                        <p className="text-xs text-gray-400 text-center py-2">ยังไม่พบเครื่อง — ตรวจสอบว่าเปิดปริ้นเตอร์และ Bluetooth แล้ว</p>
+                        <p className="text-xs text-gray-400 text-center py-2">{L('No devices found — make sure the printer and Bluetooth are on', 'ยังไม่พบเครื่อง — ตรวจสอบว่าเปิดปริ้นเตอร์และ Bluetooth แล้ว')}</p>
                       )}
                     </div>
                   )}
@@ -1661,8 +1663,10 @@ export default function SettingsPage() {
 
               <p className="text-[11px] text-gray-400 leading-relaxed mt-3">
                 {cfg && (cfg.printerConnectionType ?? 'bluetooth') === 'lan'
-                  ? 'LAN/Wi-Fi: TCP port 9100 (ESC/POS) — รองรับทุก brand (Epson, Xprinter, Star, Citizen) — ใช้ได้ทั้ง Browser และ Android APK'
-                  : 'Bluetooth SPP/Classic — ต้องใช้ Android APK. Cash drawer เชื่อมต่อผ่าน RJ11/RJ12 — เปิดอัตโนมัติเมื่อรับเงินสด.'
+                  ? L('LAN/Wi-Fi: TCP port 9100 (ESC/POS) — supports every brand (Epson, Xprinter, Star, Citizen) — works in both Browser and Android APK',
+                      'LAN/Wi-Fi: TCP port 9100 (ESC/POS) — รองรับทุก brand (Epson, Xprinter, Star, Citizen) — ใช้ได้ทั้ง Browser และ Android APK')
+                  : L('Bluetooth SPP/Classic — requires the Android APK. Cash drawer connects via RJ11/RJ12 — opens automatically when cash is received.',
+                      'Bluetooth SPP/Classic — ต้องใช้ Android APK. Cash drawer เชื่อมต่อผ่าน RJ11/RJ12 — เปิดอัตโนมัติเมื่อรับเงินสด.')
                 }
               </p>
             </div>
@@ -2043,11 +2047,12 @@ export default function SettingsPage() {
                 />
                 {qrBaseUrl.includes('localhost') || qrBaseUrl.includes('127.0.0.1') ? (
                   <p className="text-[11px] text-amber-600 leading-relaxed">
-                    Base URL เป็น localhost — มือถือเครื่องอื่นสแกนแล้วจะเปิดไม่ได้ เพราะ &quot;localhost&quot; บนมือถือหมายถึงตัวมือถือเอง ไม่ใช่เครื่องนี้
-                    ให้แก้เป็น IP เครื่องนี้ในวง LAN เดียวกัน (เช่น <code>http://192.168.1.50:3000</code>) หรือโดเมนจริงหลัง deploy
+                    {L('Base URL is localhost — other phones scanning the QR won\'t open it, because "localhost" on a phone means the phone itself, not this machine. Change it to this machine\'s IP on the same LAN (e.g. ',
+                       'Base URL เป็น localhost — มือถือเครื่องอื่นสแกนแล้วจะเปิดไม่ได้ เพราะ "localhost" บนมือถือหมายถึงตัวมือถือเอง ไม่ใช่เครื่องนี้ ให้แก้เป็น IP เครื่องนี้ในวง LAN เดียวกัน (เช่น ')}
+                    <code>http://192.168.1.50:3000</code>{L(') or a real domain after deploy', ') หรือโดเมนจริงหลัง deploy')}
                   </p>
                 ) : (
-                  <p className="text-[11px] text-gray-400">QR จะลิงก์ไปที่ {qrBaseUrl || '…'}/order/{storeSlug || '…'}/[tableNo]</p>
+                  <p className="text-[11px] text-gray-400">{L('QR links to', 'QR จะลิงก์ไปที่')} {qrBaseUrl || '…'}/order/{storeSlug || '…'}/[tableNo]</p>
                 )}
               </div>
 
@@ -2085,9 +2090,9 @@ export default function SettingsPage() {
 
                 {floorTables.length === 0 ? (
                   <div className="border-2 border-dashed border-gray-100 rounded-xl py-6 text-center text-gray-300">
-                    <p className="text-sm">ยังไม่มีโต๊ะในผังโต๊ะ (Floor Plan)</p>
+                    <p className="text-sm">{L('No tables in the Floor Plan yet', 'ยังไม่มีโต๊ะในผังโต๊ะ (Floor Plan)')}</p>
                     <a href="/pos/floor" className="inline-block mt-2 text-xs font-bold text-amber-600 hover:text-amber-700">
-                      ไปตั้งค่า Floor Plan →
+                      {L('Set up Floor Plan →', 'ไปตั้งค่า Floor Plan →')}
                     </a>
                   </div>
                 ) : (
@@ -2111,7 +2116,7 @@ export default function SettingsPage() {
                   </div>
                 )}
                 <p className="text-[11px] text-gray-400">
-                  รายชื่อโต๊ะดึงมาจากผัง Floor Plan โดยตรง — เปลี่ยนชื่อ/เพิ่ม/ลบโต๊ะที่นั่น แล้วกด Refresh
+                  {L('Table names come straight from the Floor Plan — rename/add/remove tables there, then tap Refresh', 'รายชื่อโต๊ะดึงมาจากผัง Floor Plan โดยตรง — เปลี่ยนชื่อ/เพิ่ม/ลบโต๊ะที่นั่น แล้วกด Refresh')}
                 </p>
               </div>
 

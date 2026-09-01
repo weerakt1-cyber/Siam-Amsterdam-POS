@@ -3,6 +3,7 @@
 import { authedFetch } from "@/lib/supabase-browser"
 import { useState, useEffect, useRef, useLayoutEffect } from 'react'
 import { getOwnerProfile, setOwnerProfile, clearOwnerProfile, type GoogleProfile } from '@/lib/google-auth'
+import { usePosLang } from '@/lib/pos-i18n'
 
 // ─── Google Identity Services types ───────────────────────────────────────────
 
@@ -47,6 +48,8 @@ function GoogleLoginScreen({
   loading: boolean
   error: string
 }) {
+  const { lang } = usePosLang()
+  const L = (en: string, th: string) => (lang === 'en' ? en : th)
   return (
     <div className="fixed inset-0 z-[300] flex flex-col items-center justify-center bg-gray-950">
       {/* Background pattern */}
@@ -69,8 +72,8 @@ function GoogleLoginScreen({
         {/* Card */}
         <div className="w-full bg-gray-900 border border-gray-800 rounded-2xl p-6 flex flex-col items-center gap-5 shadow-2xl">
           <div className="text-center">
-            <p className="text-white font-semibold text-lg">ยืนยันตัวตน</p>
-            <p className="text-gray-400 text-sm mt-1">ลงชื่อเข้าด้วย Google เพื่อเริ่มใช้งาน</p>
+            <p className="text-white font-semibold text-lg">{L('Verify your identity', 'ยืนยันตัวตน')}</p>
+            <p className="text-gray-400 text-sm mt-1">{L('Sign in with Google to get started', 'ลงชื่อเข้าด้วย Google เพื่อเริ่มใช้งาน')}</p>
           </div>
 
           {/* Google button placeholder — GIS injects here */}
@@ -78,7 +81,7 @@ function GoogleLoginScreen({
             {loading && (
               <div className="flex items-center gap-2 text-gray-500 text-sm">
                 <div className="w-4 h-4 border-2 border-gray-600 border-t-gray-300 rounded-full animate-spin" />
-                กำลังโหลด…
+                {L('Loading…', 'กำลังโหลด…')}
               </div>
             )}
           </div>
@@ -89,7 +92,7 @@ function GoogleLoginScreen({
         </div>
 
         <p className="text-xs text-gray-600 text-center">
-          ทำครั้งเดียวต่อเครื่อง · ข้อมูลไม่ถูกแชร์กับบุคคลอื่น
+          {L('One-time per device · your data is not shared with anyone', 'ทำครั้งเดียวต่อเครื่อง · ข้อมูลไม่ถูกแชร์กับบุคคลอื่น')}
         </p>
       </div>
     </div>
@@ -99,6 +102,7 @@ function GoogleLoginScreen({
 // ─── Profile Badge (shown in settings area) ───────────────────────────────────
 
 export function OwnerProfileBadge() {
+  const { lang } = usePosLang()
   const [profile, setProfile] = useState<GoogleProfile | null>(null)
   useEffect(() => { setProfile(getOwnerProfile()) }, [])
 
@@ -118,7 +122,7 @@ export function OwnerProfileBadge() {
         onClick={() => { clearOwnerProfile(); window.location.reload() }}
         className="text-xs text-red-500 hover:text-red-700 transition font-medium"
       >
-        ออก
+        {lang === 'en' ? 'Sign out' : 'ออก'}
       </button>
     </div>
   )
@@ -129,6 +133,8 @@ export function OwnerProfileBadge() {
 type State = 'checking' | 'authenticated' | 'unauthenticated'
 
 export default function GoogleAuthGuard({ children }: { children: React.ReactNode }) {
+  const { lang } = usePosLang()
+  const L = (en: string, th: string) => (lang === 'en' ? en : th)
   const clientId = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID
   const [state,   setState] = useState<State>('checking')
   const [btnReady, setBtnReady] = useState(false)
@@ -156,7 +162,7 @@ export default function GoogleAuthGuard({ children }: { children: React.ReactNod
     script.async = true
     script.defer = true
     script.onload = initGsi
-    script.onerror = () => setError('โหลด Google Sign-In ล้มเหลว ตรวจสอบการเชื่อมต่ออินเทอร์เน็ต')
+    script.onerror = () => setError(L('Failed to load Google Sign-In — check your internet connection', 'โหลด Google Sign-In ล้มเหลว ตรวจสอบการเชื่อมต่ออินเทอร์เน็ต'))
     document.head.appendChild(script)
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state])
@@ -219,10 +225,10 @@ export default function GoogleAuthGuard({ children }: { children: React.ReactNod
         setOwnerProfile(data.profile)
         setState('authenticated')
       } else {
-        setError('ไม่สามารถยืนยันตัวตนได้ กรุณาลองใหม่')
+        setError(L('Could not verify your identity, please try again', 'ไม่สามารถยืนยันตัวตนได้ กรุณาลองใหม่'))
       }
     } catch {
-      setError('เกิดข้อผิดพลาด กรุณาลองใหม่')
+      setError(L('Something went wrong, please try again', 'เกิดข้อผิดพลาด กรุณาลองใหม่'))
     }
   }
 

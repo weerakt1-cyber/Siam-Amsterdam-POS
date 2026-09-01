@@ -129,7 +129,7 @@ function TileCard({
 export default function FloorPage() {
   const router    = useRouter()
   const { user }  = useAuth()
-  const { t }     = usePosLang()
+  const { t, lang } = usePosLang()
   const isManager = ['admin', 'manager'].includes(user?.role ?? '')
 
   const [tiles, setTiles] = useState<TableTile[]>(() => loadFloorTiles())
@@ -183,7 +183,7 @@ export default function FloorPage() {
   }
 
   function resetLayout() {
-    if (!confirm('รีเซ็ตผังโต๊ะเป็นค่าเริ่มต้น?\nการเปลี่ยนแปลงทั้งหมดจะหายไป')) return
+    if (!confirm(t('flResetConfirm'))) return
     setTiles(DEFAULT_TILES)
     saveFloorTiles(DEFAULT_TILES)
     pushFloorTiles(DEFAULT_TILES).then(ok => { if (!ok) alert(t('saveServerFailed')) })
@@ -204,7 +204,7 @@ export default function FloorPage() {
     const no = newNo.trim()
     if (!no) return
     if (tiles.some(t => t.tableNo === no)) {
-      setAddError(`โต๊ะ "${no}" มีอยู่แล้ว`)
+      setAddError(lang === 'en' ? `Table "${no}" already exists` : `โต๊ะ "${no}" มีอยู่แล้ว`)
       return
     }
     setAddError('')
@@ -225,7 +225,7 @@ export default function FloorPage() {
   }
 
   function deleteTile(id: string) {
-    if (!confirm('ลบโต๊ะนี้ออกจากผังโต๊ะ?')) return
+    if (!confirm(t('flDeleteConfirm'))) return
     setTiles(p => p.filter(t => t.id !== id))
     if (selectedId === id) setSelectedId(null)
   }

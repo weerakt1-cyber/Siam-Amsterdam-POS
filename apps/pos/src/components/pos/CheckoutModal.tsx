@@ -203,7 +203,8 @@ function PIcon({ src, color = ICON_AMBER, className = 'w-5 h-5' }: { src: string
 export default function CheckoutModal({
   cart, table, note, discount, memberName, memberTier, onConfirm, onClose, onComplete,
 }: Props) {
-  const { t: tr } = usePosLang()
+  const { t: tr, lang } = usePosLang()
+  const L = (en: string, th: string) => (lang === 'en' ? en : th)
   const [step, setStep]                 = useState<1 | 2 | 3>(1)
   const [payment, setPayment]           = useState<PaymentMethod>('cash')
   const [received, setReceived]         = useState('')
@@ -353,7 +354,7 @@ export default function CheckoutModal({
       await printReceiptWarm(data, cfg, warmed, { openDrawer: payment === 'cash', reviewQR: true })
       printed = true
     } catch (err) {
-      setBtError(err instanceof Error ? err.message : 'เกิดข้อผิดพลาด')
+      setBtError(err instanceof Error ? err.message : L('Something went wrong', 'เกิดข้อผิดพลาด'))
     }
     // Fallback: if the whole print job failed to connect on a cash sale, still
     // try a standalone drawer kick so the till can open.
@@ -563,7 +564,7 @@ export default function CheckoutModal({
                 {([
                   { id: 'cash', icon: PAY_ICONS.cash, label: tr('coCash') },
                   transferCfg?.enabled
-                    ? { id: 'transfer' as const,  icon: PAY_ICONS.scan, label: 'QR / โอนเงิน' }
+                    ? { id: 'transfer' as const,  icon: PAY_ICONS.scan, label: L('QR / Transfer', 'QR / โอนเงิน') }
                     : { id: 'promptpay' as const, icon: PAY_ICONS.scan, label: tr('coQrPay') },
                 ] as const).map((pm) => (
                   <button
@@ -634,14 +635,14 @@ export default function CheckoutModal({
                       </div>
                       <p className="text-2xl font-black text-stone-900">{baht(total)}</p>
                       <p className="text-[10px] text-stone-400 text-center">
-                        สแกนด้วยแอปธนาคารใดก็ได้ · Scan with any Thai banking app
+                        {L('Scan with any Thai banking app', 'สแกนด้วยแอปธนาคารใดก็ได้ · Scan with any Thai banking app')}
                       </p>
                     </>
                   ) : (
                     <div className="py-6 text-center flex flex-col items-center gap-2">
                       <PIcon src={PAY_ICONS.scan} className="w-12 h-12" />
                       <p className="text-sm font-bold text-stone-900">{baht(total)}</p>
-                      <p className="text-xs text-stone-400">ตั้งค่าเบอร์ PromptPay ใน Settings</p>
+                      <p className="text-xs text-stone-400">{L('Set the PromptPay number in Settings', 'ตั้งค่าเบอร์ PromptPay ใน Settings')}</p>
                     </div>
                   )}
                 </div>
@@ -664,14 +665,14 @@ export default function CheckoutModal({
                       <p className="text-2xl font-black text-stone-900">{baht(total)}</p>
                       {transferCfg?.accountName && <p className="text-sm text-stone-500">{transferCfg.accountName}</p>}
                       <p className="text-[10px] text-stone-400 text-center">
-                        ลูกค้าสแกนโอน แล้วกด &ldquo;{tr('coConfirmPayment')}&rdquo; เพื่อแนบสลิป
+                        {L('Customer scans and transfers, then tap', 'ลูกค้าสแกนโอน แล้วกด')} &ldquo;{tr('coConfirmPayment')}&rdquo; {L('to attach the slip', 'เพื่อแนบสลิป')}
                       </p>
                     </>
                   ) : (
                     <div className="py-6 text-center flex flex-col items-center gap-2">
                       <PIcon src={PAY_ICONS.scan} className="w-12 h-12" />
                       <p className="text-sm font-bold text-stone-900">{baht(total)}</p>
-                      <p className="text-xs text-stone-400">ตั้งค่าบัญชีรับโอนใน Settings</p>
+                      <p className="text-xs text-stone-400">{L('Set the receiving account in Settings', 'ตั้งค่าบัญชีรับโอนใน Settings')}</p>
                     </div>
                   )}
                 </div>
@@ -734,6 +735,7 @@ export default function CheckoutModal({
                   accountName={transferCfg.accountName}
                   merchantName={cfg?.barName}
                   isStaff
+                  lang={lang}
                   post={(path, body) => authedFetch(path, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -765,7 +767,7 @@ export default function CheckoutModal({
 
               {btStatus === 'idle' && !btName && (
                 <p className="text-[10px] text-stone-300 text-center">
-                  ต้องตั้งค่าใน Settings → Bluetooth Printer ก่อน (Android app เท่านั้น)
+                  {L('Set this up in Settings → Bluetooth Printer first (Android app only)', 'ต้องตั้งค่าใน Settings → Bluetooth Printer ก่อน (Android app เท่านั้น)')}
                 </p>
               )}
             </div>

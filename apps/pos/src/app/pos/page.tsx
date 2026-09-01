@@ -1556,7 +1556,7 @@ export default function POSPage() {
           {/* Mobile grab handle — closes the sheet */}
           <button onClick={() => setMobileCartOpen(false)} className="sm:hidden shrink-0 pt-2.5 pb-1 flex flex-col items-center gap-1">
             <span className="w-10 h-1 rounded-full bg-stone-200" />
-            <span className="text-[11px] font-semibold text-stone-400">แตะเพื่อย่อ ▾</span>
+            <span className="text-[11px] font-semibold text-stone-400">{lang === 'en' ? 'Tap to minimize ▾' : 'แตะเพื่อย่อ ▾'}</span>
           </button>
 
           {/* Cart header */}
@@ -1874,11 +1874,11 @@ export default function POSPage() {
               {cart.reduce((s, c) => s + c.qty, 0)}
             </span>
             <span className="flex flex-col items-start leading-tight">
-              <span className="text-[11px] text-stone-300">ดูตะกร้า</span>
+              <span className="text-[11px] text-stone-300">{lang === 'en' ? 'View cart' : 'ดูตะกร้า'}</span>
               <span className="font-black text-lg tabular-nums">{baht(finalTotal)}</span>
             </span>
             <span className="ml-auto flex items-center gap-1.5 bg-amber-500 text-black font-black text-sm px-4 py-2 rounded-xl">
-              ตะกร้า ▴
+              {lang === 'en' ? 'Cart ▴' : 'ตะกร้า ▴'}
             </span>
           </button>
         )}

@@ -3,6 +3,7 @@
 import { authedFetch } from "@/lib/supabase-browser"
 import { useState, useRef, useEffect, useCallback } from 'react'
 import { AI_NAME } from '@/lib/ai-brand'
+import { usePosLang, type PosLang } from '@/lib/pos-i18n'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -28,22 +29,74 @@ type AttachedFile = {
 const AI_ENABLED = process.env.NEXT_PUBLIC_AI_ADDON === 'true'
 
 // Real, high-value questions PLOEN AI can answer — used for the teaser typewriter.
-const TEASER_PROMPTS = [
-  'เมนูไหนทำกำไรดีที่สุดเดือนนี้?',
-  'ควรสั่งวัตถุดิบอะไรเพิ่มก่อนของหมด?',
-  'ยอดขายเทียบเดือนที่แล้วเป็นยังไง?',
-  'ช่วงเวลาไหนของวันขายดีที่สุด?',
-  'ลูกค้าประจำคนไหนหายไปนาน?',
-]
+const TEASER_PROMPTS: Record<PosLang, string[]> = {
+  th: [
+    'เมนูไหนทำกำไรดีที่สุดเดือนนี้?',
+    'ควรสั่งวัตถุดิบอะไรเพิ่มก่อนของหมด?',
+    'ยอดขายเทียบเดือนที่แล้วเป็นยังไง?',
+    'ช่วงเวลาไหนของวันขายดีที่สุด?',
+    'ลูกค้าประจำคนไหนหายไปนาน?',
+  ],
+  en: [
+    'Which menu items are most profitable this month?',
+    'What ingredients should I restock before they run out?',
+    'How do sales compare to last month?',
+    'Which time of day sells best?',
+    'Which regulars haven’t come back in a while?',
+  ],
+}
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
-const QUICK = [
-  'ยอดขายวันนี้เท่าไร?',
-  'โต๊ะที่เปิดอยู่มีอะไรบ้าง?',
-  'สินค้าขายดีวันนี้คืออะไร?',
-  'สินค้าคงคลังใกล้หมดมีอะไร?',
-]
+const QUICK: Record<PosLang, string[]> = {
+  th: [
+    'ยอดขายวันนี้เท่าไร?',
+    'โต๊ะที่เปิดอยู่มีอะไรบ้าง?',
+    'สินค้าขายดีวันนี้คืออะไร?',
+    'สินค้าคงคลังใกล้หมดมีอะไร?',
+  ],
+  en: [
+    "What are today's sales?",
+    'Which tables are open?',
+    'What are the best sellers today?',
+    'What inventory is running low?',
+  ],
+}
+
+// Panel-local bilingual copy — keyed by the POS UI language (same pattern the
+// order pages use). Keeps ~20 AI-only strings out of the global dictionary.
+const COPY: Record<PosLang, Record<string, string>> = {
+  th: {
+    locked: 'ล็อกอยู่', clear: 'ล้าง',
+    greetA: 'สวัสดี! ถามฉันเกี่ยวกับธุรกิจ หรือ', greetLink: 'แนบไฟล์', greetB: 'เพื่อนำเข้าข้อมูล',
+    importTitle: 'นำเข้าข้อมูลเก่า', importSub: 'CSV, Excel, JSON · ข้อมูลย้อนหลังไม่จำกัด',
+    reading: 'กำลังอ่านไฟล์...', attachTitle: 'แนบไฟล์ CSV, Excel, JSON',
+    phFile: 'พิมพ์คำสั่งสำหรับไฟล์...', phAsk: 'ถามเกี่ยวกับธุรกิจ...',
+    unlock: 'ปลดล็อก', teaserDesc1: 'ผู้ช่วยอัจฉริยะประจำร้าน — ถามเป็นภาษาคนได้เลย',
+    teaserDesc2: 'สรุปยอดขาย · แนะนำสต๊อก · วิเคราะห์ลูกค้า', tryAsk: 'ลองถาม',
+    enableCta: '✨ เปิดใช้ AI Add-On', enableSub: 'เสริมพลัง POS ด้วย AI · เพิ่มเป็น Add-On แยกต่างหาก',
+    enableAlert: 'สนใจเปิดใช้ AI Add-On? ติดต่อทีมงาน PLOEN POS ได้เลย',
+    errGeneric: 'เกิดข้อผิดพลาด', errConnect: 'เกิดข้อผิดพลาดในการเชื่อมต่อ',
+    errRead: 'อ่านไฟล์ไม่ได้ กรุณาตรวจสอบไฟล์', attachedPrefix: 'แนบไฟล์',
+  },
+  en: {
+    locked: 'Locked', clear: 'Clear',
+    greetA: 'Hi! Ask me about the business, or', greetLink: 'attach a file', greetB: 'to import data',
+    importTitle: 'Import past data', importSub: 'CSV, Excel, JSON · unlimited history',
+    reading: 'Reading file...', attachTitle: 'Attach CSV, Excel, JSON',
+    phFile: 'Type an instruction for the file...', phAsk: 'Ask about the business...',
+    unlock: 'Unlock', teaserDesc1: 'Your smart in-store assistant — just ask in plain language',
+    teaserDesc2: 'Sales summaries · stock advice · customer insights', tryAsk: 'Try asking',
+    enableCta: '✨ Enable AI Add-On', enableSub: 'Supercharge your POS with AI · a separate Add-On',
+    enableAlert: 'Interested in the AI Add-On? Contact the PLOEN POS team.',
+    errGeneric: 'Something went wrong', errConnect: 'Connection error',
+    errRead: "Couldn't read the file — please check it", attachedPrefix: 'Attached',
+  },
+}
+const unsupportedFile = (lang: PosLang, ext: string) =>
+  lang === 'en'
+    ? `Unsupported .${ext || '?'} file — supported: CSV, JSON, TXT, Excel (.xlsx)`
+    : `ไม่รองรับไฟล์ .${ext || '?'} — รองรับ: CSV, JSON, TXT, Excel (.xlsx)`
 
 const ACCEPT = '.csv,.json,.txt,.xlsx,.xls'
 
@@ -86,6 +139,8 @@ function TypingTeaser({ prompts }: { prompts: string[] }) {
 // ─── Component ────────────────────────────────────────────────────────────────
 
 export default function AIChatPanel() {
+  const { lang } = usePosLang()
+  const c = COPY[lang]
   const [open, setOpen]               = useState(false)
   const [msgs, setMsgs]               = useState<Msg[]>([])
   const [input, setInput]             = useState('')
@@ -129,10 +184,10 @@ export default function AIChatPanel() {
         setAttached({ name: file.name, ext: 'xlsx', content: csv, size: file.size })
 
       } else {
-        setFileError(`ไม่รองรับไฟล์ .${ext || '?'} — รองรับ: CSV, JSON, TXT, Excel (.xlsx)`)
+        setFileError(unsupportedFile(lang, ext))
       }
     } catch {
-      setFileError('อ่านไฟล์ไม่ได้ กรุณาตรวจสอบไฟล์')
+      setFileError(c.errRead)
     } finally {
       setFileLoading(false)
     }
@@ -145,7 +200,7 @@ export default function AIChatPanel() {
     const fileToSend = fileOverride !== undefined ? fileOverride : attached
     if ((!trimmed && !fileToSend) || loading) return
 
-    const displayText = trimmed || `[แนบไฟล์: ${fileToSend!.name}]`
+    const displayText = trimmed || `[${c.attachedPrefix}: ${fileToSend!.name}]`
     const history     = msgs.filter(m => !m.streaming)
     const userMsg: Msg = {
       role: 'user',
@@ -171,7 +226,7 @@ export default function AIChatPanel() {
         body.file = { name: fileToSend.name, ext: fileToSend.ext, content: fileToSend.content }
       }
 
-      const res = await authedFetch('/api/ai/chat', {
+      const res = await authedFetch(`/api/ai/chat?lang=${lang}`, {
         method:  'POST',
         headers: { 'Content-Type': 'application/json' },
         body:    JSON.stringify(body),
@@ -179,10 +234,10 @@ export default function AIChatPanel() {
       })
 
       if (!res.ok) {
-        const err = await res.json().catch(() => ({ error: 'เกิดข้อผิดพลาด' }))
+        const err = await res.json().catch(() => ({ error: c.errGeneric }))
         setMsgs(prev => [
           ...prev.slice(0, -1),
-          { role: 'assistant', content: err.error ?? 'เกิดข้อผิดพลาด' },
+          { role: 'assistant', content: err.error ?? c.errGeneric },
         ])
         return
       }
@@ -222,13 +277,13 @@ export default function AIChatPanel() {
       if (err instanceof Error && err.name === 'AbortError') return
       setMsgs(prev => [
         ...prev.slice(0, -1),
-        { role: 'assistant', content: 'เกิดข้อผิดพลาดในการเชื่อมต่อ' },
+        { role: 'assistant', content: c.errConnect },
       ])
     } finally {
       setLoading(false)
       abortRef.current = null
     }
-  }, [msgs, loading, attached])
+  }, [msgs, loading, attached, lang, c])
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
@@ -271,7 +326,7 @@ export default function AIChatPanel() {
               <div className="flex items-center gap-2">
                 <p className="text-sm font-bold leading-none">{AI_NAME}</p>
                 <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full leading-none bg-amber-900 text-amber-300">
-                  {AI_ENABLED ? 'Add-On' : 'ล็อกอยู่'}
+                  {AI_ENABLED ? 'Add-On' : c.locked}
                 </span>
               </div>
               <p className="text-[10px] text-stone-400 mt-0.5 leading-none">
@@ -283,7 +338,7 @@ export default function AIChatPanel() {
                 onPointerDown={() => { setMsgs([]); setInput(''); setAttached(null) }}
                 className="text-xs text-stone-500 hover:text-stone-200 transition px-2 py-1 rounded-lg hover:bg-stone-800"
               >
-                ล้าง
+                {c.clear}
               </button>
             )}
           </div>
@@ -295,17 +350,17 @@ export default function AIChatPanel() {
             {msgs.length === 0 ? (
               <div className="space-y-3 pt-1">
                 <p className="text-xs text-stone-400 text-center leading-relaxed">
-                  สวัสดี! ถามฉันเกี่ยวกับธุรกิจ หรือ{' '}
+                  {c.greetA}{' '}
                   <button
                     className="text-amber-600 underline underline-offset-2"
                     onPointerDown={() => fileInputRef.current?.click()}
                   >
-                    แนบไฟล์
+                    {c.greetLink}
                   </button>
-                  {' '}เพื่อนำเข้าข้อมูล
+                  {' '}{c.greetB}
                 </p>
                 <div className="grid grid-cols-2 gap-1.5">
-                  {QUICK.map(q => (
+                  {QUICK[lang].map(q => (
                     <button
                       key={q}
                       onPointerDown={() => send(q)}
@@ -323,8 +378,8 @@ export default function AIChatPanel() {
                 >
                   <span className="text-2xl">📂</span>
                   <div>
-                    <p className="text-xs font-semibold text-stone-700 group-hover:text-amber-700">นำเข้าข้อมูลเก่า</p>
-                    <p className="text-[10px] text-stone-400 mt-0.5">CSV, Excel, JSON · ข้อมูลย้อนหลังไม่จำกัด</p>
+                    <p className="text-xs font-semibold text-stone-700 group-hover:text-amber-700">{c.importTitle}</p>
+                    <p className="text-[10px] text-stone-400 mt-0.5">{c.importSub}</p>
                   </div>
                 </button>
               </div>
@@ -378,7 +433,7 @@ export default function AIChatPanel() {
               {fileLoading ? (
                 <div className="flex items-center gap-2 text-xs text-amber-700">
                   <span className="w-3.5 h-3.5 border-2 border-amber-300 border-t-amber-600 rounded-full animate-spin shrink-0" />
-                  กำลังอ่านไฟล์...
+                  {c.reading}
                 </div>
               ) : fileError ? (
                 <div className="flex items-center justify-between gap-2">
@@ -428,7 +483,7 @@ export default function AIChatPanel() {
                   ? 'bg-amber-100 text-amber-600 border border-amber-300'
                   : 'bg-stone-100 text-stone-500 hover:bg-stone-200 disabled:opacity-40'
               }`}
-              title="แนบไฟล์ CSV, Excel, JSON"
+              title={c.attachTitle}
             >
               📎
             </button>
@@ -438,7 +493,7 @@ export default function AIChatPanel() {
               ref={inputRef}
               value={input}
               onChange={e => setInput(e.target.value)}
-              placeholder={attached ? 'พิมพ์คำสั่งสำหรับไฟล์...' : 'ถามเกี่ยวกับธุรกิจ...'}
+              placeholder={attached ? c.phFile : c.phAsk}
               disabled={loading}
               className="flex-1 text-sm bg-stone-50 border border-stone-200 rounded-xl px-3 py-2.5 outline-none focus:border-amber-400 focus:ring-2 focus:ring-amber-100 transition disabled:opacity-60 min-w-0"
             />
@@ -461,28 +516,28 @@ export default function AIChatPanel() {
             <div className="flex-1 overflow-y-auto flex flex-col items-center justify-center gap-4 p-5 text-center">
               <img src="/baze-ai.png" alt={AI_NAME} className="w-28 h-28 object-contain" />
               <div>
-                <p className="text-base font-black text-stone-900">ปลดล็อก {AI_NAME}</p>
+                <p className="text-base font-black text-stone-900">{c.unlock} {AI_NAME}</p>
                 <p className="text-xs text-stone-500 mt-1 leading-relaxed">
-                  ผู้ช่วยอัจฉริยะประจำร้าน — ถามเป็นภาษาคนได้เลย<br />
-                  สรุปยอดขาย · แนะนำสต๊อก · วิเคราะห์ลูกค้า
+                  {c.teaserDesc1}<br />
+                  {c.teaserDesc2}
                 </p>
               </div>
 
               {/* Live typing preview — feels like AI is about to answer */}
               <div className="w-full bg-stone-50 border border-stone-200 rounded-2xl px-4 py-3.5 text-left min-h-[92px]">
                 <p className="text-[10px] text-stone-400 mb-1.5 flex items-center gap-1">
-                  <span className="text-amber-500">💬</span> ลองถาม {AI_NAME}:
+                  <span className="text-amber-500">💬</span> {c.tryAsk} {AI_NAME}:
                 </p>
-                <TypingTeaser prompts={TEASER_PROMPTS} />
+                <TypingTeaser prompts={TEASER_PROMPTS[lang]} />
               </div>
 
               <button
-                onPointerDown={() => alert('สนใจเปิดใช้ AI Add-On? ติดต่อทีมงาน PLOEN POS ได้เลย')}
+                onPointerDown={() => alert(c.enableAlert)}
                 className="w-full py-3 rounded-2xl bg-amber-500 hover:bg-amber-400 active:scale-95 text-white font-bold text-sm transition shadow-lg shadow-amber-200/60"
               >
-                ✨ เปิดใช้ AI Add-On
+                {c.enableCta}
               </button>
-              <p className="text-[10px] text-stone-400">เสริมพลัง POS ด้วย AI · เพิ่มเป็น Add-On แยกต่างหาก</p>
+              <p className="text-[10px] text-stone-400">{c.enableSub}</p>
             </div>
           )}
         </div>

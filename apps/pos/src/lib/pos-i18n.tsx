@@ -618,6 +618,8 @@ const DICT = {
 
   // ── Floor page ──
   flTablePh:       { en: 'T7, VIP2, Gameroom…', th: 'T7, VIP2, Gameroom…' },
+  flResetConfirm:  { en: 'Reset the table layout to default?\nAll changes will be lost', th: 'รีเซ็ตผังโต๊ะเป็นค่าเริ่มต้น?\nการเปลี่ยนแปลงทั้งหมดจะหายไป' },
+  flDeleteConfirm: { en: 'Remove this table from the layout?', th: 'ลบโต๊ะนี้ออกจากผังโต๊ะ?' },
 
   // ── Users page ──
   usEnterName:     { en: 'Please enter a name', th: 'กรุณาใส่ชื่อ' },
@@ -628,6 +630,23 @@ const DICT = {
   usPinChanged:    { en: 'PIN changed ✓', th: 'เปลี่ยน PIN สำเร็จ ✓' },
   usDeleted:       { en: 'User deleted', th: 'ลบ User แล้ว' },
   usNamePh:        { en: 'Staff name', th: 'ชื่อพนักงาน' },
+  usFillInfo:      { en: 'Fill in the details and set a PIN', th: 'กรอกข้อมูลและตั้ง PIN' },
+  usName:          { en: 'Name', th: 'ชื่อ' },
+  usAvatarColor:   { en: 'Avatar color', th: 'สี Avatar' },
+  usSetPin4:       { en: 'Set a 4-digit PIN', th: 'ตั้ง PIN 4 หลัก' },
+  usConfirmPin:    { en: 'Confirm the PIN again', th: 'ยืนยัน PIN อีกครั้ง' },
+  usPinPadSet:     { en: 'Enter 4 digits', th: 'กดตัวเลข 4 หลัก' },
+  usPinPadConfirm: { en: 'Re-enter the same PIN to confirm', th: 'กรอก PIN เดิมอีกครั้งเพื่อยืนยัน' },
+  usCreating:      { en: 'Creating...', th: 'กำลังสร้าง...' },
+  usCreateUser:    { en: 'Create User', th: 'สร้าง User' },
+  usPinHint:       { en: '4 digits for login', th: '4 หลัก สำหรับเข้าระบบ' },
+  usChangePin:     { en: 'Change PIN', th: 'เปลี่ยน PIN' },
+  usNewPinHint:    { en: 'Enter a new 4-digit PIN (saves automatically)', th: 'กรอก PIN ใหม่ 4 หลัก (จะบันทึกอัตโนมัติ)' },
+  usPinSet:        { en: '(PIN is set)', th: '(PIN ที่ตั้งไว้)' },
+  usDeleteUser:    { en: 'Remove this user', th: 'ลบ User นี้ออกจากระบบ' },
+  usNoUsers:       { en: 'No users yet', th: 'ยังไม่มี User' },
+  usPinMismatchRetry: { en: 'PINs do not match — try again', th: 'PIN ไม่ตรงกัน — ลองใหม่' },
+  usError:         { en: 'Something went wrong', th: 'เกิดข้อผิดพลาด' },
 
   // ── Cash page (extra) ──
   cashNoCashIn:    { en: 'No cash in entries yet', th: 'ยังไม่มีรายการเงินเข้า' },
