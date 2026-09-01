@@ -176,7 +176,7 @@ export default function Sidebar() {
       <nav className="hidden sm:flex w-14 bg-stone-900 border-r border-stone-800 flex-col items-center py-3 gap-2 shrink-0">
         <div className="mb-1">
           <div className="w-10 h-10 rounded-2xl overflow-hidden border border-stone-700 shrink-0">
-            <img src={logoSrc} alt="Bar logo" className="w-full h-full object-cover" />
+            <img src={logoSrc} alt="PLOEN POS" className="w-full h-full object-cover" />
           </div>
         </div>
 
@@ -230,7 +230,7 @@ export default function Sidebar() {
         >
           <div className="flex items-center gap-2.5 px-1.5 mb-2">
             <div className="w-10 h-10 rounded-2xl overflow-hidden border border-stone-700 shrink-0">
-              <img src={logoSrc} alt="Bar logo" className="w-full h-full object-cover" />
+              <img src={logoSrc} alt="PLOEN POS" className="w-full h-full object-cover" />
             </div>
             <span className="text-stone-200 font-bold text-sm flex-1">{t('menu')}</span>
             <button

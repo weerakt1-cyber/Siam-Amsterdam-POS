@@ -112,7 +112,7 @@ export default function AuthPage() {
         {/* Logo */}
         <div className="flex flex-col items-center gap-3">
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/logo.png" alt="Bar logo" className="w-24 h-24 object-contain" />
+          <img src="/logo.png" alt="PLOEN POS" className="w-24 h-24 object-contain" />
           <div className="text-center">
             <h1 className="text-2xl font-black text-white tracking-tight">PLOEN POS</h1>
           </div>

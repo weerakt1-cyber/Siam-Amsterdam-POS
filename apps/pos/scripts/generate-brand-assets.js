@@ -5,9 +5,12 @@ const sharp = require('sharp')
 const fs = require('fs')
 const path = require('path')
 
-const ROOT = path.join(__dirname, '..')
-const ICON_SRC = path.join(ROOT, 'brand-assets/app-icon-source.png')
-const LOGO_SRC = path.join(ROOT, 'brand-assets/logo-source.png')
+const ROOT = path.join(__dirname, '..')          // apps/pos — where the sized assets are written
+// Master source logos live at the monorepo root (brand-assets/), not under
+// apps/pos — they stayed put when the POS app moved into apps/pos (monorepo M0).
+const REPO = path.join(ROOT, '..', '..')
+const ICON_SRC = path.join(REPO, 'brand-assets/app-icon-source.png')
+const LOGO_SRC = path.join(REPO, 'brand-assets/logo-source.png')
 
 const ANDROID_DENSITIES = {
   mdpi: 48, hdpi: 72, xhdpi: 96, xxhdpi: 144, xxxhdpi: 192,
@@ -68,7 +71,7 @@ async function main() {
   await sharp(logo200).jpeg({ quality: 92 }).toFile(path.join(ROOT, 'public/logo.jpg'))
 
   // ── Wide header/website lockup — kept for future use, no code slot yet ──
-  await sharp(path.join(ROOT, 'brand-assets/logo-wide-source.jpg'))
+  await sharp(path.join(REPO, 'brand-assets/logo-wide-source.jpg'))
     .png()
     .toFile(path.join(ROOT, 'public/logo-wide.png'))
 
