@@ -1,6 +1,6 @@
 'use client'
 
-import { authedFetch } from "@/lib/supabase-browser"
+import { authedFetch, getSupabaseBrowser, getAccessToken } from "@/lib/supabase-browser"
 import { useState, useEffect, useCallback, useRef } from 'react'
 import type { Alert, AlertSeverity } from '@/lib/alerts'
 import { loadBarSettings } from '@/lib/printer'
@@ -71,6 +71,42 @@ export default function NotificationBell() {
     const onFocus = () => fetchAlerts()
     window.addEventListener('focus', onFocus)
     return () => { clearInterval(iv); window.removeEventListener('focus', onFocus) }
+  }, [fetchAlerts])
+
+  // Realtime: the 90s poll above is the fallback; a slip verified on another
+  // device (the cashier's phone) flips a payment_slips row to 'verified', which
+  // Supabase Realtime pushes here — we refetch immediately so the "money in"
+  // alert + native notification land in ~a round-trip instead of up to 90s.
+  // RLS (migration 025) scopes events to this store; we also filter by store_id.
+  useEffect(() => {
+    let cancelled = false
+    let channel: ReturnType<ReturnType<typeof getSupabaseBrowser>['channel']> | null = null
+    ;(async () => {
+      try {
+        const r = await authedFetch('/api/store')
+        if (!r.ok) return
+        const storeId: string | undefined = (await r.json())?.store?.id
+        if (!storeId || cancelled) return
+        const sb = getSupabaseBrowser()
+        // Ensure the realtime socket carries the user's JWT so RLS applies.
+        const token = await getAccessToken()
+        if (token) sb.realtime.setAuth(token)
+        if (cancelled) return
+        // Any verified slip (auto INSERT, or manual confirm UPDATE) → refetch.
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const onSlip = (payload: { new?: any }) => {
+          if (payload.new?.status === 'verified') fetchAlerts()
+        }
+        channel = sb.channel(`slips-${storeId}`)
+          .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'payment_slips', filter: `store_id=eq.${storeId}` }, onSlip)
+          .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'payment_slips', filter: `store_id=eq.${storeId}` }, onSlip)
+          .subscribe()
+      } catch { /* realtime unavailable — the poll still covers it */ }
+    })()
+    return () => {
+      cancelled = true
+      if (channel) getSupabaseBrowser().removeChannel(channel)
+    }
   }, [fetchAlerts])
 
   // "Problems" badge excludes pure success (target-hit) items.
