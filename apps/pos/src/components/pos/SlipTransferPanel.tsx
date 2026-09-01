@@ -5,6 +5,8 @@ import QRCode from 'qrcode'
 import jsQR from 'jsqr'
 import { buildPromptPayQR } from '@/lib/promptpay'
 import type { PosLang } from '@/lib/pos-i18n'
+import { primeAudio, playPaymentSuccess, playPaymentError } from '@/lib/sound'
+import { fireLocalNotification } from '@/lib/local-notify'
 
 // Bank-transfer / PromptPay-slip payment panel, shared by the POS CheckoutModal
 // (staff) and the customer self-order page. Shows the store's PromptPay QR for
@@ -77,6 +79,19 @@ export default function SlipTransferPanel({
   const [confirming, setConfirming] = useState(false)
   const fileRef = useRef<HTMLInputElement>(null)
 
+  // Payment confirmed → success chime + native notification (Android),
+  // so staff hear it even when not looking at the screen.
+  function announceVerified() {
+    setState('verified')
+    playPaymentSuccess()
+    fireLocalNotification(
+      `slip-paid-${orderId}`,
+      L('Payment received', 'รับเงินแล้ว'),
+      L(`Slip confirmed · ฿${amount.toLocaleString()}`, `ยืนยันสลิปแล้ว · ฿${amount.toLocaleString()}`),
+    ).catch(() => {})
+    onVerified?.()
+  }
+
   // Build the PromptPay QR for this exact amount (client-side, no secret needed).
   useEffect(() => {
     if (!promptpayId) return
@@ -89,23 +104,26 @@ export default function SlipTransferPanel({
   async function onPick(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
     if (!file) return
+    // Selecting the photo is a user gesture — unlock audio so the success chime
+    // is allowed to play when verification returns a moment later.
+    primeAudio()
     setState('verifying'); setReason(null); setSlipId(null)
     const { qr, dataUrl } = await decodeSlipImage(file)
     try {
       const res = await post('/api/payment/slip/verify', { orderId, qrPayload: qr ?? '', image: dataUrl })
       const data = (await res.json().catch(() => ({}))) as VerifyResp
       if (!res.ok) {
-        setState('rejected'); setReason(data.error ?? L('Something went wrong', 'เกิดข้อผิดพลาด'))
+        setState('rejected'); setReason(data.error ?? L('Something went wrong', 'เกิดข้อผิดพลาด')); playPaymentError()
       } else if (data.status === 'verified') {
-        setState('verified'); onVerified?.()
+        announceVerified()
       } else if (data.status === 'pending') {
         setState('pending'); setSlipId(data.slip?.id ?? null)
       } else {
         const r = data.reason ? REASONS[data.reason] : null
-        setState('rejected'); setReason(r ? L(r.en, r.th) : (data.reason ?? null))
+        setState('rejected'); setReason(r ? L(r.en, r.th) : (data.reason ?? null)); playPaymentError()
       }
     } catch {
-      setState('rejected'); setReason(L('Connection failed', 'เชื่อมต่อไม่สำเร็จ'))
+      setState('rejected'); setReason(L('Connection failed', 'เชื่อมต่อไม่สำเร็จ')); playPaymentError()
     } finally {
       if (fileRef.current) fileRef.current.value = ''
     }
@@ -113,10 +131,11 @@ export default function SlipTransferPanel({
 
   async function confirmManually() {
     if (!slipId) return
+    primeAudio()
     setConfirming(true)
     try {
       const res = await post(`/api/payment/slip/${slipId}/confirm`, {})
-      if (res.ok) { setState('verified'); onVerified?.() }
+      if (res.ok) announceVerified()
     } finally { setConfirming(false) }
   }
 
