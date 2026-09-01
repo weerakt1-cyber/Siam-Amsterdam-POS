@@ -1713,6 +1713,22 @@ export async function getPaymentSlipsByOrder(orderId: string, storeId?: string):
   return (data ?? []).map(mapSlip)
 }
 
+// Verified slips across the store since a cutoff — powers the cross-device
+// "money in" alert (a slip verified on the cashier's phone pings the manager's).
+// Bounded by limit so a busy night can't return an unbounded set.
+export async function getRecentVerifiedSlips(
+  sinceIso: string, storeId?: string, limit = 20,
+): Promise<PaymentSlip[]> {
+  const sid = await requireStoreId(storeId)
+  const { data } = await supabase
+    .from('payment_slips').select('*')
+    .eq('store_id', sid).eq('status', 'verified')
+    .gte('verified_at', sinceIso)
+    .order('verified_at', { ascending: false })
+    .limit(limit)
+  return (data ?? []).map(mapSlip)
+}
+
 // Move a pending slip to verified/rejected. Store-scoped and status-guarded:
 // only a row still 'pending' flips, so a double confirm/reject is a no-op
 // (returns null → caller 409s).

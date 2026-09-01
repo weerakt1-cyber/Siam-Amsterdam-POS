@@ -1,7 +1,7 @@
 export const dynamic = 'force-dynamic'
 
 import { NextRequest, NextResponse } from 'next/server'
-import { getOrders, getInventory, getMenu, getAllMenuIngredients } from '@/lib/store'
+import { getOrders, getInventory, getMenu, getAllMenuIngredients, getRecentVerifiedSlips } from '@/lib/store'
 import { resolveStaffStoreId } from '@/lib/api-auth'
 import { computeAlerts } from '@/lib/alerts'
 
@@ -15,7 +15,11 @@ export async function GET(req: NextRequest) {
   try {
     const storeId = await resolveStaffStoreId(req)
     if (!storeId) return NextResponse.json({ alerts: [], error: 'Authentication required' }, { status: 401 })
-    const [orders, inventory, menu, ingredients] = await Promise.all([
+    // Verified transfer slips in the last 10 min drive the cross-device "money
+    // in" ping; optional, so a missing/unprovisioned slips table degrades to the
+    // other alerts rather than failing the endpoint.
+    const slipsSinceIso = new Date(Date.now() - 10 * 60 * 1000).toISOString()
+    const [orders, inventory, menu, ingredients, slips] = await Promise.all([
       // Alerts need ~60 days of sales velocity — bound the query to that window
       // (it was already filtered to 60 days in-memory below).
       getOrders(storeId, { sinceDays: 60 }),
@@ -25,6 +29,7 @@ export async function GET(req: NextRequest) {
       // optional — if the table isn't provisioned, degrade gracefully to stock +
       // target alerts rather than failing the whole endpoint.
       getAllMenuIngredients().catch(() => []),
+      getRecentVerifiedSlips(slipsSinceIso, storeId).catch(() => []),
     ])
 
     // Bound the order set to ~60 days to keep computation light.
@@ -38,6 +43,7 @@ export async function GET(req: NextRequest) {
       ingredients,
       targets: { daily: num('daily'), weekly: num('weekly'), monthly: num('monthly') },
       now: Date.now(),
+      slips: slips.map(s => ({ id: s.id, orderId: s.orderId, amount: s.amount, verifiedAt: s.verifiedAt })),
     })
 
     return NextResponse.json({ alerts })
