@@ -3,6 +3,8 @@ import AppAuthGuard from '@/components/pos/AppAuthGuard'
 import AIChatPanel from '@/components/pos/AIChatPanel'
 import LockScreen from '@/components/pos/LockScreen'
 import StaffGate from '@/components/pos/StaffGate'
+import ShiftGate from '@/components/pos/ShiftGate'
+import { ShiftProvider } from '@/lib/pos-shift'
 import PrinterAutoConnect from '@/components/pos/PrinterAutoConnect'
 import QrOrderAutoPrint from '@/components/pos/QrOrderAutoPrint'
 import SettingsSync from '@/components/pos/SettingsSync'
@@ -22,21 +24,24 @@ export default function POSLayout({ children }: { children: React.ReactNode }) {
     <PosAuthProvider>
       <PosLangProvider>
       <AppAuthGuard>
-        <div className="h-screen flex bg-[#FAF8F4] overflow-hidden">
-          <Sidebar />
-          <main className="flex-1 overflow-hidden flex flex-col pb-16 sm:pb-0">
-            <SubscriptionBanner />
-            <OnboardingChecklist />
-            {children}
-          </main>
-        </div>
-        <AIChatPanel />
-        <LockScreen />
-        <StaffGate />
-        <PrinterAutoConnect />
-        <QrOrderAutoPrint />
-        <SettingsSync />
-        <InstallPrompt />
+        <ShiftProvider>
+          <div className="h-screen flex bg-[#FAF8F4] overflow-hidden">
+            <Sidebar />
+            <main className="flex-1 overflow-hidden flex flex-col pb-16 sm:pb-0">
+              <SubscriptionBanner />
+              <OnboardingChecklist />
+              {children}
+            </main>
+          </div>
+          <AIChatPanel />
+          <LockScreen />
+          <StaffGate />
+          <ShiftGate />
+          <PrinterAutoConnect />
+          <QrOrderAutoPrint />
+          <SettingsSync />
+          <InstallPrompt />
+        </ShiftProvider>
       </AppAuthGuard>
       </PosLangProvider>
     </PosAuthProvider>

@@ -17,7 +17,7 @@ export async function POST(req: NextRequest) {
     if (!storeId) return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
 
     const body = await req.json()
-    const { name, unit, category, currentStock, lowStockThreshold, costPerUnit, notes } = body
+    const { name, unit, category, currentStock, lowStockThreshold, costPerUnit, contentAmount, contentUnit, notes } = body
 
     if (!name || typeof name !== 'string' || name.trim() === '')
       return NextResponse.json({ error: 'name is required' }, { status: 400 })
@@ -31,6 +31,8 @@ export async function POST(req: NextRequest) {
       currentStock:       Number(currentStock) || 0,
       lowStockThreshold:  Number(lowStockThreshold) || 5,
       costPerUnit:        costPerUnit ? Number(costPerUnit) : undefined,
+      contentAmount:      contentAmount ? Number(contentAmount) : undefined,
+      contentUnit:        contentUnit || undefined,
       notes:              notes || undefined,
     }, storeId)
     return NextResponse.json({ item }, { status: 201 })

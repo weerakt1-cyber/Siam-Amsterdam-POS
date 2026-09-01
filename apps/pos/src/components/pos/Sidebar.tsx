@@ -7,11 +7,64 @@ import { useAuth, type ActiveUser } from '@/lib/pos-auth'
 import { getSupabaseBrowser } from '@/lib/supabase-browser'
 import UserSwitcher from './UserSwitcher'
 import { usePosLang, type PosStringKey } from '@/lib/pos-i18n'
+import { useShift, STAFF_ROLES as SHIFT_STAFF_ROLES, CLOCK_IN_ROLES } from '@/lib/pos-shift'
+
+// Inline clock glyph for the shift nav item (no PNG in the icon pack).
+function ShiftClock({ color, className }: { color: string; className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" className={className}>
+      <circle cx="12" cy="12" r="9" stroke={color} strokeWidth="1.8" />
+      <path d="M12 7.5V12l3 2" stroke={color} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  )
+}
+
+// Inline dashboard glyph for the manager Dashboard nav item.
+function DashboardIcon({ color, className }: { color: string; className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" className={className}>
+      <rect x="3" y="3" width="8" height="8" rx="1.6" stroke={color} strokeWidth="1.8" />
+      <rect x="13" y="3" width="8" height="5" rx="1.6" stroke={color} strokeWidth="1.8" />
+      <rect x="13" y="10" width="8" height="11" rx="1.6" stroke={color} strokeWidth="1.8" />
+      <rect x="3" y="13" width="8" height="8" rx="1.6" stroke={color} strokeWidth="1.8" />
+    </svg>
+  )
+}
+
+// Live shift status for staff — a tap opens the My Shift screen.
+function ShiftStatusChip() {
+  const { user } = useAuth()
+  const ctx = useShift()
+  const router = useRouter()
+  if (!user || !ctx || !SHIFT_STAFF_ROLES.has(user.role)) return null
+  const { shift, onBreak } = ctx
+  const label = !shift ? 'ยังไม่เข้ากะ' : onBreak ? 'พักเบรค' : 'กำลังทำงาน'
+  const dot   = !shift ? 'bg-red-500' : onBreak ? 'bg-orange-400' : 'bg-emerald-400'
+  return (
+    <button
+      onClick={() => router.push('/pos/shift')}
+      className="flex items-center gap-2 h-10 px-3 rounded-xl bg-stone-800/60 hover:bg-stone-800 mb-1 transition active:scale-[0.98]"
+    >
+      <span className={`w-2 h-2 rounded-full ${dot} ${shift && !onBreak ? 'animate-pulse' : ''}`} />
+      <span className="text-stone-300 font-semibold text-xs">{label}</span>
+      {shift && (
+        <span className="text-stone-500 text-[11px] ml-auto tabular-nums">
+          เข้า {new Date(shift.clockIn).toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' })}
+        </span>
+      )}
+    </button>
+  )
+}
 
 const MANAGER_ROLES = new Set(['admin', 'manager'])
+// Staff-level roles get a stripped-down app: only the POS + their own shift.
+const STAFF_ROLES   = new Set(['staff', 'bartender'])
+const STAFF_ALLOWED = new Set(['/pos', '/pos/shift'])
 
-const NAV: { href: string; icon: string; labelKey: PosStringKey; managerOnly?: boolean; adminOnly?: boolean; superAdminOnly?: boolean }[] = [
+const NAV: { href: string; icon: string; labelKey: PosStringKey; managerOnly?: boolean; adminOnly?: boolean; superAdminOnly?: boolean; staffOnly?: boolean }[] = [
+  { href: '/pos/manager',    icon: '',                         labelKey: 'navDashboard', managerOnly: true },
   { href: '/pos',            icon: '/nav-icons/pos.png',       labelKey: 'navPos'       },
+  { href: '/pos/shift',      icon: '',                         labelKey: 'navShift', staffOnly: true },
   { href: '/pos/floor',      icon: '/nav-icons/floor.png',     labelKey: 'navFloor'     },
   { href: '/pos/reservations', icon: '/nav-icons/members.png', labelKey: 'navReservations' },
   { href: '/pos/kitchen',    icon: '/nav-icons/kitchen.png',   labelKey: 'navKitchen'   },
@@ -25,8 +78,9 @@ const NAV: { href: string; icon: string; labelKey: PosStringKey; managerOnly?: b
   { href: '/pos/settings',   icon: '/nav-icons/settings.png',  labelKey: 'navSettings',  managerOnly: true },
 ]
 
-const BOTTOM_NAV: { href: string; icon: string; labelKey: PosStringKey; managerOnly?: boolean }[] = [
+const BOTTOM_NAV: { href: string; icon: string; labelKey: PosStringKey; managerOnly?: boolean; staffOnly?: boolean }[] = [
   { href: '/pos',           icon: '/nav-icons/pos.png',       labelKey: 'navPos'      },
+  { href: '/pos/shift',     icon: '',                         labelKey: 'navShift', staffOnly: true },
   { href: '/pos/members',   icon: '/nav-icons/members.png',   labelKey: 'navMembers'  },
   { href: '/pos/cash',      icon: '/nav-icons/cash.png',      labelKey: 'navCash'     },
   { href: '/pos/analytics', icon: '/nav-icons/analytics.png', labelKey: 'navStats',    managerOnly: true },
@@ -71,7 +125,10 @@ export default function Sidebar() {
   // Sidebar visibility (UI only — every route is still guarded server-side).
   // The Super-admin console now lives in the separate apps/admin app.
   const role = activeUser?.role ?? ''
-  const visible = (item: { managerOnly?: boolean; adminOnly?: boolean }) => {
+  const visible = (item: { href?: string; managerOnly?: boolean; adminOnly?: boolean; staffOnly?: boolean }) => {
+    // Staff/bartender: only the POS + their own shift screen.
+    if (STAFF_ROLES.has(role)) return !!item.href && STAFF_ALLOWED.has(item.href)
+    if (item.staffOnly)   return CLOCK_IN_ROLES.has(role)   // shift: staff (above) + manager
     if (item.adminOnly)   return role === 'admin'
     if (item.managerOnly) return MANAGER_ROLES.has(role)
     return true
@@ -198,7 +255,11 @@ export default function Sidebar() {
                     : 'text-stone-400 hover:text-stone-100 hover:bg-stone-800'
                 }`}
               >
-                <NavIcon src={item.icon} color={active ? ICON_ON_AMBER : ICON_AMBER} className="w-6 h-6" />
+                {item.href === '/pos/shift'
+                  ? <ShiftClock color={active ? ICON_ON_AMBER : ICON_AMBER} className="w-6 h-6" />
+                  : item.href === '/pos/manager'
+                  ? <DashboardIcon color={active ? ICON_ON_AMBER : ICON_AMBER} className="w-6 h-6" />
+                  : <NavIcon src={item.icon} color={active ? ICON_ON_AMBER : ICON_AMBER} className="w-6 h-6" />}
                 <span className="font-bold text-sm leading-none">{t(item.labelKey)}</span>
               </Link>
             )
@@ -206,6 +267,8 @@ export default function Sidebar() {
 
           <div className="flex-1" />
           <div className="border-t border-stone-800 mb-1" />
+
+          <ShiftStatusChip />
 
           <button
             onClick={() => { setShowSwitcher(true); setExpanded(false) }}
@@ -245,7 +308,9 @@ export default function Sidebar() {
               }`}
             >
               {active && <div className="absolute top-0 left-1/2 -translate-x-1/2 w-8 h-0.5 bg-amber-500 rounded-full" />}
-              <NavIcon src={item.icon} color={ICON_AMBER} className={`w-[22px] h-[22px] ${active ? '' : 'opacity-45'}`} />
+              {item.href === '/pos/shift'
+                ? <ShiftClock color={ICON_AMBER} className={`w-[22px] h-[22px] ${active ? '' : 'opacity-45'}`} />
+                : <NavIcon src={item.icon} color={ICON_AMBER} className={`w-[22px] h-[22px] ${active ? '' : 'opacity-45'}`} />}
               {/* label colour follows active state below */}
               <span className={`text-[9px] font-semibold leading-none mt-0.5 ${active ? 'text-stone-900' : 'text-stone-400'}`}>
                 {t(item.labelKey)}

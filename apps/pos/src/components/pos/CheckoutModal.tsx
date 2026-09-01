@@ -5,7 +5,7 @@ import SlipTransferPanel from "@/components/pos/SlipTransferPanel"
 import { useState, useEffect, useRef } from 'react'
 import {
   loadBarSettings, loadPrinterDevice,
-  printReceipt, openCashDrawer, DEFAULT_BAR_SETTINGS,
+  printReceiptWarm, warmBluetoothSocket, openCashDrawer, DEFAULT_BAR_SETTINGS,
   type BarSettings, type ReceiptData,
 } from '@/lib/printer'
 import { getTierByName, computePointsEarned, TIERS } from '@/lib/loyalty'
@@ -203,7 +203,8 @@ function PIcon({ src, color = ICON_AMBER, className = 'w-5 h-5' }: { src: string
 export default function CheckoutModal({
   cart, table, note, discount, memberName, memberTier, onConfirm, onClose, onComplete,
 }: Props) {
-  const { t: tr } = usePosLang()
+  const { t: tr, lang } = usePosLang()
+  const L = (en: string, th: string) => (lang === 'en' ? en : th)
   const [step, setStep]                 = useState<1 | 2 | 3>(1)
   const [payment, setPayment]           = useState<PaymentMethod>('cash')
   const [received, setReceived]         = useState('')
@@ -286,6 +287,10 @@ export default function CheckoutModal({
   // Synchronous re-entry lock — blocks a fast double-tap before the disabled
   // state re-renders, so payment/order creation can never fire twice.
   const confirmingRef = useRef(false)
+  // Bluetooth socket opened up front (in parallel with the server order-save) so
+  // the ~1.5 s connect overlaps the save instead of following it. Holds the
+  // in-flight warm-up promise; the print step awaits it, then just transmits.
+  const warmupRef = useRef<Promise<boolean> | null>(null)
   useEffect(() => {
     if (step !== 3 || autoPrintedRef.current) return
     autoPrintedRef.current = true
@@ -340,10 +345,16 @@ export default function CheckoutModal({
       // than firing it as a separate connection afterwards — that separate kick
       // raced with the printer still feeding the bill and usually didn't open
       // the till even though the bytes flushed. One job = reliable.
-      await printReceipt(data, cfg, { openDrawer: payment === 'cash', reviewQR: true })
+      //
+      // If the socket was warmed up front during the order-save, printReceiptWarm
+      // transmits straight onto it; otherwise (retry, or warm-up failed) it falls
+      // back to the full atomic reconnect. Consume the warm-up either way.
+      const warmed = warmupRef.current ? await warmupRef.current.catch(() => false) : false
+      warmupRef.current = null
+      await printReceiptWarm(data, cfg, warmed, { openDrawer: payment === 'cash', reviewQR: true })
       printed = true
     } catch (err) {
-      setBtError(err instanceof Error ? err.message : 'เกิดข้อผิดพลาด')
+      setBtError(err instanceof Error ? err.message : L('Something went wrong', 'เกิดข้อผิดพลาด'))
     }
     // Fallback: if the whole print job failed to connect on a cash sale, still
     // try a standalone drawer kick so the till can open.
@@ -358,13 +369,26 @@ export default function CheckoutModal({
     if (confirmingRef.current) return          // already processing — ignore the extra tap
     confirmingRef.current = true
     setIsConfirming(true)
+    // Open the Bluetooth socket NOW, concurrently with the server order-save, so
+    // the slow connect overlaps the save. The print step (step 3) awaits this and
+    // only then pushes the bytes — so the paper still feeds after the sale is
+    // saved, just without paying for the connect twice. LAN needs no warm-up.
+    if (cfg && (cfg.printerConnectionType ?? 'bluetooth') !== 'lan') {
+      warmupRef.current = warmBluetoothSocket().catch(() => false)
+    }
     try {
       const id = await onConfirm(payment, payment === 'cash' ? amt : undefined)
       if (receivedOverride != null) setReceived(String(receivedOverride))
       setOrderRef(id.slice(-8).toUpperCase())
       setStep(3)
       setBtStatus('idle')
-    } catch { /* parent shows toast */ } finally {
+    } catch {
+      // Save failed — we never reach step 3, so drop the warmed socket. The next
+      // print starts with a fresh disconnect/connect regardless, so leaving the
+      // link open is harmless; just clear the ref so nothing awaits a stale one.
+      warmupRef.current = null
+      /* parent shows toast */
+    } finally {
       confirmingRef.current = false
       setIsConfirming(false)
     }
@@ -385,10 +409,9 @@ export default function CheckoutModal({
   // ─── Render ───────────────────────────────────────────────────────────────────
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
+    <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-end justify-center p-0 sm:items-center sm:p-4">
       <div
-        className="bg-[#FAF8F4] rounded-2xl w-full max-w-md shadow-2xl overflow-hidden flex flex-col border border-stone-200"
-        style={{ maxHeight: '90vh' }}
+        className="bg-[#FAF8F4] rounded-t-3xl sm:rounded-2xl w-full max-w-none sm:max-w-md shadow-2xl overflow-hidden flex flex-col border border-stone-200 max-h-[94vh] sm:max-h-[90vh]"
       >
         {/* Step bar */}
         <div className="flex border-b border-stone-200 shrink-0 bg-white">
@@ -541,7 +564,7 @@ export default function CheckoutModal({
                 {([
                   { id: 'cash', icon: PAY_ICONS.cash, label: tr('coCash') },
                   transferCfg?.enabled
-                    ? { id: 'transfer' as const,  icon: PAY_ICONS.scan, label: 'QR / โอนเงิน' }
+                    ? { id: 'transfer' as const,  icon: PAY_ICONS.scan, label: L('QR / Transfer', 'QR / โอนเงิน') }
                     : { id: 'promptpay' as const, icon: PAY_ICONS.scan, label: tr('coQrPay') },
                 ] as const).map((pm) => (
                   <button
@@ -612,14 +635,14 @@ export default function CheckoutModal({
                       </div>
                       <p className="text-2xl font-black text-stone-900">{baht(total)}</p>
                       <p className="text-[10px] text-stone-400 text-center">
-                        สแกนด้วยแอปธนาคารใดก็ได้ · Scan with any Thai banking app
+                        {L('Scan with any Thai banking app', 'สแกนด้วยแอปธนาคารใดก็ได้ · Scan with any Thai banking app')}
                       </p>
                     </>
                   ) : (
                     <div className="py-6 text-center flex flex-col items-center gap-2">
                       <PIcon src={PAY_ICONS.scan} className="w-12 h-12" />
                       <p className="text-sm font-bold text-stone-900">{baht(total)}</p>
-                      <p className="text-xs text-stone-400">ตั้งค่าเบอร์ PromptPay ใน Settings</p>
+                      <p className="text-xs text-stone-400">{L('Set the PromptPay number in Settings', 'ตั้งค่าเบอร์ PromptPay ใน Settings')}</p>
                     </div>
                   )}
                 </div>
@@ -642,14 +665,14 @@ export default function CheckoutModal({
                       <p className="text-2xl font-black text-stone-900">{baht(total)}</p>
                       {transferCfg?.accountName && <p className="text-sm text-stone-500">{transferCfg.accountName}</p>}
                       <p className="text-[10px] text-stone-400 text-center">
-                        ลูกค้าสแกนโอน แล้วกด &ldquo;{tr('coConfirmPayment')}&rdquo; เพื่อแนบสลิป
+                        {L('Customer scans and transfers, then tap', 'ลูกค้าสแกนโอน แล้วกด')} &ldquo;{tr('coConfirmPayment')}&rdquo; {L('to attach the slip', 'เพื่อแนบสลิป')}
                       </p>
                     </>
                   ) : (
                     <div className="py-6 text-center flex flex-col items-center gap-2">
                       <PIcon src={PAY_ICONS.scan} className="w-12 h-12" />
                       <p className="text-sm font-bold text-stone-900">{baht(total)}</p>
-                      <p className="text-xs text-stone-400">ตั้งค่าบัญชีรับโอนใน Settings</p>
+                      <p className="text-xs text-stone-400">{L('Set the receiving account in Settings', 'ตั้งค่าบัญชีรับโอนใน Settings')}</p>
                     </div>
                   )}
                 </div>
@@ -712,6 +735,7 @@ export default function CheckoutModal({
                   accountName={transferCfg.accountName}
                   merchantName={cfg?.barName}
                   isStaff
+                  lang={lang}
                   post={(path, body) => authedFetch(path, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -743,7 +767,7 @@ export default function CheckoutModal({
 
               {btStatus === 'idle' && !btName && (
                 <p className="text-[10px] text-stone-300 text-center">
-                  ต้องตั้งค่าใน Settings → Bluetooth Printer ก่อน (Android app เท่านั้น)
+                  {L('Set this up in Settings → Bluetooth Printer first (Android app only)', 'ต้องตั้งค่าใน Settings → Bluetooth Printer ก่อน (Android app เท่านั้น)')}
                 </p>
               )}
             </div>

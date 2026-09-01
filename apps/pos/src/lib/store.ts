@@ -108,6 +108,8 @@ function mapInventoryItem(row: Record<string, unknown>): InventoryItem {
     currentStock:       Number(row.current_stock),
     lowStockThreshold:  Number(row.low_stock_threshold),
     costPerUnit:        row.cost_per_unit != null ? Number(row.cost_per_unit) : undefined,
+    contentAmount:      row.content_amount != null ? Number(row.content_amount) : undefined,
+    contentUnit:        row.content_unit as string | undefined,
     notes:              row.notes as string | undefined,
     createdAt:          row.created_at as string,
     updatedAt:          row.updated_at as string,
@@ -705,6 +707,8 @@ export async function createInventoryItem(data: Omit<InventoryItem, 'id' | 'crea
       current_stock:       data.currentStock,
       low_stock_threshold: data.lowStockThreshold,
       cost_per_unit:       data.costPerUnit ?? null,
+      content_amount:      data.contentAmount ?? null,
+      content_unit:        data.contentUnit ?? null,
       notes:               data.notes ?? null,
       created_at:          ts,
       updated_at:          ts,
@@ -724,6 +728,8 @@ export async function updateInventoryItem(id: string, data: Partial<Omit<Invento
   if (data.currentStock       !== undefined) update.current_stock       = data.currentStock
   if (data.lowStockThreshold  !== undefined) update.low_stock_threshold = data.lowStockThreshold
   if (data.costPerUnit        !== undefined) update.cost_per_unit       = data.costPerUnit ?? null
+  if (data.contentAmount      !== undefined) update.content_amount      = data.contentAmount ?? null
+  if (data.contentUnit        !== undefined) update.content_unit        = data.contentUnit ?? null
   if (data.notes              !== undefined) update.notes               = data.notes ?? null
 
   const { data: row, error } = await supabase
@@ -1954,4 +1960,126 @@ export async function provisionStoreForUser(input: {
     console.error('[provision] owner PIN operator', err instanceof Error ? err.message : err)
   }
   return { ok: true, storeId: store.id, slug: store.slug, created: true, ownerPin }
+}
+
+// ── Staff time clock (shifts) ────────────────────────────────────────────────
+// Clock in/out + breaks per store + PIN operator. Meal/other breaks don't count
+// toward worked hours. A shift left open past its business-day cutoff is
+// auto-closed at that cutoff (staff forgot to clock out).
+export type ShiftBreakType = 'meal' | 'restroom' | 'other'
+type ShiftBreak = { start: string; end: string | null; type: ShiftBreakType }
+export type Shift = {
+  id: string; staffId: string; clockIn: string; clockOut: string | null
+  breaks: ShiftBreak[]; status: 'open' | 'closed'; autoClosed: boolean
+}
+
+function mapShift(r: Record<string, unknown>): Shift {
+  return {
+    id: r.id as string,
+    staffId: r.staff_id as string,
+    clockIn: r.clock_in as string,
+    clockOut: (r.clock_out as string | null) ?? null,
+    breaks: Array.isArray(r.breaks) ? (r.breaks as ShiftBreak[]) : [],
+    status: (r.status as 'open' | 'closed') ?? 'open',
+    autoClosed: !!r.auto_closed,
+  }
+}
+
+// If an open shift belongs to an earlier business day, close it at that day's
+// cutoff (and close any dangling break there too). Returns true if it closed.
+async function autoCloseStaleShift(row: Record<string, unknown>, cutoff: string): Promise<boolean> {
+  const bDay  = businessDayOf(row.clock_in as string, cutoff)
+  const today = businessDayOf(new Date(), cutoff)
+  if (bDay >= today) return false
+  const closeAt = businessDayRange(bDay, cutoff).end
+  const breaks = (Array.isArray(row.breaks) ? (row.breaks as ShiftBreak[]) : []).map(b => b.end ? b : { ...b, end: closeAt })
+  await supabase.from('time_entries').update({
+    status: 'closed', clock_out: closeAt, auto_closed: true, breaks, updated_at: new Date().toISOString(),
+  }).eq('id', row.id as string)
+  return true
+}
+
+export async function getOpenShift(storeId: string, staffId: string): Promise<Shift | null> {
+  const { data } = await supabase.from('time_entries')
+    .select('*').eq('store_id', storeId).eq('staff_id', staffId).eq('status', 'open')
+    .order('clock_in', { ascending: false }).limit(1).maybeSingle()
+  if (!data) return null
+  const cutoff = await getBusinessCutoff(storeId)
+  if (await autoCloseStaleShift(data, cutoff)) return null
+  return mapShift(data)
+}
+
+export async function shiftClockIn(storeId: string, staffId: string): Promise<Shift> {
+  const existing = await getOpenShift(storeId, staffId)   // auto-closes stale; returns today's open if any
+  if (existing) return existing
+  const { data, error } = await supabase.from('time_entries')
+    .insert({ store_id: storeId, staff_id: staffId, clock_in: new Date().toISOString(), breaks: [], status: 'open' })
+    .select('*').single()
+  if (error) throw error
+  return mapShift(data)
+}
+
+export async function shiftBreakStart(storeId: string, staffId: string, type: ShiftBreakType): Promise<Shift | null> {
+  const open = await getOpenShift(storeId, staffId)
+  if (!open) return null
+  if (open.breaks.some(b => !b.end)) return open   // a break is already running
+  const breaks = [...open.breaks, { start: new Date().toISOString(), end: null, type }]
+  const { data } = await supabase.from('time_entries').update({ breaks, updated_at: new Date().toISOString() }).eq('id', open.id).select('*').single()
+  return data ? mapShift(data) : open
+}
+
+export async function shiftBreakEnd(storeId: string, staffId: string): Promise<Shift | null> {
+  const open = await getOpenShift(storeId, staffId)
+  if (!open) return null
+  const now = new Date().toISOString()
+  const breaks = open.breaks.map(b => b.end ? b : { ...b, end: now })
+  const { data } = await supabase.from('time_entries').update({ breaks, updated_at: now }).eq('id', open.id).select('*').single()
+  return data ? mapShift(data) : open
+}
+
+export async function shiftClockOut(storeId: string, staffId: string): Promise<void> {
+  const open = await getOpenShift(storeId, staffId)
+  if (!open) return
+  const now = new Date().toISOString()
+  const breaks = open.breaks.map(b => b.end ? b : { ...b, end: now })   // close a dangling break
+  await supabase.from('time_entries').update({ status: 'closed', clock_out: now, breaks, updated_at: now }).eq('id', open.id)
+}
+
+// Manager oversight: everyone currently clocked in (open shifts) for the store,
+// with staff name/colour + break state. Stale shifts (from an earlier business
+// day, i.e. a forgotten clock-out) are excluded so they don't read as "on now".
+export type ActiveShift = {
+  staffId: string; name: string; color: string | null
+  clockIn: string; onBreak: boolean; breakType: ShiftBreakType | null
+}
+export async function getActiveShifts(storeId: string): Promise<ActiveShift[]> {
+  const { data } = await supabase.from('time_entries')
+    .select('staff_id, clock_in, breaks')
+    .eq('store_id', storeId).eq('status', 'open')
+    .order('clock_in', { ascending: true })
+  const rows = data ?? []
+  if (!rows.length) return []
+
+  const cutoff = await getBusinessCutoff(storeId)
+  const today = businessDayOf(new Date(), cutoff)
+  const fresh = rows.filter(r => businessDayOf(r.clock_in as string, cutoff) === today)
+  if (!fresh.length) return []
+
+  const ids = fresh.map(r => r.staff_id as string)
+  const { data: staff } = await supabase.from('staff').select('id, name, color').in('id', ids)
+  const smap = new Map((staff ?? []).map(s => [s.id as string, s as { name: string; color: string | null }]))
+
+  return fresh.map(r => {
+    const breaks = Array.isArray(r.breaks) ? (r.breaks as ShiftBreak[]) : []
+    const open = breaks.find(b => !b.end)
+    const s = smap.get(r.staff_id as string)
+    return {
+      staffId: r.staff_id as string,
+      name: s?.name ?? '—',
+      color: s?.color ?? null,
+      clockIn: r.clock_in as string,
+      onBreak: !!open,
+      breakType: open?.type ?? null,
+    }
+  })
 }

@@ -58,6 +58,8 @@ const DICT = {
   setBillingDesc: { en: 'Manage your subscription plan and billing.', th: 'จัดการแพ็คเกจและการเรียกเก็บเงินของร้าน' },
   setOpenBilling: { en: 'Open billing', th: 'เปิดหน้าแพ็คเกจ' },
   navSuperAdmin:{ en: 'Super-admin', th: 'ผู้ดูแลระบบ' },
+  navShift:     { en: 'My Shift',    th: 'กะของฉัน' },
+  navDashboard: { en: 'Dashboard',   th: 'แดชบอร์ด' },
   menu:         { en: 'Menu',       th: 'เมนู' },
   login:        { en: 'Login',      th: 'เข้าสู่ระบบ' },
   switchUser:   { en: 'switch user', th: 'สลับผู้ใช้' },
@@ -391,6 +393,7 @@ const DICT = {
   fVatPct:           { en: 'VAT (%)',         th: 'VAT (%)' },
   fSelectionsVariants:{ en: 'Selections / Variants', th: 'ตัวเลือก / รูปแบบ' },
   fIngredients:      { en: 'Ingredients',     th: 'วัตถุดิบ' },
+  fIngredientsHint:  { en: 'Pick what each serving uses and its unit (ml / g / shot…) — stock auto-cuts, precise to the ml, when orders are paid', th: 'เลือกวัตถุดิบและหน่วยที่ใช้ต่อ 1 ที่ (มล./ก./ช็อต…) — ระบบตัดสต๊อกอัตโนมัติละเอียดถึง มล. เมื่อชำระเงิน' },
   fCategoryName:     { en: 'Category Name',   th: 'ชื่อหมวดหมู่' },
   fColor:            { en: 'Color',           th: 'สี' },
 
@@ -409,6 +412,9 @@ const DICT = {
   fInvStock:         { en: 'Current Stock',   th: 'สต๊อกปัจจุบัน' },
   fInvThreshold:     { en: 'Alert Threshold', th: 'เกณฑ์แจ้งเตือน' },
   fInvCost:          { en: 'Cost per Unit (฿)', th: 'ต้นทุนต่อหน่วย (฿)' },
+  fInvContent:       { en: 'Content per Unit', th: 'ปริมาณต่อหน่วย' },
+  fInvContentHint:   { en: 'How much is inside one unit — lets recipes cut stock in ml / g', th: 'ปริมาณใน 1 หน่วย — ให้สูตรตัดสต๊อกเป็น มล./ก. ได้' },
+  fInvContentEg:     { en: 'e.g. 700 ml per bottle', th: 'เช่น 700 มล. ต่อขวด' },
   fInvNotes:         { en: 'Notes',           th: 'หมายเหตุ' },
 
   // ── Coupon edit form ──
@@ -545,6 +551,13 @@ const DICT = {
   itApplyPriceFail:  { en: 'Failed to apply price', th: 'ปรับราคาไม่สำเร็จ' },
   itNoMatchingItems: { en: 'No matching items', th: 'ไม่พบสินค้าที่ตรงกัน' },
   itAllInvAdded:     { en: 'All inventory items already added', th: 'เพิ่มวัตถุดิบครบทุกรายการแล้ว' },
+  itIngQty:          { en: 'Amount',          th: 'ปริมาณ' },
+  itIngUnit:         { en: 'Unit',            th: 'หน่วย' },
+  itIngDeducts:      { en: 'cuts',            th: 'ตัด' },
+  itIngPerServing:   { en: '/ serving',       th: '/ ที่' },
+  itIngNoConvert:    { en: "Can't convert to stock unit — will cut as-is", th: 'แปลงหน่วยไม่ได้ — จะตัดตามจำนวนที่กรอก' },
+  itIngSetContent:   { en: 'Set “Content per Unit” on this stock item to cut in ml / g', th: 'ตั้ง “ปริมาณต่อหน่วย” ของวัตถุดิบนี้ เพื่อตัดเป็น มล./ก.' },
+  inStockShort:      { en: 'in stock',        th: 'คงเหลือ' },
   itApplyAll:        { en: 'Apply All', th: 'ใช้ทั้งหมด' },
   itAllApplied:      { en: 'All Applied', th: 'ใช้แล้วทั้งหมด' },
   itSearchNameSku:   { en: 'Search name, SKU...', th: 'ค้นหาชื่อ, SKU...' },
@@ -605,6 +618,8 @@ const DICT = {
 
   // ── Floor page ──
   flTablePh:       { en: 'T7, VIP2, Gameroom…', th: 'T7, VIP2, Gameroom…' },
+  flResetConfirm:  { en: 'Reset the table layout to default?\nAll changes will be lost', th: 'รีเซ็ตผังโต๊ะเป็นค่าเริ่มต้น?\nการเปลี่ยนแปลงทั้งหมดจะหายไป' },
+  flDeleteConfirm: { en: 'Remove this table from the layout?', th: 'ลบโต๊ะนี้ออกจากผังโต๊ะ?' },
 
   // ── Users page ──
   usEnterName:     { en: 'Please enter a name', th: 'กรุณาใส่ชื่อ' },
@@ -615,6 +630,23 @@ const DICT = {
   usPinChanged:    { en: 'PIN changed ✓', th: 'เปลี่ยน PIN สำเร็จ ✓' },
   usDeleted:       { en: 'User deleted', th: 'ลบ User แล้ว' },
   usNamePh:        { en: 'Staff name', th: 'ชื่อพนักงาน' },
+  usFillInfo:      { en: 'Fill in the details and set a PIN', th: 'กรอกข้อมูลและตั้ง PIN' },
+  usName:          { en: 'Name', th: 'ชื่อ' },
+  usAvatarColor:   { en: 'Avatar color', th: 'สี Avatar' },
+  usSetPin4:       { en: 'Set a 4-digit PIN', th: 'ตั้ง PIN 4 หลัก' },
+  usConfirmPin:    { en: 'Confirm the PIN again', th: 'ยืนยัน PIN อีกครั้ง' },
+  usPinPadSet:     { en: 'Enter 4 digits', th: 'กดตัวเลข 4 หลัก' },
+  usPinPadConfirm: { en: 'Re-enter the same PIN to confirm', th: 'กรอก PIN เดิมอีกครั้งเพื่อยืนยัน' },
+  usCreating:      { en: 'Creating...', th: 'กำลังสร้าง...' },
+  usCreateUser:    { en: 'Create User', th: 'สร้าง User' },
+  usPinHint:       { en: '4 digits for login', th: '4 หลัก สำหรับเข้าระบบ' },
+  usChangePin:     { en: 'Change PIN', th: 'เปลี่ยน PIN' },
+  usNewPinHint:    { en: 'Enter a new 4-digit PIN (saves automatically)', th: 'กรอก PIN ใหม่ 4 หลัก (จะบันทึกอัตโนมัติ)' },
+  usPinSet:        { en: '(PIN is set)', th: '(PIN ที่ตั้งไว้)' },
+  usDeleteUser:    { en: 'Remove this user', th: 'ลบ User นี้ออกจากระบบ' },
+  usNoUsers:       { en: 'No users yet', th: 'ยังไม่มี User' },
+  usPinMismatchRetry: { en: 'PINs do not match — try again', th: 'PIN ไม่ตรงกัน — ลองใหม่' },
+  usError:         { en: 'Something went wrong', th: 'เกิดข้อผิดพลาด' },
 
   // ── Cash page (extra) ──
   cashNoCashIn:    { en: 'No cash in entries yet', th: 'ยังไม่มีรายการเงินเข้า' },

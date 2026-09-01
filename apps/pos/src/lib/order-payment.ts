@@ -1,21 +1,33 @@
 import {
   getOrder, updateOrderStatus, getMenuIngredients, adjustStock, awardOrderPoints,
+  getInventory,
 } from '@/lib/store'
 import { fireWebhook } from '@/lib/webhooks'
+import { toStockQuantity } from '@/lib/units'
 import type { Order } from '@/lib/types'
 
 // Deduct recipe ingredients from stock for every line on a paid order. Shared by
 // the order PATCH route and the transfer-slip auto-verify path so both do the
 // exact same thing. Best-effort: a missing recipe just means nothing to deduct.
+//
+// A recipe's quantity is stored in whatever unit the bartender chose (ml, g,
+// shot, …). toStockQuantity() converts it into the inventory item's stock unit
+// before deducting, so a 50 ml pour correctly cuts 50/700 of a bottle.
 export async function deductStockForOrder(orderId: string, storeId: string) {
   const order = await getOrder(orderId, storeId)
   if (!order) return
+  // One inventory read for the whole order → a lookup map for unit conversion.
+  const invById = new Map((await getInventory(storeId)).map(i => [i.id, i]))
   for (const item of order.items) {
     const ingredients = await getMenuIngredients(item.menuId)
     for (const ing of ingredients) {
+      const inv = invById.get(ing.inventoryItemId)
+      const perServing = inv
+        ? toStockQuantity(ing.quantityPerServing, ing.unit, inv)
+        : ing.quantityPerServing
       await adjustStock(
         ing.inventoryItemId,
-        -(ing.quantityPerServing * item.qty),
+        -(perServing * item.qty),
         'usage',
         `Order ${orderId} — ${item.name} x${item.qty}`,
         storeId,

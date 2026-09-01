@@ -7,10 +7,15 @@ import { requireStaff, resolveStaffStoreId } from '@/lib/api-auth'
 import { checkAiAllowed, debitAiCredit } from '@/lib/store'
 import { AI_MODEL } from '@/lib/ai-brand'
 
-const AI_BLOCK_MSG: Record<string, string> = {
-  no_subscription: 'ยังไม่ได้สมัคร AI add-on — ไปที่หน้าแพ็คเกจเพื่อเปิดใช้งาน',
-  expired:         'AI add-on หมดอายุแล้ว — กรุณาต่ออายุ',
-  no_credit:       'เครดิต AI หมดแล้ว — เติมเครดิตหรือรอรอบรีเซ็ต',
+type Lang = 'en' | 'th'
+const pick = (lang: Lang, en: string, th: string) => (lang === 'en' ? en : th)
+const reqLang = (req: NextRequest): Lang =>
+  new URL(req.url).searchParams.get('lang') === 'en' ? 'en' : 'th'
+
+const AI_BLOCK_MSG: Record<string, { en: string; th: string }> = {
+  no_subscription: { en: 'AI add-on not subscribed — open the Packages page to enable it', th: 'ยังไม่ได้สมัคร AI add-on — ไปที่หน้าแพ็คเกจเพื่อเปิดใช้งาน' },
+  expired:         { en: 'AI add-on has expired — please renew', th: 'AI add-on หมดอายุแล้ว — กรุณาต่ออายุ' },
+  no_credit:       { en: 'AI credit used up — top up or wait for the reset', th: 'เครดิต AI หมดแล้ว — เติมเครดิตหรือรอรอบรีเซ็ต' },
 }
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY! })
@@ -36,6 +41,7 @@ type Suggestion = {
 }
 
 export async function GET(req: NextRequest) {
+  const lang = reqLang(req)
   const gate = await requireStaff(req)
   if (!gate.ok) return gate.res
   const storeId = gate.profile.store_id ?? (await resolveStaffStoreId(req))
@@ -45,7 +51,8 @@ export async function GET(req: NextRequest) {
   }
   const chk = await checkAiAllowed(storeId)
   if (!chk.allowed) {
-    return NextResponse.json({ error: AI_BLOCK_MSG[chk.reason ?? ''] ?? 'AI ไม่พร้อมใช้งาน', reason: chk.reason }, { status: 402 })
+    const msg = AI_BLOCK_MSG[chk.reason ?? '']
+    return NextResponse.json({ error: msg ? pick(lang, msg.en, msg.th) : pick(lang, 'AI unavailable', 'AI ไม่พร้อมใช้งาน'), reason: chk.reason }, { status: 402 })
   }
 
   // ── 1. Fetch menu items ──────────────────────────────────────────────────────
@@ -124,7 +131,8 @@ Return ONLY a valid JSON object, no markdown, no explanation. The object must ma
   ]
 }
 
-Provide 5-10 high-confidence suggestions. Only suggest changes where the data clearly supports it.`
+Provide 5-10 high-confidence suggestions. Only suggest changes where the data clearly supports it.
+${pick(lang, 'Write the "reason" and "expectedImpact" fields in English.', 'เขียนฟิลด์ "reason" และ "expectedImpact" เป็นภาษาไทย')}`
 
   const response = await anthropic.messages.create({
     model:      AI_MODEL,
