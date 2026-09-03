@@ -51,6 +51,8 @@ export type Member = {
   name: string
   phone?: string
   contact?: string     // optional secondary contact — email, LINE ID, social handle, etc. for promotions/birthday outreach
+  contactChannel?: 'line' | 'telegram' | 'whatsapp'  // structured promo channel (for broadcasts)
+  contactId?: string   // the handle/username/number on that channel
   birthday?: string    // YYYY-MM-DD
   notes?: string
   points: number       // redeemable points balance (can decrease on redemption)

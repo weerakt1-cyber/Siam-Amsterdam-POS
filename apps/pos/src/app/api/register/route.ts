@@ -18,12 +18,21 @@ export async function POST(req: NextRequest) {
     const name  = typeof body.name === 'string' ? body.name.trim() : ''
     const phone = typeof body.phone === 'string' ? body.phone.trim() : ''
     const birthday = typeof body.birthday === 'string' && body.birthday ? body.birthday : undefined
-    // Optional promo contact channel (LINE / Telegram / WhatsApp + handle),
-    // stored as a readable "Channel: handle" string in the member's contact
-    // field so staff can reach out with promotions/news. Length-capped.
-    const contact = typeof body.contact === 'string' && body.contact.trim()
-      ? body.contact.trim().slice(0, 120)
+    // Optional promo contact channel (LINE / Telegram / WhatsApp + handle).
+    // Stored two ways: structured contactChannel + contactId (for broadcasts by
+    // channel) and a readable "Channel: handle" string in `contact` (display /
+    // search on the Members screen). Both length-capped.
+    const CHANNELS = ['line', 'telegram', 'whatsapp'] as const
+    const contactChannel = CHANNELS.includes(body.contactChannel)
+      ? (body.contactChannel as (typeof CHANNELS)[number])
       : undefined
+    const contactId = contactChannel && typeof body.contactId === 'string' && body.contactId.trim()
+      ? body.contactId.trim().slice(0, 120)
+      : undefined
+    // Drop a lone channel with no handle — nothing to reach them on.
+    const channel = contactId ? contactChannel : undefined
+    const CHANNEL_LABEL: Record<string, string> = { line: 'LINE', telegram: 'Telegram', whatsapp: 'WhatsApp' }
+    const contact = channel && contactId ? `${CHANNEL_LABEL[channel]}: ${contactId}` : undefined
 
     if (!name)  return NextResponse.json({ error: 'name is required' }, { status: 400 })
     if (!phone) return NextResponse.json({ error: 'phone is required' }, { status: 400 })
@@ -41,6 +50,8 @@ export async function POST(req: NextRequest) {
         phone,
         birthday,
         contact,
+        contactChannel: channel,
+        contactId,
         points:         0,
         lifetimePoints: 0,
         tier:           'bronze',

@@ -152,14 +152,19 @@ export default function RegisterPage({ params }: { params: Promise<{ store: stri
     if (phoneDigits.length < 8)  { setError(t.errPhone); return }
     if (!consent)                { setError(t.errConsent); return }
     setSubmitting(true)
-    // Compose "LINE: @somchai" only when both a channel and an id are given.
-    const chan = CHANNELS.find(c => c.key === channel)
-    const contact = chan && contactId.trim() ? `${chan.label}: ${contactId.trim()}` : undefined
+    // Send the structured channel + handle; the API stores both the structured
+    // pair (for broadcasts) and a readable "LINE: @handle" display string.
+    const trimmedId = contactId.trim()
     try {
       const r = await sfetch('/api/register', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: name.trim(), phone: phone.trim(), birthday: birthday || undefined, contact, consent: true }),
+        body: JSON.stringify({
+          name: name.trim(), phone: phone.trim(), birthday: birthday || undefined,
+          contactChannel: channel && trimmedId ? channel : undefined,
+          contactId: channel && trimmedId ? trimmedId : undefined,
+          consent: true,
+        }),
       })
       const d = await r.json().catch(() => ({}))
       if (!r.ok) { setError(d.error || t.errGeneric); setSubmitting(false); return }
