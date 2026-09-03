@@ -46,13 +46,63 @@ export default function BroadcastPage() {
   const [message, setMessage] = useState('')
   const [copied, setCopied]   = useState<string | null>(null)
 
+  // LINE OA connection — enables a real "broadcast to all friends" send.
+  const [oa, setOa] = useState<{ enabled: boolean; hasToken: boolean; basicId: string } | null>(null)
+  const [oaToken, setOaToken]     = useState('')
+  const [oaBasicId, setOaBasicId] = useState('')
+  const [oaOpen, setOaOpen]       = useState(false)
+  const [oaSaving, setOaSaving]   = useState(false)
+  const [sending, setSending]     = useState(false)
+  const [sendMsg, setSendMsg]     = useState<{ ok: boolean; text: string } | null>(null)
+
   useEffect(() => {
     authedFetch('/api/members')
       .then(r => r.json())
       .then(d => { if (Array.isArray(d.members)) setMembers(d.members) })
       .catch(() => {})
       .finally(() => setLoading(false))
+    authedFetch('/api/line/oa')
+      .then(r => r.ok ? r.json() : null)
+      .then(d => { if (d) { setOa(d); setOaBasicId(d.basicId || '') } })
+      .catch(() => {})
   }, [])
+
+  async function saveOa(nextEnabled?: boolean) {
+    setOaSaving(true)
+    try {
+      const r = await authedFetch('/api/line/oa', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          enabled: nextEnabled ?? oa?.enabled ?? true,
+          accessToken: oaToken.trim() || undefined,   // blank keeps the stored token
+          basicId: oaBasicId.trim(),
+        }),
+      })
+      if (r.ok) { setOa(await r.json()); setOaToken(''); setOaOpen(false) }
+    } finally { setOaSaving(false) }
+  }
+
+  async function sendLineBroadcast() {
+    if (!message.trim() || sending) return
+    setSending(true); setSendMsg(null)
+    // A broadcast is one identical message to everyone — {name} can't be
+    // personalised here, so drop the token rather than send it literally.
+    const text = message.replace(/\{name\}/g, '').replace(/[ \t]{2,}/g, ' ').trim()
+    try {
+      const r = await authedFetch('/api/line/broadcast', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message: text }),
+      })
+      const d = await r.json().catch(() => ({}))
+      setSendMsg(r.ok
+        ? { ok: true,  text: L('Sent to all LINE friends ✓', 'ส่งถึงเพื่อน LINE ทุกคนแล้ว ✓') }
+        : { ok: false, text: d.error || L('Send failed', 'ส่งไม่สำเร็จ') })
+    } catch {
+      setSendMsg({ ok: false, text: L('Connection failed', 'เชื่อมต่อไม่สำเร็จ') })
+    } finally { setSending(false) }
+  }
 
   // Members grouped by opted-in channel (only those with a handle).
   const byChannel = useMemo(() => {
@@ -174,7 +224,92 @@ export default function BroadcastPage() {
           </div>
         </div>
 
-        {/* How sending works (honest platform note) */}
+        {/* LINE Official Account — real one-tap broadcast to every friend */}
+        {channel === 'line' && (
+          <div className="bg-white rounded-2xl border-2 border-emerald-200 p-4 flex flex-col gap-3">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <span className="text-lg">💚</span>
+                <span className="text-sm font-bold text-stone-800">{L('LINE Official Account', 'LINE Official Account')}</span>
+              </div>
+              <button onClick={() => setOaOpen(o => !o)} className="text-xs font-semibold text-emerald-600">
+                {oa?.hasToken ? L('Settings', 'ตั้งค่า') : L('Connect', 'เชื่อมต่อ')}
+              </button>
+            </div>
+
+            {oa?.enabled && oa?.hasToken ? (
+              <>
+                <p className="text-[11px] text-stone-500 leading-snug">
+                  {L('Sends this message to every friend of your LINE OA in one tap.',
+                     'ส่งข้อความนี้ถึงเพื่อน LINE OA ทุกคนในปุ่มเดียว')}
+                </p>
+                <button
+                  onClick={sendLineBroadcast}
+                  disabled={!message.trim() || sending}
+                  className="w-full py-3 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-sm disabled:opacity-40 active:scale-95 transition"
+                >
+                  {sending ? L('Sending…', 'กำลังส่ง…') : L('📢 Broadcast to all LINE friends', '📢 ส่งถึงเพื่อน LINE ทุกคน')}
+                </button>
+                {sendMsg && (
+                  <p className={`text-xs text-center ${sendMsg.ok ? 'text-emerald-600' : 'text-red-500'}`}>{sendMsg.text}</p>
+                )}
+              </>
+            ) : (
+              <p className="text-[11px] text-amber-700 bg-amber-50 border border-amber-100 rounded-xl p-2.5 leading-snug">
+                {L('Not connected yet. Add your LINE channel access token to broadcast to all OA friends at once.',
+                   'ยังไม่ได้เชื่อมต่อ — ใส่ Channel Access Token ของ LINE OA เพื่อส่งถึงเพื่อนทุกคนพร้อมกัน')}
+              </p>
+            )}
+
+            {oaOpen && (
+              <div className="flex flex-col gap-2 border-t border-stone-100 pt-3">
+                <label className="text-[11px] font-bold text-stone-400 uppercase tracking-wide">
+                  {L('Channel access token', 'Channel Access Token')}
+                </label>
+                <input
+                  value={oaToken}
+                  onChange={e => setOaToken(e.target.value)}
+                  placeholder={oa?.hasToken ? L('•••• saved — leave blank to keep', '•••• บันทึกไว้แล้ว — เว้นว่างเพื่อคงเดิม') : L('paste long-lived token', 'วาง long-lived token')}
+                  className="w-full border border-stone-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-emerald-400"
+                />
+                <label className="text-[11px] font-bold text-stone-400 uppercase tracking-wide mt-1">
+                  {L('Basic ID (optional)', 'Basic ID (ไม่บังคับ)')}
+                </label>
+                <input
+                  value={oaBasicId}
+                  onChange={e => setOaBasicId(e.target.value)}
+                  placeholder="@yourshop"
+                  className="w-full border border-stone-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-emerald-400"
+                />
+                <p className="text-[10px] text-stone-400 leading-snug">
+                  {L('From LINE Developers → your Messaging API channel → Channel access token (long-lived).',
+                     'หาได้จาก LINE Developers → ช่อง Messaging API → Channel access token (long-lived)')}
+                </p>
+                <div className="flex items-center gap-2 mt-1">
+                  <button
+                    onClick={() => saveOa(true)}
+                    disabled={oaSaving || (!oaToken.trim() && !oa?.hasToken)}
+                    className="flex-1 py-2.5 rounded-xl bg-stone-900 text-white font-bold text-sm disabled:opacity-40 active:scale-95 transition"
+                  >
+                    {oaSaving ? L('Saving…', 'กำลังบันทึก…') : L('Save & enable', 'บันทึกและเปิดใช้')}
+                  </button>
+                  {oa?.hasToken && (
+                    <button
+                      onClick={() => saveOa(!oa.enabled)}
+                      disabled={oaSaving}
+                      className="px-4 py-2.5 rounded-xl border border-stone-200 text-stone-600 font-semibold text-sm active:scale-95 transition"
+                    >
+                      {oa.enabled ? L('Disable', 'ปิด') : L('Enable', 'เปิด')}
+                    </button>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Per-recipient assist — for handles collected at signup (WhatsApp deep
+            link / Telegram chat), and LINE ids for anyone not yet an OA friend. */}
         <div className="bg-amber-50 border border-amber-100 rounded-2xl p-3 text-[11px] text-amber-800 leading-snug">
           {channel === 'whatsapp'
             ? L('WhatsApp: each “Send” opens WhatsApp with your message ready — just press send.',
@@ -182,8 +317,8 @@ export default function BroadcastPage() {
             : channel === 'telegram'
             ? L('Telegram: “Open chat” opens the conversation; paste the copied message and send.',
                 'Telegram: กด "เปิดแชท" แล้ววางข้อความที่คัดลอกไว้เพื่อส่ง')
-            : L('LINE has no link to a personal ID — copy the message and each ID, then send from the LINE app (or use a LINE Official Account broadcast).',
-                'LINE ส่งลิงก์หา ID ส่วนตัวไม่ได้ — คัดลอกข้อความและ ID แล้วส่งผ่านแอป LINE (หรือใช้ LINE OA broadcast)')}
+            : L('Below are members who gave a LINE ID at signup — copy to reach anyone not yet following your OA.',
+                'ด้านล่างคือสมาชิกที่ให้ LINE ID ตอนสมัคร — คัดลอกเพื่อติดต่อคนที่ยังไม่ได้เป็นเพื่อน OA')}
         </div>
 
         {/* Bulk actions */}
