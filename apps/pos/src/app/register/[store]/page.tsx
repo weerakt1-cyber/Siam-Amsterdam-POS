@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, use, useCallback } from 'react'
+import QRCode from 'qrcode'
 
 type Lang = 'th' | 'en'
 
@@ -28,6 +29,10 @@ const T = {
     contactHint: 'เลือกช่องทางเพื่อรับโปรโมชั่นและข่าวสารจากร้าน',
     contactChannelPh: 'เลือกช่องทาง',
     backToOrder: '← กลับไปสั่งอาหาร',
+    lineTitle: 'เพิ่มเพื่อน LINE รับข่าวสาร',
+    lineHint: 'แอดเพื่อนเพื่อรับโปรโมชั่นและข่าวสารจากร้านทาง LINE',
+    lineAddBtn: '💚 เพิ่มเพื่อน LINE',
+    lineScan: 'หรือสแกน QR นี้ด้วยแอป LINE',
     consent: 'ฉันยินยอมให้ร้านเก็บและใช้ข้อมูลข้างต้นตามนโยบายความเป็นส่วนตัว',
     policyToggle: 'อ่านนโยบายความเป็นส่วนตัว',
     submit: 'สมัครสมาชิก',
@@ -68,6 +73,10 @@ const T = {
     contactHint: 'Pick a channel to receive promotions and news from the store',
     contactChannelPh: 'Select a channel',
     backToOrder: '← Back to ordering',
+    lineTitle: 'Add us on LINE for news',
+    lineHint: 'Add our LINE to get promotions and news from the store',
+    lineAddBtn: '💚 Add LINE friend',
+    lineScan: 'Or scan this QR with the LINE app',
     consent: 'I agree to let the store store and use the above information per the privacy policy',
     policyToggle: 'Read the privacy policy',
     submit: 'Sign up',
@@ -135,9 +144,22 @@ export default function RegisterPage({ params }: { params: Promise<{ store: stri
     return fetch(path, { ...init, headers })
   }, [store])
 
+  // Store's LINE OA add-friend link + QR (shown when the store connected an OA).
+  const [lineAddUrl, setLineAddUrl] = useState<string | null>(null)
+  const [lineQr, setLineQr] = useState<string | null>(null)
+
   useEffect(() => {
     sfetch('/api/store').then(r => r.ok ? r.json() : null).then(d => { if (d?.store) setStoreName(d.store.name) }).catch(() => {})
     sfetch('/api/member-benefits').then(r => r.ok ? r.json() : null).then(d => { if (Array.isArray(d?.benefits)) setBenefits(d.benefits) }).catch(() => {})
+    sfetch('/api/line/oa/public').then(r => r.ok ? r.json() : null).then(d => {
+      const basicId: string | undefined = d?.basicId
+      if (!basicId) return
+      // LINE add-friend deep link. basicId includes the leading "@".
+      const id = basicId.startsWith('@') ? basicId : `@${basicId}`
+      const url = `https://line.me/R/ti/p/${encodeURIComponent(id)}`
+      setLineAddUrl(url)
+      QRCode.toDataURL(url, { width: 200, margin: 1 }).then(setLineQr).catch(() => {})
+    }).catch(() => {})
   }, [sfetch])
 
   // Store-authored benefits if configured, else the default list (follows the toggle).
@@ -174,6 +196,28 @@ export default function RegisterPage({ params }: { params: Promise<{ store: stri
     }
   }
 
+  // Store LINE OA add-friend card (button + QR). Null when no OA is connected.
+  const lineCard = lineAddUrl ? (
+    <div className="bg-emerald-50 border border-emerald-100 rounded-2xl p-4 flex flex-col items-center gap-3">
+      <div className="text-center">
+        <p className="text-sm font-bold text-emerald-800">{t.lineTitle}</p>
+        <p className="text-[11px] text-emerald-700 mt-0.5 leading-snug">{t.lineHint}</p>
+      </div>
+      <a href={lineAddUrl} target="_blank" rel="noopener noreferrer"
+        className="w-full py-3 rounded-2xl bg-emerald-500 hover:bg-emerald-400 text-white font-black text-sm text-center active:scale-[0.98] transition">
+        {t.lineAddBtn}
+      </a>
+      {lineQr && (
+        <div className="flex flex-col items-center gap-1.5">
+          <div className="bg-white rounded-xl p-2 border border-emerald-100">
+            <img src={lineQr} alt="LINE OA QR" className="w-36 h-36 object-contain" />
+          </div>
+          <p className="text-[10px] text-emerald-600">{t.lineScan}</p>
+        </div>
+      )}
+    </div>
+  ) : null
+
   // ─── Success screen ───────────────────────────────────────────────────────
   if (done) {
     return (
@@ -183,6 +227,7 @@ export default function RegisterPage({ params }: { params: Promise<{ store: stri
           <h1 className="text-xl font-black text-gray-900">{done.already ? t.alreadyTitle : t.successTitle}</h1>
           <p className="text-sm text-gray-500 mt-2 leading-relaxed">{done.already ? t.alreadyBody : t.successBody}</p>
           {storeName && <p className="text-xs text-gray-400 mt-4">{storeName}</p>}
+          {lineCard && <div className="mt-5">{lineCard}</div>}
           {orderHref && (
             <a href={orderHref}
               className="mt-5 block w-full py-3.5 rounded-2xl bg-gray-900 text-white font-black text-sm active:scale-[0.98] transition">
@@ -317,6 +362,8 @@ export default function RegisterPage({ params }: { params: Promise<{ store: stri
             </button>
 
             <p className="text-[11px] text-gray-400 text-center leading-snug">{t.secureNote}</p>
+
+            {lineCard}
 
             {orderHref && (
               <a href={orderHref}
