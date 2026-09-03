@@ -71,6 +71,7 @@ const NAV: { href: string; icon: string; labelKey: PosStringKey; managerOnly?: b
   { href: '/pos/inventory',  icon: '/nav-icons/inventory.png', labelKey: 'navInventory' },
   { href: '/pos/items',      icon: '/nav-icons/items.png',     labelKey: 'navItems'     },
   { href: '/pos/members',    icon: '/nav-icons/members.png',   labelKey: 'navMembers'   },
+  { href: '/pos/broadcast',  icon: '/nav-icons/members.png',   labelKey: 'navBroadcast', managerOnly: true },
   { href: '/pos/cash',       icon: '/nav-icons/cash.png',      labelKey: 'navCash'      },
   { href: '/pos/coupons',    icon: '/nav-icons/coupons.png',   labelKey: 'navCoupons'   },
   { href: '/pos/analytics',  icon: '/nav-icons/analytics.png', labelKey: 'navAnalytics', managerOnly: true },
