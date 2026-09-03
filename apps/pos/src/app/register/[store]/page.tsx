@@ -4,6 +4,15 @@ import { useState, useEffect, use, useCallback } from 'react'
 
 type Lang = 'th' | 'en'
 
+// Promo contact channels the customer can opt into. `ph` is the id/username
+// placeholder; `label` prefixes the stored contact string ("LINE: @somchai").
+const CHANNELS = [
+  { key: 'line',     label: 'LINE',     icon: '💚', ph: 'LINE ID เช่น @somchai' },
+  { key: 'telegram', label: 'Telegram', icon: '✈️', ph: '@username' },
+  { key: 'whatsapp', label: 'WhatsApp', icon: '🟢', ph: '+66 8x-xxx-xxxx' },
+] as const
+type ChannelKey = (typeof CHANNELS)[number]['key']
+
 // Self-contained bilingual copy (this page stands alone from the POS/order i18n).
 const T = {
   th: {
@@ -15,6 +24,10 @@ const T = {
     phonePh: '08x-xxx-xxxx',
     birthday: 'วันเกิด (ไม่บังคับ)',
     birthdayHint: 'ใช้สำหรับสิทธิพิเศษวันเกิด',
+    contactTitle: 'ช่องทางรับข่าวสาร (ไม่บังคับ)',
+    contactHint: 'เลือกช่องทางเพื่อรับโปรโมชั่นและข่าวสารจากร้าน',
+    contactChannelPh: 'เลือกช่องทาง',
+    backToOrder: '← กลับไปสั่งอาหาร',
     consent: 'ฉันยินยอมให้ร้านเก็บและใช้ข้อมูลข้างต้นตามนโยบายความเป็นส่วนตัว',
     policyToggle: 'อ่านนโยบายความเป็นส่วนตัว',
     submit: 'สมัครสมาชิก',
@@ -51,6 +64,10 @@ const T = {
     phonePh: '08x-xxx-xxxx',
     birthday: 'Birthday (optional)',
     birthdayHint: 'Used for birthday perks',
+    contactTitle: 'News channel (optional)',
+    contactHint: 'Pick a channel to receive promotions and news from the store',
+    contactChannelPh: 'Select a channel',
+    backToOrder: '← Back to ordering',
     consent: 'I agree to let the store store and use the above information per the privacy policy',
     policyToggle: 'Read the privacy policy',
     submit: 'Sign up',
@@ -91,8 +108,22 @@ export default function RegisterPage({ params }: { params: Promise<{ store: stri
   const [name, setName]         = useState('')
   const [phone, setPhone]       = useState('')
   const [birthday, setBirthday] = useState('')
+  const [channel, setChannel]   = useState<ChannelKey | ''>('')
+  const [contactId, setContactId] = useState('')
   const [consent, setConsent]   = useState(false)
   const [showPolicy, setShowPolicy] = useState(false)
+
+  // Table this signup was opened from (QR ordering link passes ?table=…), so we
+  // can offer a "back to ordering" button. Read from the URL to avoid pulling in
+  // useSearchParams (which would force a Suspense boundary on this page).
+  const [table, setTable] = useState('')
+  useEffect(() => {
+    try {
+      const t = new URLSearchParams(window.location.search).get('table')
+      if (t) setTable(t)
+    } catch { /* ignore */ }
+  }, [])
+  const orderHref = table ? `/order/${store}/${encodeURIComponent(table)}` : null
 
   const [submitting, setSubmitting] = useState(false)
   const [error, setError]     = useState('')
@@ -121,11 +152,14 @@ export default function RegisterPage({ params }: { params: Promise<{ store: stri
     if (phoneDigits.length < 8)  { setError(t.errPhone); return }
     if (!consent)                { setError(t.errConsent); return }
     setSubmitting(true)
+    // Compose "LINE: @somchai" only when both a channel and an id are given.
+    const chan = CHANNELS.find(c => c.key === channel)
+    const contact = chan && contactId.trim() ? `${chan.label}: ${contactId.trim()}` : undefined
     try {
       const r = await sfetch('/api/register', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: name.trim(), phone: phone.trim(), birthday: birthday || undefined, consent: true }),
+        body: JSON.stringify({ name: name.trim(), phone: phone.trim(), birthday: birthday || undefined, contact, consent: true }),
       })
       const d = await r.json().catch(() => ({}))
       if (!r.ok) { setError(d.error || t.errGeneric); setSubmitting(false); return }
@@ -144,6 +178,12 @@ export default function RegisterPage({ params }: { params: Promise<{ store: stri
           <h1 className="text-xl font-black text-gray-900">{done.already ? t.alreadyTitle : t.successTitle}</h1>
           <p className="text-sm text-gray-500 mt-2 leading-relaxed">{done.already ? t.alreadyBody : t.successBody}</p>
           {storeName && <p className="text-xs text-gray-400 mt-4">{storeName}</p>}
+          {orderHref && (
+            <a href={orderHref}
+              className="mt-5 block w-full py-3.5 rounded-2xl bg-gray-900 text-white font-black text-sm active:scale-[0.98] transition">
+              {t.backToOrder}
+            </a>
+          )}
         </div>
       </div>
     )
@@ -207,6 +247,38 @@ export default function RegisterPage({ params }: { params: Promise<{ store: stri
               <p className="text-[11px] text-gray-400 mt-1">{t.birthdayHint}</p>
             </Field>
 
+            {/* Promo contact channel — pick LINE / Telegram / WhatsApp, then id */}
+            <Field label={t.contactTitle}>
+              <div className="grid grid-cols-3 gap-2 mb-2">
+                {CHANNELS.map(c => {
+                  const active = channel === c.key
+                  return (
+                    <button
+                      key={c.key}
+                      type="button"
+                      onClick={() => setChannel(active ? '' : c.key)}
+                      className={`py-2.5 rounded-xl border-2 flex flex-col items-center gap-1 transition active:scale-95 ${
+                        active ? 'bg-gray-900 text-white border-gray-900' : 'bg-white text-gray-500 border-gray-200 hover:border-gray-300'
+                      }`}
+                    >
+                      <span className="text-base leading-none">{c.icon}</span>
+                      <span className="text-[11px] font-bold">{c.label}</span>
+                    </button>
+                  )
+                })}
+              </div>
+              {channel && (
+                <input
+                  value={contactId}
+                  onChange={e => setContactId(e.target.value)}
+                  placeholder={CHANNELS.find(c => c.key === channel)?.ph}
+                  className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-amber-400 transition"
+                  style={{ userSelect: 'text' }}
+                />
+              )}
+              <p className="text-[11px] text-gray-400 mt-1">{t.contactHint}</p>
+            </Field>
+
             {/* Privacy / consent */}
             <div className="bg-gray-50 border border-gray-100 rounded-2xl p-3">
               <label className="flex items-start gap-2.5 cursor-pointer">
@@ -240,6 +312,13 @@ export default function RegisterPage({ params }: { params: Promise<{ store: stri
             </button>
 
             <p className="text-[11px] text-gray-400 text-center leading-snug">{t.secureNote}</p>
+
+            {orderHref && (
+              <a href={orderHref}
+                className="w-full py-3 rounded-2xl border border-gray-200 bg-white text-gray-600 font-bold text-sm text-center active:scale-[0.98] transition">
+                {t.backToOrder}
+              </a>
+            )}
           </div>
         </div>
       </div>

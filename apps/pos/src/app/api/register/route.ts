@@ -18,6 +18,12 @@ export async function POST(req: NextRequest) {
     const name  = typeof body.name === 'string' ? body.name.trim() : ''
     const phone = typeof body.phone === 'string' ? body.phone.trim() : ''
     const birthday = typeof body.birthday === 'string' && body.birthday ? body.birthday : undefined
+    // Optional promo contact channel (LINE / Telegram / WhatsApp + handle),
+    // stored as a readable "Channel: handle" string in the member's contact
+    // field so staff can reach out with promotions/news. Length-capped.
+    const contact = typeof body.contact === 'string' && body.contact.trim()
+      ? body.contact.trim().slice(0, 120)
+      : undefined
 
     if (!name)  return NextResponse.json({ error: 'name is required' }, { status: 400 })
     if (!phone) return NextResponse.json({ error: 'phone is required' }, { status: 400 })
@@ -34,6 +40,7 @@ export async function POST(req: NextRequest) {
         name,
         phone,
         birthday,
+        contact,
         points:         0,
         lifetimePoints: 0,
         tier:           'bronze',
