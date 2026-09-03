@@ -332,7 +332,10 @@ export default function POSPage() {
   const bizCutoff = loadBarSettings().businessDayCutoff
   const todayBiz = businessDayOf(new Date(), bizCutoff)
   const todayOrders = orders.filter((o) => businessDayOf(o.createdAt, bizCutoff) === todayBiz)
-  const todayTotal = todayOrders.reduce((s, o) => s + o.total, 0)
+  // "Real sales" everywhere in the app = paid orders only. A voided/cancelled
+  // order (cashier or QR) is never counted, so this figure matches the Cash,
+  // Manager and Analytics screens instead of drifting above them.
+  const todayTotal = todayOrders.reduce((s, o) => (o.status === 'paid' ? s + o.total : s), 0)
   // Fix #10: filter history by current table
   const tableOrders = todayOrders.filter(o => o.tableNo === table)
   const historyOrders = showAllHistory ? todayOrders : tableOrders
@@ -983,7 +986,9 @@ export default function POSPage() {
                 {!showAllHistory && ` · ${table}`}
               </span>
               <span className="font-bold text-amber-600 text-lg">
-                {baht(historyOrders.reduce((s, o) => s + o.total, 0))}
+                {/* Paid-only, so a voided line in the list above never inflates
+                    the real-sales total shown here. */}
+                {baht(historyOrders.reduce((s, o) => (o.status === 'paid' ? s + o.total : s), 0))}
               </span>
             </div>
           </div>

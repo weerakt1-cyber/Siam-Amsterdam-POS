@@ -37,15 +37,20 @@ export async function POST(req: NextRequest) {
     )
   }
 
+  // Real sales = paid orders only. Voided/cancelled orders (cashier or QR) are
+  // excluded from every figure below — including the cash-drawer reconciliation
+  // — so the end-of-day totals match the POS, Cash and Manager screens.
+  const paid = orders.filter(o => o.status === 'paid')
+
   // â”€â”€ Sales totals â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-  const totalRevenue  = orders.reduce((s, o) => s + (o.total    ?? 0), 0)
-  const totalSubtotal = orders.reduce((s, o) => s + (o.subtotal ?? 0), 0)
+  const totalRevenue  = paid.reduce((s, o) => s + (o.total    ?? 0), 0)
+  const totalSubtotal = paid.reduce((s, o) => s + (o.subtotal ?? 0), 0)
   const totalDiscount = Math.max(0, totalSubtotal - totalRevenue)
-  const avgOrder      = orders.length > 0 ? totalRevenue / orders.length : 0
+  const avgOrder      = paid.length > 0 ? totalRevenue / paid.length : 0
 
   // â”€â”€ Payment breakdown â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   const paymentBreakdown: Record<string, { orders: number; revenue: number }> = {}
-  for (const o of orders) {
+  for (const o of paid) {
     const m = o.paymentMethod ?? 'cash'
     if (!paymentBreakdown[m]) paymentBreakdown[m] = { orders: 0, revenue: 0 }
     paymentBreakdown[m].orders  += 1
@@ -54,7 +59,7 @@ export async function POST(req: NextRequest) {
 
   // â”€â”€ Top items â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   const itemMap: Record<string, { qty: number; revenue: number }> = {}
-  for (const order of orders) {
+  for (const order of paid) {
     for (const item of order.items ?? []) {
       if (!itemMap[item.name]) itemMap[item.name] = { qty: 0, revenue: 0 }
       itemMap[item.name].qty     += item.qty
@@ -72,7 +77,7 @@ export async function POST(req: NextRequest) {
   const expectedCash = report.openingCash + cashSales + cashIns - expenses
 
   // â”€â”€ Other stats â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-  const memberOrders = orders.filter(o => o.memberName).length
+  const memberOrders = paid.filter(o => o.memberName).length
 
   // â”€â”€ Build date label â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   const dateLabel = new Date().toLocaleDateString('en-GB', {
@@ -81,7 +86,7 @@ export async function POST(req: NextRequest) {
 
   const payload: EndOfDayData = {
     date: dateLabel,
-    totalOrders: orders.length,
+    totalOrders: paid.length,
     totalRevenue,
     totalDiscount,
     avgOrder,
