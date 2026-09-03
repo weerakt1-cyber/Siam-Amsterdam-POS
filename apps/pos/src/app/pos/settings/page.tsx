@@ -548,6 +548,10 @@ export default function SettingsPage() {
   // Bar settings
   const [cfg, setCfg]         = useState<BarSettings | null>(null)
   const [cfgSaved, setCfgSaved] = useState(false)
+  // Draft text for the food-cost % field while it's being edited, so the user
+  // can clear it and retype without it snapping back mid-keystroke. Committed
+  // (parsed + clamped) on blur; null when not editing (shows the saved value).
+  const [foodCostDraft, setFoodCostDraft] = useState<string | null>(null)
 
   // Bluetooth printer — driven by the shared BluetoothManager (auto-reconnect,
   // health-check every 8s, robust runtime permissions). This card only tracks
@@ -1242,9 +1246,14 @@ export default function SettingsPage() {
                 <div className="flex items-center gap-4">
                   <label className="text-sm text-gray-500 w-24 shrink-0">{tr('setTargetFoodCost')}</label>
                   <input
-                    type="number" min="1" max="99" inputMode="numeric"
-                    value={cfg.targetFoodCostPct ?? 30}
-                    onChange={e => updateCfg('targetFoodCostPct', Math.max(1, Math.min(99, Number(e.target.value) || 0)))}
+                    type="text" inputMode="numeric" pattern="[0-9]*"
+                    value={foodCostDraft ?? String(cfg.targetFoodCostPct ?? 30)}
+                    onChange={e => setFoodCostDraft(e.target.value.replace(/[^0-9]/g, '').slice(0, 2))}
+                    onBlur={() => {
+                      const n = parseInt(foodCostDraft ?? '', 10)
+                      updateCfg('targetFoodCostPct', Number.isFinite(n) && n > 0 ? Math.min(99, n) : 30)
+                      setFoodCostDraft(null)
+                    }}
                     className="w-28 bg-white border border-gray-200 rounded-xl px-3 py-2.5 text-sm text-gray-900 focus:outline-none focus:border-amber-400 transition" />
                 </div>
                 <p className="text-[11px] text-gray-400 ml-28 -mt-2.5">{tr('setTargetFoodCostHint')}</p>
