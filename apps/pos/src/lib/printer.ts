@@ -32,6 +32,7 @@ export type BarSettings = {
   openTime?:              string    // shop opening time "HH:MM" — bounds reservation start-time slots
   closeTime?:             string    // shop closing time "HH:MM" — bounds reservation end time
   businessDayCutoff?:     string    // "HH:MM" sales-day reset — orders before this count as the previous day (for past-midnight trading); "00:00" = calendar day
+  targetFoodCostPct?:     number    // target COGS as a % of sale price (e.g. 30). Drives the "suggested price" hint in Items when a recipe's cost is known.
 }
 
 export type PrinterDevice = {
@@ -59,6 +60,7 @@ export const DEFAULT_BAR_SETTINGS: BarSettings = {
   openTime:               '10:00',
   closeTime:              '23:00',
   businessDayCutoff:      '00:00',
+  targetFoodCostPct:      30,
 }
 
 const LS_KEY = 'pos_bar_settings'

@@ -390,6 +390,8 @@ const DICT = {
   fCategoryReq:      { en: 'Category *',      th: 'หมวดหมู่ *' },
   fSellingPrice:     { en: 'Selling Price (฿) *', th: 'ราคาขาย (฿) *' },
   fCostCogs:         { en: 'Cost / COGS (฿)', th: 'ต้นทุน / COGS (฿)' },
+  setTargetFoodCost:     { en: 'Target food cost (%)', th: 'ต้นทุนเป้าหมาย (%)' },
+  setTargetFoodCostHint: { en: 'Used to suggest a sale price from a recipe’s cost (e.g. 30% = price is ~3.3× cost).', th: 'ใช้แนะนำราคาขายจากต้นทุนตามสูตร (เช่น 30% = ราคาขายประมาณ 3.3 เท่าของต้นทุน)' },
   fVatPct:           { en: 'VAT (%)',         th: 'VAT (%)' },
   fSelectionsVariants:{ en: 'Selections / Variants', th: 'ตัวเลือก / รูปแบบ' },
   fIngredients:      { en: 'Ingredients',     th: 'วัตถุดิบ' },

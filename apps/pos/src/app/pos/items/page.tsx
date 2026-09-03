@@ -2,7 +2,7 @@
 
 import { authedFetch } from "@/lib/supabase-browser"
 import { readCache, writeCache, hasCache } from '@/lib/api-cache'
-import { useState, useEffect, useRef, useCallback } from 'react'
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import type { MenuItem, Variant, VariantOption, InventoryItem, MenuIngredient } from '@/lib/types'
 import NumPad from '@/components/pos/NumPad'
 import { useAuth } from '@/lib/pos-auth'
@@ -10,6 +10,8 @@ import { type CatEntry, loadAllCategories, fetchCategories, persistCategories } 
 import { AI_NAME } from '@/lib/ai-brand'
 import { usePosLang } from '@/lib/pos-i18n'
 import { UNITS as INGREDIENT_UNITS, unitLabel, toStockQuantity, canConvert } from '@/lib/units'
+import { recipeCostPerServing, suggestedPrice } from '@/lib/menu-cost'
+import { loadBarSettings } from '@/lib/printer'
 import { SkeletonList } from '@/components/pos/Skeleton'
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -346,6 +348,24 @@ export default function ItemsPage() {
   const [inventory, setInventory] = useState<InventoryItem[]>(() => readCache<InventoryItem[]>('inventory') ?? [])
   const [ingSearch, setIngSearch] = useState('')
   const [ingDropOpen, setIngDropOpen] = useState(false)
+  // Target food-cost % (COGS as a share of sale price) — drives the suggested
+  // price. Read from bar settings once (localStorage cache), default 30%.
+  const [targetFoodCostPct, setTargetFoodCostPct] = useState(30)
+  useEffect(() => {
+    const v = loadBarSettings().targetFoodCostPct
+    if (typeof v === 'number' && v > 0) setTargetFoodCostPct(v)
+  }, [])
+
+  // Live per-serving cost computed from the tracked ingredients + inventory
+  // purchase prices, and the price that keeps cost at the target %.
+  const recipeCost = useMemo(
+    () => recipeCostPerServing(ingredients, inventory),
+    [ingredients, inventory],
+  )
+  const suggestedSalePrice = useMemo(
+    () => suggestedPrice(recipeCost.cost, targetFoodCostPct),
+    [recipeCost.cost, targetFoodCostPct],
+  )
 
   // AI Price Optimizer
   const [aiOpen, setAiOpen]               = useState(false)
@@ -1013,6 +1033,52 @@ export default function ItemsPage() {
                       </select>
                     </div>
                   </div>
+
+                  {/* Recipe costing — auto cost from tracked ingredients + suggested price */}
+                  {recipeCost.hasAny && recipeCost.cost > 0 && (
+                    <div className="rounded-xl border border-sky-800/40 bg-sky-900/20 px-4 py-3 flex flex-col gap-2">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="text-lg">🧮</span>
+                        <p className="text-sm font-bold text-sky-300">
+                          {lang === 'en' ? 'Recipe cost' : 'ต้นทุนตามสูตร'}: ฿{recipeCost.cost.toFixed(2)}
+                        </p>
+                        <button
+                          type="button"
+                          onClick={() => setField('cost', recipeCost.cost.toFixed(2))}
+                          className="text-[11px] font-bold text-sky-300 hover:text-sky-200 underline underline-offset-2"
+                        >
+                          {lang === 'en' ? 'Use as cost' : 'ใช้เป็นต้นทุน'}
+                        </button>
+                        {recipeCost.unpriced > 0 && (
+                          <span className="text-[11px] text-amber-400 basis-full">
+                            ⚠ {recipeCost.unpriced} {lang === 'en'
+                              ? 'ingredient(s) have no purchase price yet — set it in Inventory'
+                              : 'วัตถุดิบยังไม่ได้ตั้งราคาซื้อ — ตั้งได้ในหน้าสต็อก'}
+                          </span>
+                        )}
+                      </div>
+                      {suggestedSalePrice > 0 && (
+                        <div className="flex items-center gap-2 flex-wrap border-t border-sky-800/30 pt-2">
+                          <span className="text-lg">💡</span>
+                          <p className="text-sm font-bold text-emerald-300">
+                            {lang === 'en' ? 'Suggested price' : 'ราคาขายแนะนำ'}: ฿{suggestedSalePrice}
+                          </p>
+                          <span className="text-[11px] text-gray-400">
+                            {lang === 'en'
+                              ? `keeps food cost ≈ ${targetFoodCostPct}%`
+                              : `ต้นทุน ≈ ${targetFoodCostPct}% ของราคาขาย`}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => setField('price', String(suggestedSalePrice))}
+                            className="text-[11px] font-bold text-emerald-300 hover:text-emerald-200 underline underline-offset-2"
+                          >
+                            {lang === 'en' ? 'Use as price' : 'ใช้เป็นราคาขาย'}
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  )}
 
                   {/* Margin display */}
                   {m !== null && (
