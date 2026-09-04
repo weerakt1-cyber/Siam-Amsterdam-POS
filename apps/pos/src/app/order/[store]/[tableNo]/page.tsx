@@ -436,7 +436,7 @@ export default function OrderPage({ params }: { params: Promise<{ store: string;
         </div>
       )}
       <a
-        href={`/register/${store}`}
+        href={`/register/${store}?table=${encodeURIComponent(tableNo)}`}
         target="_blank"
         rel="noopener noreferrer"
         className="flex items-center justify-center gap-1.5 w-full py-3 rounded-2xl border-2 border-amber-300 bg-amber-50 text-amber-700 font-bold text-sm active:scale-[0.98] transition"

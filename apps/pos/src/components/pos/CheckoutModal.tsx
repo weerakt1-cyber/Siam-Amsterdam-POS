@@ -10,6 +10,7 @@ import {
 } from '@/lib/printer'
 import { getTierByName, computePointsEarned, TIERS } from '@/lib/loyalty'
 import { usePosLang } from '@/lib/pos-i18n'
+import { primeAudio, playPaymentSuccess } from '@/lib/sound'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -294,6 +295,10 @@ export default function CheckoutModal({
   useEffect(() => {
     if (step !== 3 || autoPrintedRef.current) return
     autoPrintedRef.current = true
+    // Success chime on reaching "Payment Complete". Transfer is the exception:
+    // the order is only recorded here, not yet paid — its chime fires when the
+    // slip verifies inside SlipTransferPanel below.
+    if (payment !== 'transfer') playPaymentSuccess()
     const s = loadBarSettings()
     // Fire the print the instant the "Payment Complete" screen renders. A cash
     // sale keeps the cashier here counting change, but a QR sale has nothing to
@@ -367,6 +372,7 @@ export default function CheckoutModal({
     const amt = receivedOverride ?? receivedNum
     if (payment === 'cash' && amt < total) return
     if (confirmingRef.current) return          // already processing — ignore the extra tap
+    primeAudio()                               // unlock audio within this tap for the step-3 chime
     confirmingRef.current = true
     setIsConfirming(true)
     // Open the Bluetooth socket NOW, concurrently with the server order-save, so

@@ -87,6 +87,8 @@ function mapMember(row: Record<string, unknown>): Member {
     name:           row.name as string,
     phone:          row.phone as string | undefined,
     contact:        row.contact as string | undefined,
+    contactChannel: (row.contact_channel as Member['contactChannel']) ?? undefined,
+    contactId:      (row.contact_id as string | null) ?? undefined,
     birthday:       row.birthday as string | undefined,
     notes:          row.notes as string | undefined,
     points:         Number(row.points),
@@ -622,6 +624,8 @@ export async function createMember(
       name:          data.name,
       phone:         data.phone ?? null,
       contact:       data.contact ?? null,
+      contact_channel: data.contactChannel ?? null,
+      contact_id:      data.contactId ?? null,
       birthday:      data.birthday ?? null,
       notes:         data.notes ?? null,
       points:          data.points,
@@ -646,6 +650,8 @@ export async function updateMember(id: string, data: Partial<Omit<Member, 'id' |
   if (data.name         !== undefined) update.name          = data.name
   if (data.phone        !== undefined) update.phone         = data.phone ?? null
   if (data.contact      !== undefined) update.contact       = data.contact ?? null
+  if (data.contactChannel !== undefined) update.contact_channel = data.contactChannel ?? null
+  if (data.contactId      !== undefined) update.contact_id      = data.contactId ?? null
   if (data.birthday     !== undefined) update.birthday      = data.birthday ?? null
   if (data.notes        !== undefined) update.notes         = data.notes ?? null
   if (data.points         !== undefined) update.points          = data.points
@@ -1713,6 +1719,22 @@ export async function getPaymentSlipsByOrder(orderId: string, storeId?: string):
     .from('payment_slips').select('*')
     .eq('store_id', sid).eq('order_id', orderId)
     .order('created_at', { ascending: false })
+  return (data ?? []).map(mapSlip)
+}
+
+// Verified slips across the store since a cutoff — powers the cross-device
+// "money in" alert (a slip verified on the cashier's phone pings the manager's).
+// Bounded by limit so a busy night can't return an unbounded set.
+export async function getRecentVerifiedSlips(
+  sinceIso: string, storeId?: string, limit = 20,
+): Promise<PaymentSlip[]> {
+  const sid = await requireStoreId(storeId)
+  const { data } = await supabase
+    .from('payment_slips').select('*')
+    .eq('store_id', sid).eq('status', 'verified')
+    .gte('verified_at', sinceIso)
+    .order('verified_at', { ascending: false })
+    .limit(limit)
   return (data ?? []).map(mapSlip)
 }
 

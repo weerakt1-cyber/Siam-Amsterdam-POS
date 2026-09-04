@@ -6,7 +6,7 @@
 import type { Order, InventoryItem, MenuItem, MenuIngredient } from './types'
 
 export type AlertSeverity = 'critical' | 'warning' | 'info' | 'success'
-export type AlertCategory = 'stock' | 'target' | 'suggestion' | 'variance'
+export type AlertCategory = 'stock' | 'target' | 'suggestion' | 'variance' | 'payment'
 
 export type Alert = {
   id:       string          // stable — used for de-dup + "seen" tracking on the client
@@ -23,6 +23,15 @@ export type AlertTargets = {
   monthly: number
 }
 
+// A transfer slip the server has already confirmed as genuine — the real
+// "money landed" signal behind the cross-device payment ping.
+export type VerifiedSlipLite = {
+  id:         string
+  orderId:    string
+  amount:     number
+  verifiedAt: string | null   // ISO; null is filtered out (shouldn't happen for verified)
+}
+
 export type AlertInput = {
   orders:      Order[]           // recent paid orders (server passes ~60 days)
   inventory:   InventoryItem[]
@@ -30,6 +39,7 @@ export type AlertInput = {
   ingredients: MenuIngredient[]
   targets:     AlertTargets
   now:         number            // Date.now() passed in for testability
+  slips?:      VerifiedSlipLite[] // verified transfer slips in the recent window
 }
 
 const BKK_MS = 7 * 60 * 60 * 1000
@@ -68,7 +78,7 @@ function revenueSince(orders: Order[], sinceMs: number): number {
 // ── Main ────────────────────────────────────────────────────────────────────────
 
 export function computeAlerts(input: AlertInput): Alert[] {
-  const { orders, inventory, menu, ingredients, targets, now } = input
+  const { orders, inventory, menu, ingredients, targets, now, slips = [] } = input
   const alerts: Alert[] = []
   const paidOrders = orders.filter(o => o.status === 'paid')
 
@@ -195,6 +205,32 @@ export function computeAlerts(input: AlertInput): Alert[] {
         detail: `System shows ${it.currentStock} ${it.unit}, but ~${Math.round(consumedSinceUpdate)} sold since last update — expected ~${Math.max(0, Math.round(expected))}. Do a physical count.`,
       })
     }
+  }
+
+  // ── 5. Transfer slips just VERIFIED ───────────────────────────────────────
+  // Cross-device "money in" ping: every POS device polls /api/alerts, so a slip
+  // the server confirmed genuine on the cashier's phone surfaces on the
+  // manager's phone too (and fires a native notification there). Keyed off the
+  // verified slip — the authoritative "the money actually landed" event — not
+  // the bill being closed, so it never fires on an unverified/pending transfer.
+  // Windowed to the last few minutes and de-duped by slip id (one ping per
+  // device). Table comes from the order the slip belongs to, when we have it.
+  const PAYMENT_WINDOW_MS = 10 * 60 * 1000
+  const tableByOrder = new Map(orders.map(o => [o.id, o.tableNo]))
+  const recentVerified = slips
+    .filter(s => s.verifiedAt != null
+      && now - new Date(s.verifiedAt).getTime() <= PAYMENT_WINDOW_MS)
+    .sort((a, b) => new Date(b.verifiedAt!).getTime() - new Date(a.verifiedAt!).getTime())
+    .slice(0, 12)   // bound the feed on a busy night
+  for (const s of recentVerified) {
+    const table = tableByOrder.get(s.orderId)
+    const tableTh = table ? `โต๊ะ ${table} ` : ''
+    const tableEn = table ? ` Table ${table}` : ''
+    alerts.push({
+      id: `payment-${s.id}`, severity: 'success', category: 'payment', icon: '💰',
+      title: `รับเงินโอนแล้ว ${baht(s.amount)} · Transfer verified`,
+      detail: `${tableTh}ยืนยันสลิปสำเร็จ — slip confirmed.${tableEn}`,
+    })
   }
 
   // Rank: severity first, then category grouping stability.

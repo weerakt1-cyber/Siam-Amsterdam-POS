@@ -26,6 +26,7 @@ const DICT = {
   navInventory: { en: 'Inventory',  th: 'สต๊อกสินค้า' },
   navItems:     { en: 'Items',      th: 'เมนูสินค้า' },
   navMembers:   { en: 'Members',    th: 'สมาชิก' },
+  navBroadcast: { en: 'Broadcast',  th: 'ส่งข่าวสาร' },
   navReservations: { en: 'Bookings', th: 'การจอง' },
   setOpenHours: { en: 'Opening hours', th: 'เวลาทำการ' },
   setHoursHint: { en: 'Used for table reservation time slots', th: 'ใช้กำหนดช่วงเวลาจองโต๊ะให้ลูกค้าเลือก' },

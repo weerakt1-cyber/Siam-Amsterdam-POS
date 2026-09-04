@@ -42,11 +42,15 @@ function memberStats(member: Member, orders: Order[]) {
   const matched = orders.filter(
     (o) => o.memberName && o.memberName.trim().toLowerCase() === member.name.trim().toLowerCase()
   )
-  const spend = matched.reduce((s, o) => s + o.total, 0)
+  // Spend / visits count paid orders only — a voided or still-open order is not
+  // real spend, so these figures line up with the sales totals elsewhere. The
+  // order history below still lists every matched order (with its status).
+  const paidMatched = matched.filter((o) => o.status === 'paid')
+  const spend = paidMatched.reduce((s, o) => s + o.total, 0)
   return {
-    visits: matched.length,
+    visits: paidMatched.length,
     lifetimeSpend: spend,
-    avgOrder: matched.length > 0 ? Math.round(spend / matched.length) : 0,
+    avgOrder: paidMatched.length > 0 ? Math.round(spend / paidMatched.length) : 0,
     recentOrders: matched.slice(0, 10),
   }
 }
