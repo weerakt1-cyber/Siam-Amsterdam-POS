@@ -207,7 +207,8 @@ export type UserRole = 'admin' | 'manager' | 'bartender' | 'staff'
 export type PosUser = {
   id: string
   name: string
-  role: UserRole
+  role: UserRole     // access LEVEL — drives permissions (admin | manager | staff | bartender)
+  title?: string | null   // free-text position name shown in the UI; falls back to the role label
   pin: string        // 4 ตัวเลข เก็บ plaintext สำหรับ prototype
   color: string      // hex color สำหรับ avatar
   createdAt: string

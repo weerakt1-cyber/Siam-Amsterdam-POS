@@ -13,7 +13,8 @@ const CHECK_INTERVAL_MS = 15000 // how often to check for inactivity while the t
 export type ActiveUser = {
   id:    string
   name:  string
-  role:  string
+  role:  string          // access level (permissions)
+  title?: string | null  // free-text position name (display)
   color: string
 }
 

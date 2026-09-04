@@ -25,6 +25,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
       return NextResponse.json({ error: 'PIN must be exactly 4 digits' }, { status: 400 })
     }
     if (body.pin) body.pin = String(body.pin)
+    if (typeof body.title === 'string') body.title = body.title.trim().slice(0, 40) || null
     const updated = await updateStaffMember(id, body, storeId)
     if (!updated) return NextResponse.json({ error: 'Not found' }, { status: 404 })
     return NextResponse.json({ user: updated })

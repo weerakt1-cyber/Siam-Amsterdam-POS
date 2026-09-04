@@ -102,7 +102,7 @@ export default function ManagerDashboard() {
           <div className="w-10 h-10 rounded-xl grid place-items-center text-white font-black" style={{ background: user?.color || '#3b82f6' }}>{initial}</div>
           <div className="min-w-0">
             <p className="font-bold leading-tight truncate">{user?.name ?? '—'}</p>
-            <p className="text-xs text-stone-500 mt-0.5">{L('Role', 'ตำแหน่ง')} <span className="text-blue-600 font-semibold">{L('Manager', 'ผู้จัดการ')}</span></p>
+            <p className="text-xs text-stone-500 mt-0.5">{L('Role', 'ตำแหน่ง')} <span className="text-blue-600 font-semibold">{(user?.title && user.title.trim()) || L('Manager', 'ผู้จัดการ')}</span></p>
           </div>
         </div>
 

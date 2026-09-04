@@ -174,6 +174,7 @@ function mapStaff(row: Record<string, unknown>): PosUser {
     id:        row.id as string,
     name:      row.name as string,
     role:      row.role as UserRole,
+    title:     (row.title as string | null) ?? null,
     pin:       row.pin as string,
     color:     row.color as string,
     createdAt: row.created_at as string,
@@ -1129,6 +1130,7 @@ export async function createStaffMember(data: Omit<PosUser, 'id' | 'createdAt' |
       store_id:   sid,
       name:       data.name,
       role:       data.role,
+      title:      data.title ?? null,
       pin:        await bcrypt.hash(data.pin, 10),
       color:      data.color,
       created_at: ts,
@@ -1146,6 +1148,7 @@ export async function updateStaffMember(id: string, data: Partial<Omit<PosUser, 
   const update: Record<string, unknown> = { updated_at: now() }
   if (data.name  !== undefined) update.name  = data.name
   if (data.role  !== undefined) update.role  = data.role
+  if (data.title !== undefined) update.title = data.title ?? null
   if (data.pin   !== undefined) update.pin   = await bcrypt.hash(data.pin, 10)
   if (data.color !== undefined) update.color = data.color
 
