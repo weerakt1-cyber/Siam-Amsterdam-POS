@@ -85,7 +85,7 @@ export default function ShiftPage() {
             style={{ background: user?.color || '#10b981' }}>{initial}</div>
           <div className="min-w-0">
             <p className="font-bold text-stone-900 leading-tight truncate">{user?.name ?? '—'}</p>
-            <p className="text-xs text-stone-500 mt-0.5">{t.position} <span className="text-amber-600 font-semibold">{user?.role ?? 'staff'}</span></p>
+            <p className="text-xs text-stone-500 mt-0.5">{t.position} <span className="text-amber-600 font-semibold">{(user?.title && user.title.trim()) || user?.role || 'staff'}</span></p>
           </div>
         </div>
 

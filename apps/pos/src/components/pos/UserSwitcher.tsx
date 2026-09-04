@@ -4,7 +4,7 @@ import { authedFetch } from "@/lib/supabase-browser"
 import { useState, useEffect } from 'react'
 import type { ActiveUser } from '@/lib/pos-auth'
 
-type StaffUser = { id: string; name: string; role: string; color: string }
+type StaffUser = { id: string; name: string; role: string; title?: string | null; color: string }
 
 const ROLE_LABELS: Record<string, string> = {
   admin: 'Admin', manager: 'Manager', bartender: 'Bartender', staff: 'Staff',
@@ -69,7 +69,7 @@ export default function UserSwitcher({
       .then(r => r.json())
       .then(d => {
         if (d.valid) {
-          onLogin({ id: d.user.id, name: d.user.name, role: d.user.role, color: d.user.color })
+          onLogin({ id: d.user.id, name: d.user.name, role: d.user.role, title: d.user.title ?? null, color: d.user.color })
         } else {
           setError(true)
           setTimeout(() => { setError(false); setPin('') }, 800)
@@ -135,7 +135,7 @@ export default function UserSwitcher({
                     </div>
                     <div className="text-center">
                       <p className="text-base font-semibold text-stone-900">{u.name}</p>
-                      <p className="text-xs text-stone-400">{ROLE_LABELS[u.role] ?? u.role}</p>
+                      <p className="text-xs text-stone-400">{(u.title && u.title.trim()) || ROLE_LABELS[u.role] || u.role}</p>
                     </div>
                   </button>
                 ))}

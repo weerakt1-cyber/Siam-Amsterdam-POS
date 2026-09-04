@@ -13,7 +13,8 @@ import InviteStaffButton from '@/components/pos/InviteStaffButton'
 type PosUserPublic = {
   id: string
   name: string
-  role: UserRole
+  role: UserRole          // access level (permissions)
+  title?: string | null   // free-text position name (display)
   color: string
   createdAt: string
   updatedAt: string
@@ -31,6 +32,62 @@ const ROLE_META: Record<UserRole, { label: string; labelTh: string; badge: strin
   manager:   { label: 'Manager',   labelTh: 'ผู้จัดการ',   badge: 'bg-amber-500/20 text-amber-400 border-amber-500/30' },
   bartender: { label: 'Bartender', labelTh: 'บาร์เทนเดอร์', badge: 'bg-teal-500/20 text-teal-400 border-teal-500/30' },
   staff:     { label: 'Staff',     labelTh: 'พนักงาน',     badge: 'bg-blue-500/20 text-blue-400 border-blue-500/30' },
+}
+
+// A staff's ROLE is one of these fixed access levels (drives permissions + which
+// app experience they get). Their TITLE is a free-text position name shown in
+// the UI. So a shop can define unlimited positions (หัวหน้าบาร์, แคชเชียร์, DJ…)
+// each backed by an access level.
+const ACCESS_LEVELS: { value: UserRole; labelTh: string; desc: string; badge: string }[] = [
+  { value: 'staff',   labelTh: 'พนักงาน',    desc: 'POS + เข้ากะ',                 badge: ROLE_META.staff.badge },
+  { value: 'manager', labelTh: 'ผู้จัดการ',   desc: 'แดชบอร์ด + ดูแลยอดขาย/สต็อก',   badge: ROLE_META.manager.badge },
+  { value: 'admin',   labelTh: 'ผู้ดูแลระบบ', desc: 'จัดการทุกอย่าง',                badge: ROLE_META.admin.badge },
+]
+const roleLabel = (r: UserRole) => ROLE_META[r]?.label ?? r
+const displayRole = (u: { title?: string | null; role: UserRole }) => (u.title && u.title.trim()) || roleLabel(u.role)
+
+// Position (free text) + access-level picker — shared by the new/edit panels.
+function PositionFields({ title, setTitle, role, setRole, suggestions }: {
+  title: string; setTitle: (v: string) => void
+  role: UserRole; setRole: (r: UserRole) => void
+  suggestions: string[]
+}) {
+  return (
+    <>
+      <div>
+        <label className="text-xs text-gray-500 uppercase tracking-wide">ตำแหน่ง (Position)</label>
+        <input
+          value={title}
+          onChange={e => setTitle(e.target.value.slice(0, 40))}
+          placeholder="เช่น หัวหน้าบาร์ · แคชเชียร์ · เด็กเสิร์ฟ"
+          className="mt-1 w-full bg-gray-100 border border-gray-200 rounded-xl px-4 py-2.5 text-sm text-gray-900 focus:outline-none focus:border-amber-500"
+        />
+        {suggestions.length > 0 && (
+          <div className="flex flex-wrap gap-1.5 mt-2">
+            {suggestions.map(s => (
+              <button key={s} type="button" onPointerDown={() => setTitle(s)}
+                className="text-[11px] px-2 py-1 rounded-lg bg-gray-100 text-gray-600 hover:bg-gray-200 transition">{s}</button>
+            ))}
+          </div>
+        )}
+      </div>
+      <div>
+        <label className="text-xs text-gray-500 uppercase tracking-wide">สิทธิ์การใช้งาน (Access level)</label>
+        <div className="flex flex-col gap-2 mt-2">
+          {ACCESS_LEVELS.map(lv => (
+            <button key={lv.value} type="button" onPointerDown={() => setRole(lv.value)}
+              className={`text-left px-3 py-2.5 rounded-xl border transition-all flex items-center justify-between gap-2 ${
+                role === lv.value ? `${lv.badge} border-current` : 'bg-gray-100/50 text-gray-600 border-gray-200 hover:border-gray-300'
+              }`}>
+              <span className="min-w-0"><span className="font-bold text-sm">{lv.labelTh}</span> <span className="text-xs opacity-70">· {lv.desc}</span></span>
+              {role === lv.value && <span className="text-sm shrink-0">✓</span>}
+            </button>
+          ))}
+        </div>
+        <p className="text-[11px] text-gray-400 mt-1.5">สิทธิ์กำหนดว่าเห็นเมนูอะไร/ต้องเข้ากะไหม · ตำแหน่งคือชื่อที่แสดง</p>
+      </div>
+    </>
+  )
 }
 
 // ─── PinPad Component ─────────────────────────────────────────────────────────
@@ -119,7 +176,8 @@ export default function UsersPage() {
 
   // form state
   const [name, setName] = useState('')
-  const [role, setRole] = useState<UserRole>('bartender')
+  const [role, setRole] = useState<UserRole>('staff')
+  const [title, setTitle] = useState('')
   const [color, setColor] = useState(AVATAR_COLORS[1])
   const [pin, setPin] = useState('')
   const [confirmPin, setConfirmPin] = useState('')
@@ -174,7 +232,8 @@ export default function UsersPage() {
   const startNew = () => {
     setSelected(null)
     setName('')
-    setRole('bartender')
+    setRole('staff')
+    setTitle('')
     setColor(AVATAR_COLORS[Math.floor(Math.random() * AVATAR_COLORS.length)])
     setPin('')
     setConfirmPin('')
@@ -187,6 +246,7 @@ export default function UsersPage() {
     setSelected(u)
     setName(u.name)
     setRole(u.role)
+    setTitle(u.title ?? '')
     setColor(u.color)
     setPin('')
     setConfirmPin('')
@@ -205,7 +265,7 @@ export default function UsersPage() {
       const r = await authedFetch('/api/users', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: name.trim(), role, pin, color }),
+        body: JSON.stringify({ name: name.trim(), role, title: title.trim() || null, pin, color }),
       })
       if (r.ok) {
         const d = await r.json()
@@ -226,7 +286,7 @@ export default function UsersPage() {
       const r = await authedFetch(`/api/users/${selected.id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: name.trim(), role, color }),
+        body: JSON.stringify({ name: name.trim(), role, title: title.trim() || null, color }),
       })
       if (r.ok) {
         const d = await r.json()
@@ -267,7 +327,8 @@ export default function UsersPage() {
   }
 
   const isNewReady = name.trim() && pin.length === 4 && confirmPin.length === 4 && pin === confirmPin
-  const isDirty = selected && (name !== selected.name || role !== selected.role || color !== selected.color)
+  const isDirty = selected && (name !== selected.name || role !== selected.role || title !== (selected.title ?? '') || color !== selected.color)
+  const titleSuggestions = [...new Set(users.map(u => u.title).filter((t): t is string => !!t && !!t.trim()))].slice(0, 6)
 
   // ─── Right panel content ────────────────────────────────────────────────────
 
@@ -309,26 +370,8 @@ export default function UsersPage() {
             />
           </div>
 
-          {/* Role */}
-          <div>
-            <label className="text-xs text-gray-500 uppercase tracking-wide">Role</label>
-            <div className="grid grid-cols-2 gap-2 mt-2">
-              {(Object.keys(ROLE_META) as UserRole[]).map(r => (
-                <button
-                  key={r}
-                  type="button"
-                  onPointerDown={() => setRole(r)}
-                  className={`py-2 rounded-xl text-sm font-semibold border transition-all ${
-                    role === r
-                      ? `${ROLE_META[r].badge} border-current`
-                      : 'bg-gray-100/50 text-gray-500 border-gray-200 hover:border-white/20'
-                  }`}
-                >
-                  {ROLE_META[r].label}
-                </button>
-              ))}
-            </div>
-          </div>
+          {/* Position + access level */}
+          <PositionFields title={title} setTitle={setTitle} role={role} setRole={setRole} suggestions={titleSuggestions} />
 
           {/* Color */}
           <div>
@@ -386,7 +429,8 @@ export default function UsersPage() {
           <div className="flex-1 min-w-0">
             <h2 className="text-base font-bold text-gray-900 truncate">{selected.name}</h2>
             <span className={`inline-block text-xs px-2 py-0.5 rounded-full border ${ROLE_META[selected.role].badge}`}>
-              {ROLE_META[selected.role].label}
+              {displayRole(selected)}
+              {selected.title ? <span className="opacity-60"> · {roleLabel(selected.role)}</span> : null}
             </span>
           </div>
         </div>
@@ -401,26 +445,8 @@ export default function UsersPage() {
           />
         </div>
 
-        {/* Role */}
-        <div>
-          <label className="text-xs text-gray-500 uppercase tracking-wide">Role</label>
-          <div className="grid grid-cols-2 gap-2 mt-2">
-            {(Object.keys(ROLE_META) as UserRole[]).map(r => (
-              <button
-                key={r}
-                type="button"
-                onPointerDown={() => setRole(r)}
-                className={`py-2 rounded-xl text-sm font-semibold border transition-all ${
-                  role === r
-                    ? `${ROLE_META[r].badge} border-current`
-                    : 'bg-gray-100/50 text-gray-500 border-gray-200 hover:border-white/20'
-                }`}
-              >
-                {ROLE_META[r].label}
-              </button>
-            ))}
-          </div>
-        </div>
+        {/* Position + access level */}
+        <PositionFields title={title} setTitle={setTitle} role={role} setRole={setRole} suggestions={titleSuggestions} />
 
         {/* Color */}
         <div>
@@ -543,7 +569,7 @@ export default function UsersPage() {
                 <div className="flex-1 text-left min-w-0">
                   <p className="text-sm font-semibold text-gray-900 truncate">{u.name}</p>
                   <span className={`text-[10px] px-1.5 py-0.5 rounded border ${ROLE_META[u.role].badge}`}>
-                    {ROLE_META[u.role].label}
+                    {displayRole(u)}
                   </span>
                 </div>
                 {selected?.id === u.id && <span className="w-1.5 h-1.5 rounded-full bg-amber-500 shrink-0" />}
