@@ -50,14 +50,41 @@ export type AppProfile = {
   provider:       string
 }
 
-export async function fetchProfile(userId: string): Promise<AppProfile | null> {
+// Result of a profile read that DISTINGUISHES "no such row" (profile:null,
+// error:false) from "the read failed" (error:true). This matters: a transient
+// read failure (network blip, mid-flight token refresh, a brief 5xx/RLS hiccup)
+// must NOT be mistaken for "this user has no account" — doing so bounced signed-in
+// owners to the /auth/setup ("set up your account") screen at random during the
+// day. Never route an authenticated user based on `error:true`.
+export type ProfileResult = { profile: AppProfile | null; error: boolean }
+
+export async function fetchProfileResult(userId: string): Promise<ProfileResult> {
   const sb = getSupabaseBrowser()
-  const { data } = await sb
+  const { data, error } = await sb
     .from('profiles')
     .select('id, name, role, requested_role, status, color, avatar_url, provider')
     .eq('id', userId)
     .maybeSingle()
-  return data as AppProfile | null
+  if (error) return { profile: null, error: true }
+  return { profile: (data as AppProfile | null) ?? null, error: false }
+}
+
+// Same, but retries a few times on failure before giving up — smooths over the
+// brief blips above so callers only see a definitive answer when one exists.
+export async function fetchProfileRetry(userId: string, tries = 3): Promise<ProfileResult> {
+  let last: ProfileResult = { profile: null, error: true }
+  for (let i = 0; i < tries; i++) {
+    last = await fetchProfileResult(userId)
+    if (!last.error) return last
+    await new Promise(r => setTimeout(r, 300 * (i + 1)))
+  }
+  return last
+}
+
+// Back-compat: returns the profile (or null) and collapses a read error to null.
+// Prefer fetchProfileResult/fetchProfileRetry where the error must be handled.
+export async function fetchProfile(userId: string): Promise<AppProfile | null> {
+  return (await fetchProfileResult(userId)).profile
 }
 
 export const ROLE_HOME: Record<string, string> = {

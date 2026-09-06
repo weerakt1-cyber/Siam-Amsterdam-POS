@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
-import { getSupabaseBrowser, fetchProfile } from '@/lib/supabase-browser'
+import { getSupabaseBrowser, fetchProfileResult } from '@/lib/supabase-browser'
 
 const ROLE_LABELS: Record<string, string> = {
   admin: 'Admin', manager: 'Manager', bartender: 'Bartender', staff: 'Staff / Cashier',
@@ -28,7 +28,8 @@ export default function AuthStatusPage() {
   }, [])
 
   const checkStatus = useCallback(async (uid: string) => {
-    const profile = await fetchProfile(uid)
+    const { profile, error } = await fetchProfileResult(uid)
+    if (error) return   // transient read failure — keep polling, don't bounce to setup
     if (!profile) { router.replace('/auth/setup'); return }
     setRequestedRole(profile.requested_role ?? null)
     setStatus(profile.status)
