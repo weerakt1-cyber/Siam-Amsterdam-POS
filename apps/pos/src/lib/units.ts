@@ -106,6 +106,40 @@ export function toStockQuantity(qty: number, recipeUnit: string, inv: StockUnitI
   return qty
 }
 
+// Convert a quantity between two of the item's OWN units (e.g. when the user
+// switches the stock unit from Bottle to ml). Returns how much `to` equals `qty`
+// of `from`, or null when there's no known conversion. Uses the container's
+// content size for count↔measure (1 bottle = 700 ml). This is what keeps stock
+// VALUE correct across a unit change: convert currentStock by k and cost-per-unit
+// by 1/k and the total (stock × cost) is unchanged.
+export function convertUnitQuantity(
+  qty: number, from: string, to: string,
+  opts: { contentAmount?: number | null; contentUnit?: string | null } = {},
+): number | null {
+  if (from === to) return qty
+
+  const direct = convertMeasure(qty, from, to)   // measure ↔ measure (ml ↔ liter)
+  if (direct != null) return direct
+
+  const amount = opts.contentAmount
+  const cUnit  = opts.contentUnit
+  if (amount && amount > 0 && cUnit) {
+    const fromDim = unitDimension(from)
+    const toDim   = unitDimension(to)
+    // container (count) → measure: 1 container holds `amount cUnit`.
+    if (fromDim === 'count' && toDim !== 'count') {
+      const perContainer = convertMeasure(amount, cUnit, to)   // `to` per 1 container
+      if (perContainer != null) return qty * perContainer
+    }
+    // measure → container: divide by how much of `from` fills one container.
+    if (fromDim !== 'count' && toDim === 'count') {
+      const perContainer = convertMeasure(amount, cUnit, from) // `from` per 1 container
+      if (perContainer != null && perContainer > 0) return qty / perContainer
+    }
+  }
+  return null
+}
+
 // True when a recipe quantity in `recipeUnit` can be converted into the item's
 // stock unit without falling back to the raw-number assumption. Used by the UI
 // to warn when a chosen unit won't cut stock correctly.
