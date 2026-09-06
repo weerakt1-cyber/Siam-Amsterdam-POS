@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { getSupabaseBrowser, fetchProfile, authedFetch, provisionFromSession } from "@/lib/supabase-browser"
+import { getSupabaseBrowser, fetchProfile, fetchProfileRetry, authedFetch, provisionFromSession } from "@/lib/supabase-browser"
 import { useAuth } from '@/lib/pos-auth'
 import { usePosLang } from '@/lib/pos-i18n'
 import { SEEN_POS_KEY } from '@/components/LandingGate'
@@ -22,19 +22,30 @@ export default function AppAuthGuard({ children }: { children: React.ReactNode }
 
       if (!session) { setState('unauthenticated'); return }
 
-      const profile = await fetchProfile(session.user.id)
+      const { profile, error: profileError } = await fetchProfileRetry(session.user.id)
+
+      if (profileError) {
+        // The profile READ failed (transient: network blip, token refresh, brief
+        // 5xx). This is NOT "no account" — never bounce a signed-in user to the
+        // setup screen for it. Enter the POS on their session: every API scopes
+        // by this session's store server-side, so it shows THIS store's data and
+        // never another's. StaffGate still gates the operating identity.
+        try { localStorage.setItem(SEEN_POS_KEY, '1') } catch {}
+        setState('ready'); return
+      }
 
       if (!profile) {
-        // Reached /pos with a session but no profile: provision a fresh signup's
-        // store from its metadata (idempotent), else route to the setup/approval
-        // flow. A provisioned owner continues straight into the POS below.
+        // Genuinely no profile row (definitive, not an error): provision a fresh
+        // signup's store from its metadata (idempotent), else route to the
+        // setup/approval flow. A provisioned owner continues into the POS below.
         const outcome = await provisionFromSession()
         if (outcome.kind === 'pending') { router.replace('/auth/status'); return }
         if (outcome.kind !== 'provisioned') { router.replace('/auth/setup'); return }
-        // provisioned → re-fetch the freshly-created profile and continue.
+        // provisioned → continue into the POS. Try to seed the active user from
+        // the fresh profile, but a failed re-read must NOT bounce back to setup:
+        // the store now exists and the server scopes to it either way.
         const fresh = await fetchProfile(session.user.id)
-        if (!fresh) { router.replace('/auth/setup'); return }
-        try { login({ id: fresh.id, name: fresh.name, role: fresh.role!, color: fresh.color }) } catch {}
+        if (fresh?.role) { try { login({ id: fresh.id, name: fresh.name, role: fresh.role, color: fresh.color }) } catch {} }
         try { localStorage.setItem(SEEN_POS_KEY, '1') } catch {}
         setState('ready'); return
       }

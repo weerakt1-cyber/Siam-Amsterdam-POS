@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { getSupabaseBrowser, fetchProfile, provisionFromSession } from '@/lib/supabase-browser'
+import { getSupabaseBrowser, fetchProfileRetry, provisionFromSession } from '@/lib/supabase-browser'
 
 export default function AuthCallbackPage() {
   const router = useRouter()
@@ -21,7 +21,11 @@ export default function AuthCallbackPage() {
         return
       }
 
-      const profile = await fetchProfile(session.user.id)
+      const { profile, error: profileError } = await fetchProfileRetry(session.user.id)
+      if (profileError) {
+        // Transient read failure — don't force setup; let the in-app guard resolve.
+        router.replace('/pos'); return
+      }
       if (!profile) {
         // No profile yet: a fresh signup (store intent in metadata) gets its
         // store provisioned here; anyone else drops to the join/approval flow.

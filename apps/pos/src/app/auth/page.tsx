@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { getSupabaseBrowser, fetchProfile, provisionFromSession } from '@/lib/supabase-browser'
+import { getSupabaseBrowser, fetchProfileRetry, provisionFromSession } from '@/lib/supabase-browser'
 
 const ROLE_COLORS: Record<string, string> = {
   admin:      '#f59e0b',
@@ -22,10 +22,13 @@ export default function AuthPage() {
   // Route to the right screen after a session is established (shared by every
   // login method).
   async function routeAfterLogin(userId: string) {
-    const profile = await fetchProfile(userId)
+    const { profile, error } = await fetchProfileRetry(userId)
+    // Transient read failure → don't force setup; send them to /pos and let the
+    // in-app guard resolve it definitively (it never bounces on a read error).
+    if (error) { router.replace('/pos'); return }
     if (!profile) {
-      // No profile: provision a fresh signup's store from its metadata, else
-      // fall through to the join/approval setup flow.
+      // Genuinely no profile: provision a fresh signup's store from its metadata,
+      // else fall through to the join/approval setup flow.
       const outcome = await provisionFromSession()
       if (outcome.kind === 'provisioned') router.replace(outcome.created ? '/welcome' : '/pos')
       else if (outcome.kind === 'pending') router.replace('/auth/status')
