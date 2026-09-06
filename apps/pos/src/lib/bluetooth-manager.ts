@@ -18,6 +18,7 @@ import { isNativePlatform, startScanPrinters, connectPrinter,
          disconnectPrinter, checkPrinterConnected,
          loadPrinterDevice, savePrinterDevice,
          type PrinterDevice } from './printer'
+import { withBtLock } from './bt-lock'
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
 
@@ -136,11 +137,13 @@ class BluetoothManager {
    * throttle ถ้า WebView อยู่ background ดังนั้น timeout จะทำงานแม่นเมื่ออยู่ foreground.
    */
   private connectWithTimeout(address: string, ms = CONNECT_TIMEOUT_MS): Promise<string> {
-    return Promise.race([
+    // Serialize with the print path (bt-lock): the manager and a receipt print
+    // must never open/close the SPP socket at the same instant, or RFCOMM wedges.
+    return withBtLock(() => Promise.race([
       connectPrinter(address),
       new Promise<string>((_, rej) =>
         setTimeout(() => rej(new Error('เชื่อมต่อไม่สำเร็จ — ตรวจว่าเปิดเครื่องพิมพ์และเปิด Location')), ms)),
-    ])
+    ]))
   }
 
   // ─── Scan ───────────────────────────────────────────────────────────────────
@@ -283,7 +286,7 @@ class BluetoothManager {
       if (this.state !== 'connected') { this._stopHealthCheck(); return }
 
       try {
-        const ok = await checkPrinterConnected()
+        const ok = await withBtLock(() => checkPrinterConnected())
         if (!ok) {
           this.emit({ type: 'disconnected' })
           this._stopHealthCheck()
@@ -308,9 +311,54 @@ class BluetoothManager {
     this._stopHealthCheck()
     if (this.reconnectTimer) { clearTimeout(this.reconnectTimer); this.reconnectTimer = null }
     this.connectedDevice = null
-    await disconnectPrinter()
+    await withBtLock(() => disconnectPrinter())
     this.setState('idle')
     this.emit({ type: 'disconnected' })
+  }
+
+  // ─── Verify + heal on app resume ─────────────────────────────────────────────
+  // Android silently drops an idle SPP socket while the app is backgrounded, and
+  // the health-check interval is throttled/suspended in the background — so on
+  // return our state can still say 'connected' while the socket is actually dead,
+  // which is why the first print after idle failed until an app restart. Call this
+  // when the app comes back to the foreground: it checks the REAL socket (not our
+  // cached flag) and, if dead, reconnects immediately so the next print just works.
+  async ensureConnected(): Promise<void> {
+    if (!isNativePlatform()) return
+    // A connect/scan already in flight will settle on its own.
+    if (this.state === 'connecting' || this.state === 'reconnecting' || this.state === 'scanning') return
+    const saved = await loadPrinterDevice()
+    if (!saved) return
+
+    let live = false
+    try { live = await withBtLock(() => checkPrinterConnected()) } catch { live = false }
+    if (live) {
+      if (this.state !== 'connected') {
+        this.connectedDevice = { ...saved }
+        this.setState('connected')
+        this.emit({ type: 'connected', device: this.connectedDevice })
+      }
+      this._startHealthCheck()
+      return
+    }
+
+    // Socket is really gone → reset and reconnect now (immediate attempt, then
+    // fall back to the normal backoff if the printer is still waking up).
+    if (this.reconnectTimer) { clearTimeout(this.reconnectTimer); this.reconnectTimer = null }
+    this._stopHealthCheck()
+    this.reconnectAttempt = 0
+    this.connectedDevice = null
+    this.setState('reconnecting')
+    try {
+      const name = await this.connectWithTimeout(saved.address)
+      this.connectedDevice = { ...saved, name }
+      this.reconnectAttempt = 0
+      this.setState('connected')
+      this.emit({ type: 'connected', device: this.connectedDevice })
+      this._startHealthCheck()
+    } catch {
+      this._tryReconnect(saved)
+    }
   }
 
   // ─── Auto-connect on app start ───────────────────────────────────────────────

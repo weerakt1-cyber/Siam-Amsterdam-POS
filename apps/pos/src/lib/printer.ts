@@ -4,6 +4,7 @@
 
 import type { PluginListenerHandle } from '@capacitor/core'
 import { authedFetch } from '@/lib/supabase-browser'
+import { withBtLock } from '@/lib/bt-lock'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -701,18 +702,22 @@ async function reconnectAndWrite(bytes: Uint8Array): Promise<void> {
   if (!native) throw new Error('เครื่องพิมพ์ใช้ได้เฉพาะใน Android app')
   const saved = await loadPrinterDevice()
   if (!saved) throw new Error('ยังไม่ได้ตั้งค่าปริ้นเตอร์ — ไปที่ Settings → Printer')
-  // Drop any existing socket BEFORE connecting. Calling connect() while an SPP
-  // link is already open makes Android RFCOMM fail with "already at opened
-  // state" and — critically — tears down the live socket, so the drawer/print
-  // works exactly once and then every following attempt dies. A clean
-  // disconnect → (settle) → connect yields a fresh socket on every write.
-  await native.disconnect().catch(() => {})
-  await new Promise(res => setTimeout(res, 350)) // let RFCOMM release the DLCI
-  const device = await native.connect({ address: saved.address })
-  if (!device) throw new Error('เชื่อมต่อปริ้นเตอร์ไม่สำเร็จ — ตรวจสอบว่าเปิดเครื่องพิมพ์และอยู่ใกล้')
-  await native.begin({})
-  await native.raw({ data: bytesToBase64(bytes) })
-  await native.write({})
+  // Run the whole disconnect→connect→write as ONE locked job so the manager's
+  // health-check reconnect can't tear down the socket mid-print (see bt-lock.ts).
+  return withBtLock(async () => {
+    // Drop any existing socket BEFORE connecting. Calling connect() while an SPP
+    // link is already open makes Android RFCOMM fail with "already at opened
+    // state" and — critically — tears down the live socket, so the drawer/print
+    // works exactly once and then every following attempt dies. A clean
+    // disconnect → (settle) → connect yields a fresh socket on every write.
+    await native.disconnect().catch(() => {})
+    await new Promise(res => setTimeout(res, 350)) // let RFCOMM release the DLCI
+    const device = await native.connect({ address: saved.address })
+    if (!device) throw new Error('เชื่อมต่อปริ้นเตอร์ไม่สำเร็จ — ตรวจสอบว่าเปิดเครื่องพิมพ์และอยู่ใกล้')
+    await native.begin({})
+    await native.raw({ data: bytesToBase64(bytes) })
+    await native.write({})
+  })
 }
 
 export async function printReceiptBluetooth(d: ReceiptData, cfg: BarSettings): Promise<void> {
@@ -733,10 +738,12 @@ export async function warmBluetoothSocket(): Promise<boolean> {
   if (!native) return false
   const saved = await loadPrinterDevice()
   if (!saved) return false
-  await native.disconnect().catch(() => {})
-  await new Promise(res => setTimeout(res, 350)) // let RFCOMM release the DLCI
-  const device = await native.connect({ address: saved.address })
-  return !!device
+  return withBtLock(async () => {
+    await native.disconnect().catch(() => {})
+    await new Promise(res => setTimeout(res, 350)) // let RFCOMM release the DLCI
+    const device = await native.connect({ address: saved.address })
+    return !!device
+  })
 }
 
 // Phase 2 helper: write to an ALREADY-OPEN socket. No connect() here — a second
@@ -745,9 +752,11 @@ export async function warmBluetoothSocket(): Promise<boolean> {
 async function writeToOpenSocket(bytes: Uint8Array): Promise<void> {
   const native = getNativePrinter()
   if (!native) throw new Error('เครื่องพิมพ์ใช้ได้เฉพาะใน Android app')
-  await native.begin({})
-  await native.raw({ data: bytesToBase64(bytes) })
-  await native.write({})
+  return withBtLock(async () => {
+    await native.begin({})
+    await native.raw({ data: bytesToBase64(bytes) })
+    await native.write({})
+  })
 }
 
 export async function openCashDrawerBluetooth(): Promise<void> {
@@ -761,13 +770,15 @@ export async function openCashDrawerBluetooth(): Promise<void> {
   if (!native) throw new Error('เครื่องพิมพ์ใช้ได้เฉพาะใน Android app')
   const saved = await loadPrinterDevice()
   if (!saved) throw new Error('ยังไม่ได้ตั้งค่าปริ้นเตอร์ — ไปที่ Settings → Printer')
-  await native.disconnect().catch(() => {})
-  await new Promise(res => setTimeout(res, 350)) // let RFCOMM release the DLCI
-  const device = await native.connect({ address: saved.address })
-  if (!device) throw new Error('เชื่อมต่อปริ้นเตอร์ไม่สำเร็จ — ตรวจสอบว่าเปิดเครื่องพิมพ์และอยู่ใกล้')
-  await native.begin({})
-  await native.openDrawer({})
-  await native.write({})
+  return withBtLock(async () => {
+    await native.disconnect().catch(() => {})
+    await new Promise(res => setTimeout(res, 350)) // let RFCOMM release the DLCI
+    const device = await native.connect({ address: saved.address })
+    if (!device) throw new Error('เชื่อมต่อปริ้นเตอร์ไม่สำเร็จ — ตรวจสอบว่าเปิดเครื่องพิมพ์และอยู่ใกล้')
+    await native.begin({})
+    await native.openDrawer({})
+    await native.write({})
+  })
 }
 
 // ─── LAN: send raw bytes via /api/printer/send (TCP proxy) ───────────────────
