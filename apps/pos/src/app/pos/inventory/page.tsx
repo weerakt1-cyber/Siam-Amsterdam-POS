@@ -6,7 +6,15 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import type { InventoryItem, StockAdjustment, AdjustReason } from '@/lib/types'
 import NumPad from '@/components/pos/NumPad'
 import { usePosLang } from '@/lib/pos-i18n'
-import { UNITS, unitLabel, MEASURE_UNITS } from '@/lib/units'
+import { UNITS, unitLabel, MEASURE_UNITS, convertUnitQuantity } from '@/lib/units'
+
+// Trim a computed number to a tidy string (no long float tails), keeping small
+// per-unit costs (e.g. 0.5 ฿/ml) precise.
+function tidyNum(n: number): string {
+  if (!Number.isFinite(n)) return ''
+  const r = Math.round(n * 1e6) / 1e6
+  return String(r)
+}
 import { SkeletonList } from '@/components/pos/Skeleton'
 import {
   type InvCat, loadInvCategories, fetchInvCategories, persistInvCategories,
@@ -538,7 +546,29 @@ export default function InventoryPage() {
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="text-xs text-gray-500 mb-1 block">{tr('fInvUnit')}</label>
-                  <select value={form.unit} onChange={e => setForm(f => ({ ...f, unit: e.target.value }))}
+                  <select value={form.unit} onChange={e => setForm(f => {
+                    const from = f.unit
+                    const to = e.target.value
+                    if (to === from) return { ...f, unit: to }
+                    // Convert stock/threshold/cost so the stock VALUE stays real
+                    // when switching units (Bottle → ml uses the bottle's content
+                    // size: 10 bottle × ฿350 becomes 7000 ml × ฿0.5 = same ฿3,500).
+                    const k = convertUnitQuantity(1, from, to, {
+                      contentAmount: f.contentAmount ? Number(f.contentAmount) : null,
+                      contentUnit:   f.contentUnit,
+                    })
+                    if (!k || !Number.isFinite(k) || k <= 0) return { ...f, unit: to } // no clean conversion → just switch
+                    const next = { ...f, unit: to }
+                    const stock = Number(f.currentStock) || 0
+                    const thr   = Number(f.lowStockThreshold) || 0
+                    next.currentStock      = tidyNum(stock * k)
+                    next.lowStockThreshold = tidyNum(thr * k)
+                    if (f.costPerUnit) next.costPerUnit = tidyNum(Number(f.costPerUnit) / k) // cost per NEW unit
+                    // Content size describes a container; it's meaningless once the
+                    // item is measured directly (ml/g), so drop it to avoid a wrong hint.
+                    if (MEASURE_UNITS.includes(to)) next.contentAmount = ''
+                    return next
+                  })}
                     className="w-full bg-gray-100 border border-gray-200 rounded-xl px-3 py-2.5 text-sm text-gray-900 outline-none focus:border-amber-500/60 transition">
                     {UNITS.map(u => (
                       <option key={u} value={u}>{unitLabel(u, lang)}</option>
