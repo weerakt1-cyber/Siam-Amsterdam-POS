@@ -62,7 +62,7 @@ type AiSuggestion = {
 type FormIngredient = {
   _key: string
   inventoryItemId: string
-  quantityPerServing: number
+  quantityPerServing: number | ''   // '' while the field is blank (not yet typed)
   unit: string
 }
 
@@ -359,7 +359,10 @@ export default function ItemsPage() {
   // Live per-serving cost computed from the tracked ingredients + inventory
   // purchase prices, and the price that keeps cost at the target %.
   const recipeCost = useMemo(
-    () => recipeCostPerServing(ingredients, inventory),
+    () => recipeCostPerServing(
+      ingredients.map(i => ({ ...i, quantityPerServing: Number(i.quantityPerServing) || 0 })),
+      inventory,
+    ),
     [ingredients, inventory],
   )
   const suggestedSalePrice = useMemo(
@@ -387,16 +390,28 @@ export default function ItemsPage() {
     }
   }, [])
 
+  // Tracks the menu item whose ingredients we're currently loading, so a slow
+  // response for a previously-selected item can't overwrite the one now open.
+  const ingReqRef = useRef<string | null>(null)
+
   const fetchIngredients = useCallback(async (menuItemId: string) => {
-    const r = await authedFetch(`/api/menu/${menuItemId}/ingredients`)
-    if (!r.ok) return
-    const d = await r.json()
-    setIngredients((d.ingredients ?? []).map((i: MenuIngredient) => ({
-      _key: i.id,
-      inventoryItemId: i.inventoryItemId,
-      quantityPerServing: i.quantityPerServing,
-      unit: i.unit,
-    })))
+    ingReqRef.current = menuItemId
+    let list: FormIngredient[] = []
+    try {
+      const r = await authedFetch(`/api/menu/${menuItemId}/ingredients`)
+      if (r.ok) {
+        const d = await r.json()
+        list = (d.ingredients ?? []).map((i: MenuIngredient) => ({
+          _key: i.id,
+          inventoryItemId: i.inventoryItemId,
+          quantityPerServing: i.quantityPerServing,
+          unit: i.unit,
+        }))
+      }
+    } catch { /* network error → treat as no ingredients for this item */ }
+    // A newer selection has taken over — drop this (stale) result.
+    if (ingReqRef.current !== menuItemId) return
+    setIngredients(list)
   }, [])
 
   useEffect(() => { fetchMenu() }, [fetchMenu])
@@ -414,6 +429,7 @@ export default function ItemsPage() {
     setSelectedId(item.id)
     setIsCreating(false)
     setForm(itemToForm(item))
+    setIngredients([])        // reset immediately — never show the previous item's recipe
     fetchIngredients(item.id)
   }
 
@@ -421,6 +437,7 @@ export default function ItemsPage() {
     setSelectedId(null)
     setIsCreating(true)
     setForm(emptyForm())
+    ingReqRef.current = null   // ignore any in-flight ingredient fetch from a prior selection
     setIngredients([])
   }
 
@@ -471,7 +488,7 @@ export default function ItemsPage() {
 
     const ingPayload = ingredients.map(i => ({
       inventoryItemId: i.inventoryItemId,
-      quantityPerServing: i.quantityPerServing,
+      quantityPerServing: Number(i.quantityPerServing) || 0,
       unit: i.unit,
     }))
 
@@ -1148,7 +1165,7 @@ export default function ItemsPage() {
                         // and whether the chosen recipe unit converts cleanly.
                         const converts = invItem ? canConvert(ing.unit, invItem) : true
                         const cut = invItem
-                          ? toStockQuantity(ing.quantityPerServing || 0, ing.unit, invItem)
+                          ? toStockQuantity(Number(ing.quantityPerServing) || 0, ing.unit, invItem)
                           : 0
                         const cutStr = Number.isFinite(cut)
                           ? (cut < 1 ? cut.toFixed(3).replace(/\.?0+$/, '') : cut.toFixed(2).replace(/\.?0+$/, ''))
@@ -1165,10 +1182,13 @@ export default function ItemsPage() {
                                 step="any"
                                 inputMode="decimal"
                                 value={ing.quantityPerServing}
+                                placeholder="0"
                                 onChange={e => setIngredients(prev => prev.map(i =>
-                                  i._key === ing._key ? { ...i, quantityPerServing: Number(e.target.value) || 0 } : i
+                                  i._key === ing._key
+                                    ? { ...i, quantityPerServing: e.target.value === '' ? '' : (Number(e.target.value) || 0) }
+                                    : i
                                 ))}
-                                className="w-20 bg-white border border-gray-200 rounded-lg px-2 py-1 text-sm text-right text-gray-900 outline-none focus:border-amber-500/60"
+                                className="w-20 bg-white border border-gray-200 rounded-lg px-2 py-1 text-sm text-right text-gray-900 placeholder-gray-300 outline-none focus:border-amber-500/60"
                               />
                               <select
                                 value={ing.unit}
@@ -1230,7 +1250,7 @@ export default function ItemsPage() {
                                 setIngredients(prev => [...prev, {
                                   _key: `${i.id}-${prev.length}`,
                                   inventoryItemId: i.id,
-                                  quantityPerServing: 1,
+                                  quantityPerServing: '',
                                   // Default to the item's fine measure (e.g. ml for a
                                   // bottle with content set) so pours are entered in ml.
                                   unit: i.contentUnit ?? i.unit,
