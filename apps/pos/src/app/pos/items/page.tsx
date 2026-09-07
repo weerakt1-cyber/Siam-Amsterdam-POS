@@ -390,16 +390,28 @@ export default function ItemsPage() {
     }
   }, [])
 
+  // Tracks the menu item whose ingredients we're currently loading, so a slow
+  // response for a previously-selected item can't overwrite the one now open.
+  const ingReqRef = useRef<string | null>(null)
+
   const fetchIngredients = useCallback(async (menuItemId: string) => {
-    const r = await authedFetch(`/api/menu/${menuItemId}/ingredients`)
-    if (!r.ok) return
-    const d = await r.json()
-    setIngredients((d.ingredients ?? []).map((i: MenuIngredient) => ({
-      _key: i.id,
-      inventoryItemId: i.inventoryItemId,
-      quantityPerServing: i.quantityPerServing,
-      unit: i.unit,
-    })))
+    ingReqRef.current = menuItemId
+    let list: FormIngredient[] = []
+    try {
+      const r = await authedFetch(`/api/menu/${menuItemId}/ingredients`)
+      if (r.ok) {
+        const d = await r.json()
+        list = (d.ingredients ?? []).map((i: MenuIngredient) => ({
+          _key: i.id,
+          inventoryItemId: i.inventoryItemId,
+          quantityPerServing: i.quantityPerServing,
+          unit: i.unit,
+        }))
+      }
+    } catch { /* network error → treat as no ingredients for this item */ }
+    // A newer selection has taken over — drop this (stale) result.
+    if (ingReqRef.current !== menuItemId) return
+    setIngredients(list)
   }, [])
 
   useEffect(() => { fetchMenu() }, [fetchMenu])
@@ -417,6 +429,7 @@ export default function ItemsPage() {
     setSelectedId(item.id)
     setIsCreating(false)
     setForm(itemToForm(item))
+    setIngredients([])        // reset immediately — never show the previous item's recipe
     fetchIngredients(item.id)
   }
 
@@ -424,6 +437,7 @@ export default function ItemsPage() {
     setSelectedId(null)
     setIsCreating(true)
     setForm(emptyForm())
+    ingReqRef.current = null   // ignore any in-flight ingredient fetch from a prior selection
     setIngredients([])
   }
 
