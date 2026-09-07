@@ -1036,45 +1036,61 @@ export default function ItemsPage() {
 
                   {/* Recipe costing — auto cost from tracked ingredients + suggested price */}
                   {recipeCost.hasAny && recipeCost.cost > 0 && (
-                    <div className="rounded-xl border border-sky-800/40 bg-sky-900/20 px-4 py-3 flex flex-col gap-2">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <span className="text-lg">🧮</span>
-                        <p className="text-sm font-bold text-sky-300">
-                          {lang === 'en' ? 'Recipe cost' : 'ต้นทุนตามสูตร'}: ฿{recipeCost.cost.toFixed(2)}
-                        </p>
+                    <div className="rounded-2xl border border-gray-200 bg-white overflow-hidden shadow-sm">
+                      {/* Recipe cost */}
+                      <div className="flex items-center justify-between gap-3 px-4 py-3">
+                        <div className="min-w-0">
+                          <p className="text-[11px] font-bold text-gray-500 uppercase tracking-wide">
+                            🧮 {lang === 'en' ? 'Recipe cost' : 'ต้นทุนตามสูตร'}
+                          </p>
+                          <p className="text-lg font-black text-gray-900 leading-tight mt-0.5">
+                            ฿{recipeCost.cost.toFixed(2)}
+                          </p>
+                        </div>
                         <button
                           type="button"
                           onClick={() => setField('cost', recipeCost.cost.toFixed(2))}
-                          className="text-[11px] font-bold text-sky-300 hover:text-sky-200 underline underline-offset-2"
+                          className="shrink-0 px-3 py-2 rounded-xl bg-gray-100 hover:bg-gray-200 text-gray-700 text-xs font-bold transition active:scale-95"
                         >
                           {lang === 'en' ? 'Use as cost' : 'ใช้เป็นต้นทุน'}
                         </button>
-                        {recipeCost.unpriced > 0 && (
-                          <span className="text-[11px] text-amber-400 basis-full">
-                            ⚠ {recipeCost.unpriced} {lang === 'en'
-                              ? 'ingredient(s) have no purchase price yet — set it in Inventory'
-                              : 'วัตถุดิบยังไม่ได้ตั้งราคาซื้อ — ตั้งได้ในหน้าสต็อก'}
-                          </span>
-                        )}
                       </div>
+
+                      {/* Suggested price — the hero row */}
                       {suggestedSalePrice > 0 && (
-                        <div className="flex items-center gap-2 flex-wrap border-t border-sky-800/30 pt-2">
-                          <span className="text-lg">💡</span>
-                          <p className="text-sm font-bold text-emerald-300">
-                            {lang === 'en' ? 'Suggested price' : 'ราคาขายแนะนำ'}: ฿{suggestedSalePrice}
-                          </p>
-                          <span className="text-[11px] text-gray-400">
-                            {lang === 'en'
-                              ? `keeps food cost ≈ ${targetFoodCostPct}%`
-                              : `ต้นทุน ≈ ${targetFoodCostPct}% ของราคาขาย`}
-                          </span>
+                        <div className="flex items-center justify-between gap-3 px-4 py-3 bg-emerald-50 border-t border-emerald-100">
+                          <div className="min-w-0">
+                            <p className="text-[11px] font-bold text-emerald-700 uppercase tracking-wide">
+                              💡 {lang === 'en' ? 'Suggested price' : 'ราคาขายแนะนำ'}
+                            </p>
+                            <p className="text-2xl font-black text-emerald-700 leading-none mt-1">
+                              ฿{suggestedSalePrice.toLocaleString()}
+                            </p>
+                            <p className="text-[11px] text-emerald-600 mt-1">
+                              {lang === 'en'
+                                ? `keeps food cost ≈ ${targetFoodCostPct}%`
+                                : `ต้นทุน ≈ ${targetFoodCostPct}% ของราคาขาย`}
+                            </p>
+                          </div>
                           <button
                             type="button"
                             onClick={() => setField('price', String(suggestedSalePrice))}
-                            className="text-[11px] font-bold text-emerald-300 hover:text-emerald-200 underline underline-offset-2"
+                            className="shrink-0 px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold transition active:scale-95 shadow-sm"
                           >
-                            {lang === 'en' ? 'Use as price' : 'ใช้เป็นราคาขาย'}
+                            {lang === 'en' ? 'Use price' : 'ใช้ราคานี้'}
                           </button>
+                        </div>
+                      )}
+
+                      {/* Missing-price warning */}
+                      {recipeCost.unpriced > 0 && (
+                        <div className="flex items-start gap-1.5 px-4 py-2 bg-amber-50 border-t border-amber-100 text-[11px] text-amber-700">
+                          <span className="shrink-0">⚠</span>
+                          <span>
+                            {recipeCost.unpriced} {lang === 'en'
+                              ? 'ingredient(s) have no purchase price yet — set it in Inventory'
+                              : 'วัตถุดิบยังไม่ได้ตั้งราคาซื้อ — ตั้งได้ในหน้าสต็อก'}
+                          </span>
                         </div>
                       )}
                     </div>
