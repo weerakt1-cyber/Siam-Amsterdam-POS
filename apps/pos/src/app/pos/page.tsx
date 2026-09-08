@@ -217,6 +217,9 @@ export default function POSPage() {
   const [payingTicket, setPayingTicket] = useState<Order | null>(null)
   const [pointsToRedeem, setPointsToRedeem] = useState(0)
   const [voidConfirmId, setVoidConfirmId] = useState<string | null>(null)
+  // Open ticket the staff is removing — we ask "was it already paid?" first, so a
+  // bill that was settled but never marked paid still counts toward real sales.
+  const [voidAsk, setVoidAsk] = useState<Order | null>(null)
   const [orders, setOrders] = useState<Order[]>(() => readCache<Order[]>('orders') ?? [])
   const [showHistory, setShowHistory] = useState(false)
   const [showAllHistory, setShowAllHistory] = useState(false)
@@ -439,6 +442,33 @@ export default function POSPage() {
   async function voidHeldOrder(orderId: string) {
     unmergeQrOrder(orderId)
     await handleVoidOrder(orderId)
+  }
+
+  // The customer already paid (often cash) but the ticket was never marked paid
+  // from Open Tickets — settle it as paid with the given method so it lands in
+  // real sales instead of vanishing when the ticket is removed. Cash also pops
+  // the drawer, matching the normal checkout path.
+  async function settleOpenTicketAsPaid(order: Order, method: 'cash' | 'transfer') {
+    try {
+      const r = await authedFetch(`/api/orders/${order.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: 'paid', paymentMethod: method }),
+      })
+      if (r.ok) {
+        if (method === 'cash') authedFetch('/api/drawer', { method: 'POST' }).catch(() => {})
+        unmergeQrOrder(order.id)
+        await fetchOrders()
+        showToast(t('toastBillSettled'))
+      } else showToast(t('toastVoidFail'), false)
+    } catch { showToast(t('toastVoidFail'), false) }
+    setVoidAsk(null)
+  }
+
+  // Genuinely unpaid — cancel it (not counted in sales), then close the prompt.
+  async function cancelOpenTicket(order: Order) {
+    await voidHeldOrder(order.id)
+    setVoidAsk(null)
   }
 
   function setItemDiscountForItem(key: string, discount: number | undefined) {
@@ -809,6 +839,58 @@ export default function POSPage() {
         />
       )}
 
+      {/* Removing an open ticket — ask whether it was already paid first, so a
+          settled-but-unmarked bill still counts toward real sales instead of
+          being cancelled and lost. */}
+      {voidAsk && (
+        <div
+          className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4"
+          onClick={() => { if (!pending[`void-${voidAsk.id}`]) setVoidAsk(null) }}
+        >
+          <div className="bg-white rounded-2xl w-full max-w-sm shadow-2xl overflow-hidden" onClick={e => e.stopPropagation()}>
+            <div className="px-5 pt-5 pb-3">
+              <h2 className="text-lg font-bold text-stone-900">{t('voidPaidTitle')}</h2>
+              <p className="text-sm font-semibold text-stone-700 mt-2">{t('voidPaidQ')}</p>
+              <p className="text-xs text-stone-400 mt-1 leading-snug">{t('voidPaidHint')}</p>
+              <div className="mt-3 flex items-center justify-between text-sm bg-stone-50 rounded-lg px-3 py-2">
+                <span className="font-mono text-stone-400">#{voidAsk.id.slice(-6)}</span>
+                <span className="font-bold text-amber-600">{baht(voidAsk.total)}</span>
+              </div>
+            </div>
+            <div className="px-5 pb-5 flex flex-col gap-2">
+              <button
+                onClick={() => run(`void-${voidAsk.id}`, () => settleOpenTicketAsPaid(voidAsk, 'cash'))}
+                disabled={pending[`void-${voidAsk.id}`]}
+                className="w-full py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-sm transition active:scale-95 disabled:opacity-50"
+              >
+                {t('voidPaidCash')}
+              </button>
+              <button
+                onClick={() => run(`void-${voidAsk.id}`, () => settleOpenTicketAsPaid(voidAsk, 'transfer'))}
+                disabled={pending[`void-${voidAsk.id}`]}
+                className="w-full py-2.5 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 font-bold text-sm transition active:scale-95 disabled:opacity-50"
+              >
+                {t('voidPaidTransfer')}
+              </button>
+              <button
+                onClick={() => run(`void-${voidAsk.id}`, () => cancelOpenTicket(voidAsk))}
+                disabled={pending[`void-${voidAsk.id}`]}
+                className="w-full py-2.5 rounded-xl bg-red-50 hover:bg-red-100 text-red-600 border border-red-200 font-bold text-sm transition active:scale-95 disabled:opacity-50 mt-1"
+              >
+                {t('voidNotPaid')}
+              </button>
+              <button
+                onClick={() => setVoidAsk(null)}
+                disabled={pending[`void-${voidAsk.id}`]}
+                className="w-full py-2 text-stone-400 hover:text-stone-600 font-medium text-sm disabled:opacity-50"
+              >
+                {t('keepBillBtn')}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Fix #4: Variant picker modal */}
       {variantPicking && (
         <div
@@ -1115,7 +1197,7 @@ export default function POSPage() {
                                 Remove
                               </button>
                               <button
-                                onClick={() => setVoidConfirmId(o.id)}
+                                onClick={() => setVoidAsk(o)}
                                 title={t('cancelBill')}
                                 className="text-xs text-stone-300 hover:text-red-600 transition"
                               >
@@ -1138,7 +1220,7 @@ export default function POSPage() {
                               + Add to Bill
                             </button>
                             <button
-                              onClick={() => setVoidConfirmId(o.id)}
+                              onClick={() => setVoidAsk(o)}
                               title={t('cancelBill')}
                               className="w-10 shrink-0 rounded-xl bg-stone-100 hover:bg-red-50 text-stone-400 hover:text-red-600 font-bold transition active:scale-95 flex items-center justify-center"
                             >
@@ -1291,7 +1373,7 @@ export default function POSPage() {
                             <div className="flex items-center gap-3">
                               <button onClick={() => unmergeQrOrder(o.id)}
                                 className="text-[11px] font-semibold text-stone-400 hover:text-stone-600 transition">{t('remove')}</button>
-                              <button onClick={() => setVoidConfirmId(o.id)} title={t('cancelBill')}
+                              <button onClick={() => setVoidAsk(o)} title={t('cancelBill')}
                                 className="text-xs text-stone-300 hover:text-red-600 transition">🗑</button>
                             </div>
                           </div>
@@ -1301,7 +1383,7 @@ export default function POSPage() {
                               className="flex-1 text-xs font-bold py-2 rounded-lg border-2 border-blue-500 text-blue-700 hover:bg-blue-50 transition active:scale-95">
                               + {t('mergeAddToBill')}
                             </button>
-                            <button onClick={() => setVoidConfirmId(o.id)} title={t('cancelBill')}
+                            <button onClick={() => setVoidAsk(o)} title={t('cancelBill')}
                               className="w-10 shrink-0 rounded-lg bg-stone-100 hover:bg-red-50 text-stone-400 hover:text-red-600 font-bold transition active:scale-95 flex items-center justify-center">🗑</button>
                           </div>
                         )}

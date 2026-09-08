@@ -92,6 +92,14 @@ const DICT = {
   cancelBill:      { en: 'Cancel bill',     th: 'ยกเลิกบิล' },
   cancelBillConfirm: { en: 'Permanently cancel this bill? It will be removed and not counted in sales.', th: 'ยกเลิกบิลนี้ถาวร? บิลจะถูกลบและไม่ถูกนับในยอดขาย' },
   keepBillBtn:     { en: 'Keep',            th: 'ไม่ลบ' },
+  // ── Void → "was this already paid?" prompt ──
+  voidPaidTitle:   { en: 'Remove this bill', th: 'เอาบิลนี้ออก' },
+  voidPaidQ:       { en: 'Was this bill already paid?', th: 'บิลนี้จ่ายเงินมาแล้วหรือยัง?' },
+  voidPaidHint:    { en: 'If it was paid, record the payment so it counts toward real sales. If not, cancel it (not counted).', th: 'ถ้าจ่ายแล้วให้บันทึกการชำระเงินเพื่อนับเป็นยอดขายจริง ถ้ายังไม่จ่ายให้ยกเลิก (ไม่นับยอด)' },
+  voidPaidCash:    { en: 'Paid — Cash',     th: 'จ่ายแล้ว — เงินสด' },
+  voidPaidTransfer:{ en: 'Paid — Transfer', th: 'จ่ายแล้ว — โอน' },
+  voidNotPaid:     { en: "Not paid — cancel bill", th: 'ยังไม่จ่าย — ยกเลิกบิล' },
+  toastBillSettled:{ en: 'Recorded as paid', th: 'บันทึกเป็นจ่ายแล้ว' },
 
   // ── Settings ──
   language:     { en: 'Language',              th: 'ภาษา' },
