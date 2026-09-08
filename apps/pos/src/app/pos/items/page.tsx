@@ -467,6 +467,27 @@ export default function ItemsPage() {
     if (selectedId === item.id) setField('available', !item.available)
   }
 
+  // Persist a menu item's tracked ingredients (the recipe → stock links) and
+  // FAIL LOUDLY if the server rejects the write. Previously the PUT result was
+  // ignored, so a server error (e.g. the menu_ingredients table being absent)
+  // was swallowed: the recipe looked saved but never persisted, never showed
+  // again, and stock was never deducted on payment. Throwing here surfaces the
+  // failure to the caller's catch → toast, instead of a silent no-op.
+  async function saveIngredients(
+    menuItemId: string,
+    ingPayload: { inventoryItemId: string; quantityPerServing: number; unit: string }[],
+  ) {
+    const r = await authedFetch(`/api/menu/${menuItemId}/ingredients`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ingredients: ingPayload }),
+    })
+    if (!r.ok) {
+      const msg = await r.json().then(d => d.error).catch(() => null)
+      throw new Error(msg || tr('itSaveFailed'))
+    }
+  }
+
   async function handleSave() {
     if (!form.name.trim()) return showToast(tr('itNameRequired'), false)
     if (!form.price || isNaN(Number(form.price))) return showToast(tr('itValidPrice'), false)
@@ -502,16 +523,15 @@ export default function ItemsPage() {
         })
         if (!r.ok) throw new Error((await r.json()).error)
         const d = await r.json()
-        await authedFetch(`/api/menu/${d.item.id}/ingredients`, {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ ingredients: ingPayload }),
-        })
+        await saveIngredients(d.item.id, ingPayload)
         showToast(`"${d.item.name}" created`)
         await fetchMenu()
         setSelectedId(d.item.id)
         setIsCreating(false)
         setForm(itemToForm(d.item))
+        // Re-load the recipe from the server so the saved list is shown
+        // authoritatively (and never a silently-dropped write).
+        await fetchIngredients(d.item.id)
       } else if (selectedId) {
         const r = await authedFetch(`/api/menu/${selectedId}`, {
           method: 'PATCH',
@@ -519,13 +539,10 @@ export default function ItemsPage() {
           body: JSON.stringify(payload),
         })
         if (!r.ok) throw new Error((await r.json()).error)
-        await authedFetch(`/api/menu/${selectedId}/ingredients`, {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ ingredients: ingPayload }),
-        })
+        await saveIngredients(selectedId, ingPayload)
         showToast(tr('itChangesSaved'))
         await fetchMenu()
+        await fetchIngredients(selectedId)
       }
     } catch (err) {
       showToast(err instanceof Error ? err.message : tr('itSaveFailed'), false)
