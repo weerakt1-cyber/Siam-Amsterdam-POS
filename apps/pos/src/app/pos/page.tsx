@@ -1405,22 +1405,26 @@ export default function POSPage() {
         </div>
       )}
 
-      {/* ── Header ── */}
-      <div className="flex items-center gap-2 px-3 py-2.5 bg-white border-b border-stone-200 shrink-0 shadow-sm">
-        {/* Greeting + daily power quote (replaces the old table-tab strip) */}
+      {/* ── Main ── */}
+      <div className="flex flex-1 overflow-hidden">
+
+        {/* Menu Panel */}
+        <div className="flex flex-col flex-3 overflow-hidden border-r border-stone-200">
+
+        {/* ── Left header: greeting + store selector + actions (the quote now lives
+            at the bottom of the order panel; this bar no longer spans the cart column
+            so the order list can run to the very top). ── */}
+        <div className="flex items-center gap-2 px-3 py-2.5 bg-white border-b border-stone-200 shrink-0 shadow-sm">
+        {/* Greeting (the daily quote moved to the order panel footer) */}
         {(() => {
           const greet = getThaiGreeting(lang)
-          const quote = getDailyQuote(lang)
           return (
-            <div className="flex-1 min-w-0 flex items-center gap-2.5 rounded-xl bg-gradient-to-r from-amber-50 via-orange-50/60 to-transparent px-3 py-1.5">
-              <div className="min-w-0 flex flex-col justify-center gap-0.5">
+            <div className="flex-1 min-w-0 flex items-center gap-2.5 rounded-xl bg-gradient-to-r from-amber-50 via-orange-50/60 to-transparent px-3 py-2">
+              <div className="min-w-0 flex flex-col justify-center">
                 <p className="text-sm font-black text-stone-900 leading-tight truncate">
                   {greet.text}{' '}
                   <span className="bg-gradient-to-r from-amber-600 to-orange-500 bg-clip-text text-transparent">{bizName}</span>
                   {' '}!
-                </p>
-                <p className="text-xs font-semibold text-stone-600 italic leading-tight truncate">
-                  “{quote}”
                 </p>
               </div>
             </div>
@@ -1493,13 +1497,7 @@ export default function POSPage() {
           </button>
           <NotificationBell />
         </div>
-      </div>
-
-      {/* ── Main ── */}
-      <div className="flex flex-1 overflow-hidden">
-
-        {/* Menu Panel */}
-        <div className="flex flex-col flex-3 overflow-hidden border-r border-stone-200">
+        </div>
 
           {/* Category filter + Search */}
           <div className="flex flex-col shrink-0 bg-white border-b border-stone-100">
@@ -1672,6 +1670,47 @@ export default function POSPage() {
             )}
           </div>
 
+          {/* Member + Coupon — moved up out of the footer so the item list has more room */}
+          <div className="px-4 py-2 border-b border-stone-100 bg-white shrink-0 flex flex-col gap-1.5">
+            <div className="grid grid-cols-2 gap-2">
+              {/* Member */}
+              <IconDropdown
+                icon={PI.member}
+                placeholder={t('noMember')}
+                value={memberName}
+                options={[
+                  { value: '', label: t('noMember') },
+                  ...members.map(m => ({ value: m.name, label: `${m.name} ${m.points > 0 ? `(${m.points} pts)` : ''}` })),
+                ]}
+                onPick={name => { setMemberName(name); setPointsToRedeem(0) }}
+              />
+              {/* Coupon */}
+              {appliedCoupon ? (
+                <div className="flex items-center gap-1.5 bg-emerald-50 border border-emerald-200 rounded-xl px-3 py-2 min-w-0">
+                  <span className="flex items-center gap-1 text-emerald-700 text-xs flex-1 font-bold min-w-0 truncate">
+                    <Ic src={PI.coupon} className="w-3.5 h-3.5 shrink-0" /> <span className="truncate">{appliedCoupon.code} · -{baht(couponDiscountAmount)}</span>
+                  </span>
+                  <button
+                    onClick={() => setAppliedCoupon(null)}
+                    className="text-stone-400 hover:text-red-500 text-xs transition shrink-0"
+                  >✕</button>
+                </div>
+              ) : (
+                <IconDropdown
+                  icon={PI.coupon}
+                  placeholder={coupons.length > 0 ? t('selectCoupon') : t('noActiveCoupons')}
+                  value=""
+                  options={coupons.map(c => ({
+                    value: c.code,
+                    label: `${c.code} — ${c.name} (${c.type === 'percent' ? `${c.value}%` : `฿${c.value}`} off)`,
+                  }))}
+                  onPick={code => run('coupon', () => applyCoupon(code))}
+                />
+              )}
+            </div>
+            {couponError && <p className="text-xs text-red-500 px-1">{couponError}</p>}
+          </div>
+
           {/* Cart items */}
           <div className="flex-1 overflow-y-auto px-4 py-3 flex flex-col gap-1">
             {cart.length === 0 ? (
@@ -1771,36 +1810,6 @@ export default function POSPage() {
               </p>
             )}
 
-            {/* Coupon code */}
-            <div className="flex flex-col gap-1">
-              {appliedCoupon ? (
-                <div className="flex items-center gap-1.5 bg-emerald-50 border border-emerald-200 rounded-xl px-3 py-2">
-                  <span className="flex items-center gap-1 text-emerald-700 text-xs flex-1 font-bold">
-                    <Ic src={PI.coupon} className="w-3.5 h-3.5" /> {appliedCoupon.code} · -{baht(couponDiscountAmount)}
-                    {appliedCoupon.type === 'percent' && (
-                      <span className="text-emerald-500 ml-1">({appliedCoupon.value}%)</span>
-                    )}
-                  </span>
-                  <button
-                    onClick={() => setAppliedCoupon(null)}
-                    className="text-stone-400 hover:text-red-500 text-xs transition"
-                  >✕</button>
-                </div>
-              ) : (
-                <IconDropdown
-                  icon={PI.coupon}
-                  placeholder={coupons.length > 0 ? t('selectCoupon') : t('noActiveCoupons')}
-                  value=""
-                  options={coupons.map(c => ({
-                    value: c.code,
-                    label: `${c.code} — ${c.name} (${c.type === 'percent' ? `${c.value}%` : `฿${c.value}`} off)`,
-                  }))}
-                  onPick={code => run('coupon', () => applyCoupon(code))}
-                />
-              )}
-              {couponError && <p className="text-xs text-red-500 px-1">{couponError}</p>}
-            </div>
-
             {/* Free-item promo banner (tag/note — staff hand it out) */}
             {promoResult.freebies.length > 0 && (
               <div className="bg-emerald-50 border border-emerald-200 rounded-xl px-3 py-2 flex flex-col gap-0.5">
@@ -1817,18 +1826,6 @@ export default function POSPage() {
               <span className="text-stone-700 text-sm font-semibold">{t('total')}</span>
               <span className="text-2xl font-black text-stone-900">{baht(finalTotal)}</span>
             </div>
-
-            {/* Member — select จาก DB */}
-            <IconDropdown
-              icon={PI.member}
-              placeholder={t('noMember')}
-              value={memberName}
-              options={[
-                { value: '', label: t('noMember') },
-                ...members.map(m => ({ value: m.name, label: `${m.name} ${m.points > 0 ? `(${m.points} pts)` : ''}` })),
-              ]}
-              onPick={name => { setMemberName(name); setPointsToRedeem(0) }}
-            />
 
             {/* Points redemption — shown when member has points */}
             {selectedMember && memberAvailablePoints > 0 && (
@@ -1931,12 +1928,10 @@ export default function POSPage() {
               </button>
             </div>
 
-            {/* Date + Clock */}
-            <div className="flex items-center justify-center gap-1.5">
-              <span className="text-[11px] font-semibold text-stone-400">{dateLabel}</span>
-              <span className="text-stone-200">·</span>
-              <span className="text-xs font-mono font-bold text-stone-500">{clock}</span>
-            </div>
+            {/* Daily power quote (moved down from the header) */}
+            <p className="text-center text-[11px] font-semibold text-stone-500 italic leading-tight px-1">
+              “{getDailyQuote(lang)}”
+            </p>
           </div>
         </div>
 
@@ -1996,7 +1991,11 @@ export default function POSPage() {
 
       {/* Status bar */}
       <div className="grid grid-cols-3 items-center px-4 py-1.5 bg-white border-t border-stone-100 text-xs text-stone-400 shrink-0">
-        <span>PLOEN POS v1.0</span>
+        <span className="flex items-center gap-1.5">
+          <span className="font-semibold">{dateLabel}</span>
+          <span className="text-stone-200">·</span>
+          <span className="font-mono font-bold text-stone-500">{clock}</span>
+        </span>
         <button
           onClick={() => { setShowHistory(true); setShowAllHistory(false) }}
           className="justify-self-center hover:text-stone-600 transition"
