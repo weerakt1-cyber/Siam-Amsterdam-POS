@@ -1477,7 +1477,6 @@ export default function ItemsPage() {
           value={numPadTarget === 'price' ? form.price : form.cost}
           onChange={(v) => setField(numPadTarget, v)}
           onClose={() => setNumPadTarget(null)}
-          allowDecimal={false}
           suffix="฿"
         />
       )}
