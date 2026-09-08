@@ -1411,25 +1411,12 @@ export default function POSPage() {
         {/* Menu Panel */}
         <div className="flex flex-col flex-3 overflow-hidden border-r border-stone-200">
 
-        {/* ── Left header: greeting + store selector + actions (the quote now lives
-            at the bottom of the order panel; this bar no longer spans the cart column
-            so the order list can run to the very top). ── */}
+        {/* ── Left header: store selector + actions. The greeting + daily quote now
+            live together at the bottom of the order panel, and the AI assistant sits
+            in the top-right corner, so this bar is a slim action strip. ── */}
         <div className="flex items-center gap-2 px-3 py-2.5 bg-white border-b border-stone-200 shrink-0 shadow-sm">
-        {/* Greeting (the daily quote moved to the order panel footer) */}
-        {(() => {
-          const greet = getThaiGreeting(lang)
-          return (
-            <div className="flex-1 min-w-0 flex items-center gap-2.5 rounded-xl bg-gradient-to-r from-amber-50 via-orange-50/60 to-transparent px-3 py-2">
-              <div className="min-w-0 flex flex-col justify-center">
-                <p className="text-sm font-black text-stone-900 leading-tight truncate">
-                  {greet.text}{' '}
-                  <span className="bg-gradient-to-r from-amber-600 to-orange-500 bg-clip-text text-transparent">{bizName}</span>
-                  {' '}!
-                </p>
-              </div>
-            </div>
-          )
-        })()}
+        {/* spacer keeps the action buttons to the right */}
+        <div className="flex-1 min-w-0" />
 
         {/* Table picker + Hold Bill + Drawer + Alerts */}
         <div className="flex items-center gap-2 ml-1 shrink-0">
@@ -1928,10 +1915,22 @@ export default function POSPage() {
               </button>
             </div>
 
-            {/* Daily power quote (moved down from the header) */}
-            <p className="text-center text-[11px] font-semibold text-stone-500 italic leading-tight px-1">
-              “{getDailyQuote(lang)}”
-            </p>
+            {/* Greeting + daily power quote — moved down here together from the header */}
+            {(() => {
+              const greet = getThaiGreeting(lang)
+              return (
+                <div className="flex flex-col items-center gap-0.5 px-1">
+                  <p className="text-center text-xs font-black text-stone-800 leading-tight">
+                    {greet.text}{' '}
+                    <span className="bg-gradient-to-r from-amber-600 to-orange-500 bg-clip-text text-transparent">{bizName}</span>
+                    {' '}!
+                  </p>
+                  <p className="text-center text-[11px] font-semibold text-stone-500 italic leading-tight">
+                    “{getDailyQuote(lang)}”
+                  </p>
+                </div>
+              )
+            })()}
           </div>
         </div>
 
