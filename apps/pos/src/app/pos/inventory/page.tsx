@@ -723,23 +723,23 @@ export default function InventoryPage() {
 
       {/* NumPads */}
       {numPadTarget === 'add' && (
-        <NumPad label={`Restock ${selected?.name ?? ''}`} value={numPadVal} onChange={setNumPadVal} allowDecimal={false} suffix={selected ? unitLabel(selected.unit, lang) : ''}
-          onClose={() => { setNumPadTarget(null); const n = parseInt(numPadVal); if (n > 0) doAdjust(+n, 'restock') }} />
+        <NumPad label={`Restock ${selected?.name ?? ''}`} value={numPadVal} onChange={setNumPadVal} suffix={selected ? unitLabel(selected.unit, lang) : ''}
+          onClose={() => { setNumPadTarget(null); const n = parseFloat(numPadVal); if (n > 0) doAdjust(+n, 'restock') }} />
       )}
       {numPadTarget === 'remove' && (
-        <NumPad label={`Remove ${selected?.name ?? ''}`} value={numPadVal} onChange={setNumPadVal} allowDecimal={false} suffix={selected ? unitLabel(selected.unit, lang) : ''}
-          onClose={() => { setNumPadTarget(null); const n = parseInt(numPadVal); if (n > 0) doAdjust(-n, 'manual') }} />
+        <NumPad label={`Remove ${selected?.name ?? ''}`} value={numPadVal} onChange={setNumPadVal} suffix={selected ? unitLabel(selected.unit, lang) : ''}
+          onClose={() => { setNumPadTarget(null); const n = parseFloat(numPadVal); if (n > 0) doAdjust(-n, 'manual') }} />
       )}
       {numPadTarget === 'stock' && (
-        <NumPad label="Current Stock" value={numPadVal} onChange={v => { setNumPadVal(v); setForm(f => ({ ...f, currentStock: v })) }} allowDecimal={false} suffix={unitLabel(form.unit, lang)}
+        <NumPad label="Current Stock" value={numPadVal} onChange={v => { setNumPadVal(v); setForm(f => ({ ...f, currentStock: v })) }} suffix={unitLabel(form.unit, lang)}
           onClose={() => setNumPadTarget(null)} />
       )}
       {numPadTarget === 'threshold' && (
-        <NumPad label="Alert Threshold" value={numPadVal} onChange={v => { setNumPadVal(v); setForm(f => ({ ...f, lowStockThreshold: v })) }} allowDecimal={false} suffix={unitLabel(form.unit, lang)}
+        <NumPad label="Alert Threshold" value={numPadVal} onChange={v => { setNumPadVal(v); setForm(f => ({ ...f, lowStockThreshold: v })) }} suffix={unitLabel(form.unit, lang)}
           onClose={() => setNumPadTarget(null)} />
       )}
       {numPadTarget === 'cost' && (
-        <NumPad label="Cost per Unit (฿)" value={numPadVal} onChange={v => { setNumPadVal(v); setForm(f => ({ ...f, costPerUnit: v })) }} allowDecimal={false} suffix="฿"
+        <NumPad label="Cost per Unit (฿)" value={numPadVal} onChange={v => { setNumPadVal(v); setForm(f => ({ ...f, costPerUnit: v })) }} suffix="฿"
           onClose={() => setNumPadTarget(null)} />
       )}
     </div>
