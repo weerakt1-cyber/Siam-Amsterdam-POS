@@ -70,7 +70,10 @@ export async function fetchCategories(storeRef?: string): Promise<CatEntry[]> {
   try {
     // storeRef: the public QR order page has no session, so it passes its store
     // (from the URL) as a hint. Staff pages omit it (server uses their session).
-    const res = await fetch('/api/categories', storeRef ? { headers: { 'x-store-id': storeRef } } : undefined)
+    const res = await fetch('/api/categories', {
+      cache: 'no-store',   // always the live list — never a stale cached copy
+      ...(storeRef ? { headers: { 'x-store-id': storeRef } } : {}),
+    })
     if (!res.ok) return loadAllCategories()
     const data = await res.json()
     const list: CatEntry[] = Array.isArray(data.categories) ? data.categories : []

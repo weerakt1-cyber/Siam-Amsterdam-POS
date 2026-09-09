@@ -80,6 +80,15 @@ export default function OrderPage({ params }: { params: Promise<{ store: string;
   const [category, setCategory] = useState('all')
   const [allCats, setAllCats]   = useState<CatEntry[]>(() => loadAllCategories())
 
+  // Re-fetch the live menu (fresh, never a cached copy) so items added to a new
+  // category show up. Called on mount and whenever the page regains focus.
+  const loadMenu = useCallback(() => {
+    return sfetch('/api/menu', { cache: 'no-store' })
+      .then(r => r.json())
+      .then((d: { menu?: MenuItem[] }) => { setMenu((d.menu ?? []).filter((m: MenuItem) => m.available)); setLoading(false) })
+      .catch(() => setLoading(false))
+  }, [sfetch])
+
   // Categories live in Supabase, not localStorage — this page runs on the
   // customer's own phone, a different device from the staff POS tablet that
   // configures categories, so it can't read that device's local cache at all.
@@ -87,19 +96,31 @@ export default function OrderPage({ params }: { params: Promise<{ store: string;
   // rename/reorder categories while a customer already has this page open.
   useEffect(() => {
     fetchCategories(store).then(setAllCats)
-    const iv = setInterval(() => { fetchCategories(store).then(setAllCats) }, 60000)
+    const iv = setInterval(() => { fetchCategories(store).then(setAllCats) }, 30000)
+    // When the customer reopens / refocuses the page, pull the latest categories
+    // AND menu at once — so a category (and its items) added while they had the
+    // page open appears immediately instead of only on the next poll tick.
+    const refetchLive = () => {
+      if (document.visibilityState === 'hidden') return
+      fetchCategories(store).then(setAllCats)
+      loadMenu()
+    }
     // Same-device custom event/storage listeners — a no-op in the normal
     // cross-device case, but keeps this page in sync if it's ever opened on
     // the same device/browser that just edited categories (e.g. staff testing).
     const refresh = () => setAllCats(loadAllCategories())
     window.addEventListener(CATEGORIES_CHANGED_EVENT, refresh)
     window.addEventListener('storage', refresh)
+    window.addEventListener('focus', refetchLive)
+    document.addEventListener('visibilitychange', refetchLive)
     return () => {
       clearInterval(iv)
       window.removeEventListener(CATEGORIES_CHANGED_EVENT, refresh)
       window.removeEventListener('storage', refresh)
+      window.removeEventListener('focus', refetchLive)
+      document.removeEventListener('visibilitychange', refetchLive)
     }
-  }, [store])
+  }, [store, loadMenu])
 
   const [cart, setCart]         = useState<CartItem[]>([])
   const [cartOpen, setCartOpen] = useState(false)
@@ -206,10 +227,7 @@ export default function OrderPage({ params }: { params: Promise<{ store: string;
   // ── Load menu ────────────────────────────────────────────────────────────────
 
   useEffect(() => {
-    sfetch('/api/menu')
-      .then(r => r.json())
-      .then(d => { setMenu((d.menu ?? []).filter((m: MenuItem) => m.available)); setLoading(false) })
-      .catch(() => setLoading(false))
+    loadMenu()
     sfetch('/api/promotions')
       .then(r => r.json())
       .then(d => setPromos((d.promotions ?? []).filter((p: Promotion) => p.active)))
@@ -222,7 +240,7 @@ export default function OrderPage({ params }: { params: Promise<{ store: string;
       .then(r => r.json())
       .then(d => { if (d?.transfer) setTransferCfg(d.transfer) })
       .catch(() => {})
-  }, [sfetch])
+  }, [sfetch, loadMenu])
 
   // ── Poll order status ─────────────────────────────────────────────────────────
 
