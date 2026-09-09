@@ -147,12 +147,14 @@ function VariantEditor({
   isSet = false,
   groupLabel,
   addLabel,
+  copyLabel,
 }: {
   variants: Variant[]
   onChange: (v: Variant[]) => void
   isSet?: boolean
   groupLabel?: string   // placeholder for a group's name (a set calls it an "item")
   addLabel?: string     // label for the add-group button
+  copyLabel?: string    // label for the per-group duplicate button
 }) {
   function addGroup() {
     // A set's slots are required by default (the customer must choose one per item).
@@ -161,6 +163,22 @@ function VariantEditor({
 
   function removeGroup(gid: string) {
     onChange(variants.filter((v) => v.id !== gid))
+  }
+
+  // Duplicate a whole slot/group (with all its options) right after the original —
+  // fresh ids so the copy is independent. Saves re-typing when several slots share
+  // the same choices (e.g. Mixer 1 / Mixer 2 / Mixer 3).
+  function duplicateGroup(gid: string) {
+    const idx = variants.findIndex((v) => v.id === gid)
+    if (idx < 0) return
+    const src = variants[idx]
+    const copy: Variant = {
+      id: uid(),
+      name: src.name,
+      required: src.required,
+      options: src.options.map((o) => ({ ...o, id: uid() })),
+    }
+    onChange([...variants.slice(0, idx + 1), copy, ...variants.slice(idx + 1)])
   }
 
   function updateGroup(gid: string, patch: Partial<Variant>) {
@@ -216,6 +234,13 @@ function VariantEditor({
               />
               Required
             </label>
+            <button
+              onClick={() => duplicateGroup(v.id)}
+              title={copyLabel ?? 'Duplicate'}
+              className="h-7 px-2 rounded-lg bg-gray-200 hover:bg-amber-100 text-gray-500 hover:text-amber-600 flex items-center gap-1 text-xs font-semibold transition shrink-0"
+            >
+              ⧉ {copyLabel ?? 'Copy'}
+            </button>
             <button
               onClick={() => removeGroup(v.id)}
               className="w-7 h-7 rounded-lg bg-red-900/40 hover:bg-red-700/60 text-red-400 hover:text-white flex items-center justify-center text-base transition shrink-0"
@@ -1192,6 +1217,7 @@ export default function ItemsPage() {
                     isSet={form.isSet}
                     groupLabel={form.isSet ? tr('fSetItemName') : undefined}
                     addLabel={form.isSet ? tr('fSetAddItem') : undefined}
+                    copyLabel={tr('fSetCopyItem')}
                   />
                 </section>
 

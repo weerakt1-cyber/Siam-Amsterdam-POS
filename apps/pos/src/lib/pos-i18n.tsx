@@ -409,6 +409,7 @@ const DICT = {
   fSetItemsHint:   { en: 'Add each item slot — e.g. Main dish, Drink, Dessert — with its choices.', th: 'เพิ่มแต่ละรายการในเซ็ต — เช่น เมนูหลัก, เครื่องดื่ม, ของหวาน — พร้อมตัวเลือกของแต่ละรายการ' },
   fSetItemName:    { en: 'Item name (e.g. Main dish)', th: 'ชื่อรายการ (เช่น เมนูหลัก)' },
   fSetAddItem:     { en: 'Add item to set', th: 'เพิ่มรายการในเซ็ต' },
+  fSetCopyItem:    { en: 'Copy', th: 'คัดลอก' },
   setBadge:        { en: 'Set', th: 'เซ็ต' },
   setChooseHint:   { en: 'Choose one option for each item', th: 'เลือก 1 อย่างต่อรายการในเซ็ต' },
   fIngredients:      { en: 'Ingredients',     th: 'วัตถุดิบ' },
