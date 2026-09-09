@@ -546,7 +546,7 @@ export async function awardOrderPoints(orderId: string, storeId?: string): Promi
       patch.tier = getTier(newLifetime).name
     }
     if (addStamps > 0) {
-      patch.stamps = (member.stamps + addStamps) % STAMP_CARD_SIZE
+      patch.stamps = (member.stamps + addStamps) % cfg.stampCardSize
       patch.stampsEarned = member.stampsEarned + addStamps
     }
     if (Object.keys(patch).length > 0) await updateMember(member.id, patch, sid)
@@ -556,18 +556,19 @@ export async function awardOrderPoints(orderId: string, storeId?: string): Promi
 }
 
 // Loyalty earn rates from the store's bar_settings (Settings → Loyalty).
-async function getLoyaltyConfig(storeId: string): Promise<{ bahtPerPoint: number; stampAuto: boolean; stampBahtPerStamp: number }> {
+async function getLoyaltyConfig(storeId: string): Promise<{ bahtPerPoint: number; stampAuto: boolean; stampBahtPerStamp: number; stampCardSize: number }> {
   const raw = await getConfig('bar_settings', storeId)
-  let bahtPerPoint = 10, stampAuto = false, stampBahtPerStamp = 200
+  let bahtPerPoint = 10, stampAuto = false, stampBahtPerStamp = 200, stampCardSize = STAMP_CARD_SIZE
   if (raw) {
     try {
       const s = JSON.parse(raw)
       if (typeof s?.loyaltyBahtPerPoint === 'number' && s.loyaltyBahtPerPoint > 0) bahtPerPoint = s.loyaltyBahtPerPoint
       if (typeof s?.stampAuto === 'boolean') stampAuto = s.stampAuto
       if (typeof s?.stampBahtPerStamp === 'number' && s.stampBahtPerStamp > 0) stampBahtPerStamp = s.stampBahtPerStamp
+      if (typeof s?.stampCardSize === 'number' && s.stampCardSize >= 2) stampCardSize = Math.floor(s.stampCardSize)
     } catch { /* defaults */ }
   }
-  return { bahtPerPoint, stampAuto, stampBahtPerStamp }
+  return { bahtPerPoint, stampAuto, stampBahtPerStamp, stampCardSize }
 }
 
 // The store's sales-day reset time ("HH:MM"), from bar_settings; "00:00" default.

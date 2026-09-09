@@ -1288,6 +1288,17 @@ export default function SettingsPage() {
               <span className="text-xs text-gray-400">{tr('setBahtPerPointHint')}</span>
             </div>
 
+            {/* Stamps per card */}
+            <div className="flex items-center gap-3 flex-wrap">
+              <label className="text-sm text-gray-500 w-40 shrink-0">{tr('setStampCardSize')}</label>
+              <input
+                type="text" inputMode="numeric" pattern="[0-9]*"
+                value={String(cfg.stampCardSize ?? 10)}
+                onChange={e => updateCfg('stampCardSize', Math.max(2, Math.min(60, parseInt(e.target.value.replace(/[^0-9]/g, '') || '0', 10) || 10)))}
+                className="w-28 bg-white border border-gray-200 rounded-xl px-3 py-2.5 text-sm text-gray-900 focus:outline-none focus:border-amber-400 transition" />
+              <span className="text-xs text-gray-400">{tr('setStampCardSizeHint')}</span>
+            </div>
+
             {/* Auto visit stamps */}
             <label className="flex items-start gap-3 cursor-pointer">
               <input type="checkbox" checked={!!cfg.stampAuto} onChange={e => updateCfg('stampAuto', e.target.checked)} className="mt-0.5 w-4 h-4 accent-amber-500" />
