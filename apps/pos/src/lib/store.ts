@@ -12,7 +12,7 @@ import type {
   MenuIngredient,
 } from './types'
 import type { CatEntry } from './categories'
-import { computePointsEarned, getTier } from './loyalty'
+import { computePointsEarned, computeStampsEarned, STAMP_CARD_SIZE, getTier } from './loyalty'
 import { businessDayOf, businessDayRange } from './business-day'
 // Store-context helpers + the subscription/billing/payments/AI-credit data layer
 // now live in @baze/db (monorepo M2). Re-export them so existing `@/lib/store`
@@ -534,18 +534,40 @@ export async function awardOrderPoints(orderId: string, storeId?: string): Promi
   if (!order || !order.memberId || order.pointsAwarded) return
   const member = await getMember(order.memberId, sid)
   if (member) {
-    const pts = computePointsEarned(order.total, getTier(member.lifetimePoints))
+    const cfg = await getLoyaltyConfig(sid)
+    const pts = computePointsEarned(order.total, getTier(member.lifetimePoints), cfg.bahtPerPoint)
+    // Auto visit stamps by spend (e.g. ฿200 = 1 stamp), only when the shop enabled it.
+    const addStamps = cfg.stampAuto ? computeStampsEarned(order.total, cfg.stampBahtPerStamp) : 0
+    const patch: Partial<Member> = {}
     if (pts > 0) {
       const newLifetime = member.lifetimePoints + pts
-      await updateMember(member.id, {
-        points:         member.points + pts,
-        lifetimePoints: newLifetime,
-        tier:           getTier(newLifetime).name,
-      }, sid)
+      patch.points = member.points + pts
+      patch.lifetimePoints = newLifetime
+      patch.tier = getTier(newLifetime).name
     }
+    if (addStamps > 0) {
+      patch.stamps = (member.stamps + addStamps) % STAMP_CARD_SIZE
+      patch.stampsEarned = member.stampsEarned + addStamps
+    }
+    if (Object.keys(patch).length > 0) await updateMember(member.id, patch, sid)
   }
   // Mark awarded even if 0 pts / member missing, so we never recompute this order.
   await supabase.from('orders').update({ points_awarded: true }).eq('id', orderId).eq('store_id', sid)
+}
+
+// Loyalty earn rates from the store's bar_settings (Settings → Loyalty).
+async function getLoyaltyConfig(storeId: string): Promise<{ bahtPerPoint: number; stampAuto: boolean; stampBahtPerStamp: number }> {
+  const raw = await getConfig('bar_settings', storeId)
+  let bahtPerPoint = 10, stampAuto = false, stampBahtPerStamp = 200
+  if (raw) {
+    try {
+      const s = JSON.parse(raw)
+      if (typeof s?.loyaltyBahtPerPoint === 'number' && s.loyaltyBahtPerPoint > 0) bahtPerPoint = s.loyaltyBahtPerPoint
+      if (typeof s?.stampAuto === 'boolean') stampAuto = s.stampAuto
+      if (typeof s?.stampBahtPerStamp === 'number' && s.stampBahtPerStamp > 0) stampBahtPerStamp = s.stampBahtPerStamp
+    } catch { /* defaults */ }
+  }
+  return { bahtPerPoint, stampAuto, stampBahtPerStamp }
 }
 
 // The store's sales-day reset time ("HH:MM"), from bar_settings; "00:00" default.
@@ -600,6 +622,16 @@ export async function getMemberByPhone(phone: string, storeId?: string): Promise
   const clean = phone.trim()
   if (!clean) return undefined
   const { data } = await supabase.from('members').select('*').eq('store_id', sid).eq('phone', clean).limit(1).maybeSingle()
+  return data ? mapMember(data) : undefined
+}
+
+// Find a member by exact name within a store — used to link a POS order (which
+// carries the selected member's name, not their phone) so it can earn points/stamps.
+export async function getMemberByName(name: string, storeId?: string): Promise<Member | undefined> {
+  const sid = await requireStoreId(storeId)
+  const clean = name.trim()
+  if (!clean) return undefined
+  const { data } = await supabase.from('members').select('*').eq('store_id', sid).eq('name', clean).limit(1).maybeSingle()
   return data ? mapMember(data) : undefined
 }
 

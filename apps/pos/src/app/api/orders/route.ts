@@ -1,7 +1,7 @@
 ﻿export const dynamic = "force-dynamic"
 
 import { NextRequest, NextResponse } from 'next/server'
-import { getOrders, getMenu, createOrder, recordCouponUse, getMemberByPhone } from '@/lib/store'
+import { getOrders, getMenu, createOrder, recordCouponUse, getMemberByPhone, getMemberByName, awardOrderPoints } from '@/lib/store'
 import { resolveStoreId, resolveStaffStoreId } from '@/lib/api-auth'
 import { appendOrderToSheet } from '@/lib/sheets'
 import { sendOrderAlert } from '@/lib/telegram'
@@ -77,6 +77,12 @@ export async function POST(req: NextRequest) {
       const m = await getMemberByPhone(memberPhone.trim(), storeId)
       if (m) { linkedMemberId = m.id; linkedMemberName = m.name }
     }
+    // POS orders carry the selected member's NAME (no phone) — resolve it to the
+    // member id so the order can earn points / stamps, same as a QR order.
+    if (!linkedMemberId && linkedMemberName && linkedMemberName.trim()) {
+      const m = await getMemberByName(linkedMemberName.trim(), storeId)
+      if (m) { linkedMemberId = m.id; linkedMemberName = m.name }
+    }
 
     // Delivery orders: channel is required, tableNo defaults to the channel short code
     const isDelivery = orderType === 'delivery'
@@ -130,6 +136,13 @@ export async function POST(req: NextRequest) {
       platformCode:  isDelivery && platformCode ? String(platformCode) : undefined,
       commissionRate: isDelivery && Number.isFinite(Number(commissionRate)) ? Number(commissionRate) : undefined,
     }, storeId)
+
+    // POS orders are created already 'paid' (and never PATCHed to paid), so credit
+    // loyalty here too. Idempotent + a no-op without a linked member, so it can't
+    // double-count against the PATCH path used by QR orders.
+    if (order.status === 'paid' && linkedMemberId) {
+      awardOrderPoints(order.id, storeId).catch(err => console.error('[Orders API] Points award failed:', err))
+    }
 
     // B-04: Atomic coupon recording â€” record in the same request as order creation
     if (couponId) {

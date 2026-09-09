@@ -653,7 +653,7 @@ export default function SettingsPage() {
 
   // ─── Bar settings ─────────────────────────────────────────────────────────
 
-  function updateCfg(key: keyof BarSettings, val: string | number) {
+  function updateCfg(key: keyof BarSettings, val: string | number | boolean) {
     setCfg(prev => prev ? { ...prev, [key]: val } : prev)
     setCfgSaved(false)
   }
@@ -1270,6 +1270,54 @@ export default function SettingsPage() {
                 </div>
               </>
             )}
+          </div>
+        </section>}
+
+        {/* ── Loyalty (points & auto stamps) ── */}
+        {activeTab === 'general' && cfg && <section>
+          <SectionTitle>{tr('setLoyaltyTitle')}</SectionTitle>
+          <div className="bg-white border border-gray-100 rounded-2xl p-5 flex flex-col gap-4 shadow-sm">
+            {/* ฿ per 1 point */}
+            <div className="flex items-center gap-3 flex-wrap">
+              <label className="text-sm text-gray-500 w-40 shrink-0">{tr('setBahtPerPoint')}</label>
+              <input
+                type="text" inputMode="numeric" pattern="[0-9]*"
+                value={String(cfg.loyaltyBahtPerPoint ?? 10)}
+                onChange={e => updateCfg('loyaltyBahtPerPoint', Math.max(1, parseInt(e.target.value.replace(/[^0-9]/g, '') || '0', 10) || 10))}
+                className="w-28 bg-white border border-gray-200 rounded-xl px-3 py-2.5 text-sm text-gray-900 focus:outline-none focus:border-amber-400 transition" />
+              <span className="text-xs text-gray-400">{tr('setBahtPerPointHint')}</span>
+            </div>
+
+            {/* Auto visit stamps */}
+            <label className="flex items-start gap-3 cursor-pointer">
+              <input type="checkbox" checked={!!cfg.stampAuto} onChange={e => updateCfg('stampAuto', e.target.checked)} className="mt-0.5 w-4 h-4 accent-amber-500" />
+              <span className="min-w-0">
+                <span className="text-sm font-bold text-gray-900">{tr('setStampAuto')}</span>
+                <span className="block text-[11px] text-gray-400 mt-0.5">{tr('setStampAutoHint')}</span>
+              </span>
+            </label>
+            {cfg.stampAuto && (
+              <div className="flex items-center gap-3 flex-wrap ml-7">
+                <label className="text-sm text-gray-500 w-36 shrink-0">{tr('setBahtPerStamp')}</label>
+                <input
+                  type="text" inputMode="numeric" pattern="[0-9]*"
+                  value={String(cfg.stampBahtPerStamp ?? 200)}
+                  onChange={e => updateCfg('stampBahtPerStamp', Math.max(1, parseInt(e.target.value.replace(/[^0-9]/g, '') || '0', 10) || 200))}
+                  className="w-28 bg-white border border-gray-200 rounded-xl px-3 py-2.5 text-sm text-gray-900 focus:outline-none focus:border-amber-400 transition" />
+                <span className="text-xs text-gray-400">{tr('setBahtPerStampHint')}</span>
+              </div>
+            )}
+
+            <div className="pt-1">
+              <button
+                onClick={saveCfg}
+                className={`px-6 py-2.5 rounded-xl text-sm font-bold transition active:scale-95 ${
+                  cfgSaved ? 'bg-emerald-500 text-white' : 'bg-amber-500 hover:bg-amber-400 text-black'
+                }`}
+              >
+                {cfgSaved ? `✓ ${tr('savedBang')}` : tr('saveChanges')}
+              </button>
+            </div>
           </div>
         </section>}
 
