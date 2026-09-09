@@ -379,9 +379,11 @@ export default function POSPage() {
     let priceAdjust = 0
     item.variants?.forEach(v => {
       const opt = v.options.find(o => o.id === variantSelections[v.id])
-      if (opt) { labels.push(opt.name); priceAdjust += opt.priceAdjust }
+      // A set spells out each slot ("Main: Fried rice · Drink: Coke"); a plain
+      // item just lists the chosen options.
+      if (opt) { labels.push(item.isSet ? `${v.name}: ${opt.name}` : opt.name); priceAdjust += opt.priceAdjust }
     })
-    addToCartDirect(item, labels.join(', ') || undefined, priceAdjust)
+    addToCartDirect(item, labels.join(item.isSet ? ' · ' : ', ') || undefined, priceAdjust)
     setVariantPicking(null)
     setVariantSelections({})
   }
@@ -901,42 +903,55 @@ export default function POSPage() {
             className="bg-white rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden"
             onClick={e => e.stopPropagation()}
           >
-            <div className="flex items-center justify-between px-5 py-4 border-b border-stone-100">
-              <div>
-                <h2 className="font-bold text-stone-900">{variantPicking.name}</h2>
-                <p className="text-xs text-stone-400 mt-0.5">Base price {baht(variantPicking.price)}</p>
+            <div className="flex items-start justify-between px-5 py-4 border-b border-stone-100 gap-3">
+              <div className="min-w-0">
+                <div className="flex items-center gap-2">
+                  {variantPicking.isSet && (
+                    <span className="text-[10px] font-black uppercase tracking-wide bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded">{t('setBadge')}</span>
+                  )}
+                  <h2 className="font-bold text-stone-900 truncate">{variantPicking.name}</h2>
+                </div>
+                <p className="text-xs text-stone-400 mt-0.5">
+                  {variantPicking.isSet ? t('setChooseHint') : `Base price ${baht(variantPicking.price)}`}
+                </p>
               </div>
               <button
                 onClick={() => { setVariantPicking(null); setVariantSelections({}) }}
-                className="text-stone-400 hover:text-stone-700 text-xl leading-none"
+                className="text-stone-400 hover:text-stone-700 text-xl leading-none shrink-0"
               >✕</button>
             </div>
-            <div className="p-4 flex flex-col gap-4 overflow-y-auto max-h-[50vh]">
+            {/* Delivery-app style: every option is a full-width row with a radio
+                dot, so picking per item in the set is quick and clear. */}
+            <div className="p-4 flex flex-col gap-4 overflow-y-auto max-h-[55vh] bg-stone-50">
               {variantPicking.variants?.map(v => (
                 <div key={v.id}>
                   <p className="text-xs font-bold text-stone-500 uppercase tracking-wide mb-2">
                     {v.name}
                     {v.required && <span className="text-red-400 ml-1 normal-case font-normal">*required</span>}
                   </p>
-                  <div className="grid grid-cols-2 gap-2">
-                    {v.options.map(opt => (
-                      <button
-                        key={opt.id}
-                        onClick={() => setVariantSelections(s => ({ ...s, [v.id]: opt.id }))}
-                        className={`py-2.5 px-3 rounded-xl text-sm font-semibold border transition active:scale-95 text-left ${
-                          variantSelections[v.id] === opt.id
-                            ? 'bg-stone-900 text-white border-stone-900'
-                            : 'bg-stone-50 text-stone-700 border-stone-200 hover:border-stone-400'
-                        }`}
-                      >
-                        <span>{opt.name}</span>
-                        {opt.priceAdjust !== 0 && (
-                          <span className="block text-xs opacity-70 mt-0.5">
-                            {opt.priceAdjust > 0 ? '+' : ''}{baht(opt.priceAdjust)}
+                  <div className="flex flex-col gap-1.5">
+                    {v.options.map(opt => {
+                      const sel = variantSelections[v.id] === opt.id
+                      return (
+                        <button
+                          key={opt.id}
+                          onClick={() => setVariantSelections(s => ({ ...s, [v.id]: opt.id }))}
+                          className={`w-full flex items-center gap-3 px-3.5 py-3 rounded-xl border-2 transition active:scale-[0.99] text-left ${
+                            sel ? 'bg-stone-900 border-stone-900' : 'bg-white border-stone-200 hover:border-stone-300'
+                          }`}
+                        >
+                          <span className={`w-5 h-5 rounded-full border-2 grid place-items-center shrink-0 ${sel ? 'border-white' : 'border-stone-300'}`}>
+                            {sel && <span className="w-2.5 h-2.5 rounded-full bg-white" />}
                           </span>
-                        )}
-                      </button>
-                    ))}
+                          <span className={`flex-1 text-sm font-semibold ${sel ? 'text-white' : 'text-stone-800'}`}>{opt.name}</span>
+                          {opt.priceAdjust !== 0 && (
+                            <span className={`text-sm font-bold shrink-0 ${sel ? 'text-white/90' : 'text-stone-500'}`}>
+                              {opt.priceAdjust > 0 ? '+' : ''}{baht(opt.priceAdjust)}
+                            </span>
+                          )}
+                        </button>
+                      )
+                    })}
                   </div>
                 </div>
               ))}
@@ -945,13 +960,22 @@ export default function POSPage() {
               {variantPicking.variants?.some(v => v.required && !variantSelections[v.id]) && (
                 <p className="text-xs text-amber-600 text-center mb-2">Select all required options *</p>
               )}
-              <button
-                onClick={confirmVariant}
-                disabled={variantPicking.variants?.some(v => v.required && !variantSelections[v.id])}
-                className="w-full py-3 rounded-xl bg-stone-900 text-white font-bold transition active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed"
-              >
-                Add to Order →
-              </button>
+              {(() => {
+                const adj = variantPicking.variants?.reduce((s, v) => {
+                  const o = v.options.find(o => o.id === variantSelections[v.id]); return s + (o?.priceAdjust ?? 0)
+                }, 0) ?? 0
+                const total = variantPicking.price + adj
+                return (
+                  <button
+                    onClick={confirmVariant}
+                    disabled={variantPicking.variants?.some(v => v.required && !variantSelections[v.id])}
+                    className="w-full py-3.5 rounded-xl bg-stone-900 text-white font-bold transition active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-between px-5"
+                  >
+                    <span>Add to Order →</span>
+                    <span className="tabular-nums">{baht(total)}</span>
+                  </button>
+                )
+              })()}
             </div>
           </div>
         </div>
@@ -1573,7 +1597,9 @@ export default function POSPage() {
                               {inCartQty}
                             </span>
                           )}
-                          {hasVariants && !inCart && (
+                          {item.isSet && !inCart ? (
+                            <span className="absolute top-2 left-2 bg-amber-500 text-white text-[9px] font-black uppercase tracking-wide rounded-full px-1.5 py-0.5 shadow-sm">{t('setBadge')}</span>
+                          ) : hasVariants && !inCart && (
                             <span className="absolute top-2 right-2 bg-black/50 text-white text-[9px] font-bold rounded-full px-1.5 py-0.5 backdrop-blur-sm">opt</span>
                           )}
                         </div>
@@ -1594,7 +1620,9 @@ export default function POSPage() {
                           {inCartQty}
                         </span>
                       )}
-                      {!hasImage && hasVariants && !inCart && (
+                      {!hasImage && item.isSet && !inCart ? (
+                        <span className="absolute top-2 right-2 bg-amber-500 text-white text-[9px] font-black uppercase tracking-wide rounded px-1 py-0.5">{t('setBadge')}</span>
+                      ) : !hasImage && hasVariants && !inCart && (
                         <span className="absolute top-2 right-2 bg-stone-200 text-stone-500 text-[9px] font-bold rounded px-1 py-0.5">opt</span>
                       )}
 
