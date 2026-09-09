@@ -34,6 +34,10 @@ export type BarSettings = {
   closeTime?:             string    // shop closing time "HH:MM" — bounds reservation end time
   businessDayCutoff?:     string    // "HH:MM" sales-day reset — orders before this count as the previous day (for past-midnight trading); "00:00" = calendar day
   targetFoodCostPct?:     number    // target COGS as a % of sale price (e.g. 30). Drives the "suggested price" hint in Items when a recipe's cost is known.
+  // ── Loyalty (auto-earn on a paid, member-linked order) ──
+  loyaltyBahtPerPoint?:   number    // ฿ spent to earn 1 base point (before tier multiplier). Default 10.
+  stampAuto?:             boolean   // auto-add visit stamp(s) on a paid order. Default off (staff add manually).
+  stampBahtPerStamp?:     number    // ฿ spent to earn 1 stamp when stampAuto is on. Default 200.
 }
 
 export type PrinterDevice = {
@@ -62,6 +66,9 @@ export const DEFAULT_BAR_SETTINGS: BarSettings = {
   closeTime:              '23:00',
   businessDayCutoff:      '00:00',
   targetFoodCostPct:      30,
+  loyaltyBahtPerPoint:    10,
+  stampAuto:              false,
+  stampBahtPerStamp:      200,
 }
 
 const LS_KEY = 'pos_bar_settings'

@@ -33,6 +33,19 @@ export function getPointsToNextTier(lifetimePoints: number): number | null {
   return TIERS[nextIdx].minPoints - lifetimePoints
 }
 
-export function computePointsEarned(orderTotal: number, tier: Tier): number {
-  return Math.floor(Math.floor(orderTotal / 10) * tier.multiplier)
+// Base rate: 1 point per `bahtPerPoint` spent (default ฿10), times the tier
+// multiplier. The shop configures bahtPerPoint in Settings.
+export function computePointsEarned(orderTotal: number, tier: Tier, bahtPerPoint = 10): number {
+  const per = bahtPerPoint > 0 ? bahtPerPoint : 10
+  return Math.floor(Math.floor(orderTotal / per) * tier.multiplier)
 }
+
+// Number of visit stamps a paid order earns, given the shop's ฿-per-stamp rate.
+// 0 when auto-stamping is off or the rate is invalid.
+export function computeStampsEarned(orderTotal: number, bahtPerStamp: number): number {
+  if (!bahtPerStamp || bahtPerStamp <= 0) return 0
+  return Math.floor(orderTotal / bahtPerStamp)
+}
+
+// Stamps per loyalty card (a full card = a reward). Kept fixed for now.
+export const STAMP_CARD_SIZE = 10
