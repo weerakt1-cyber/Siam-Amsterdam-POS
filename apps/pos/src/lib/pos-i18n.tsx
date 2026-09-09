@@ -402,6 +402,13 @@ const DICT = {
   setTargetFoodCostHint: { en: 'Used to suggest a sale price from a recipe’s cost (e.g. 30% = price is ~3.3× cost).', th: 'ใช้แนะนำราคาขายจากต้นทุนตามสูตร (เช่น 30% = ราคาขายประมาณ 3.3 เท่าของต้นทุน)' },
   fVatPct:           { en: 'VAT (%)',         th: 'VAT (%)' },
   fSelectionsVariants:{ en: 'Selections / Variants', th: 'ตัวเลือก / รูปแบบ' },
+  // Set / Combo builder (items editor)
+  fSetToggle:      { en: 'This is a Set / Combo', th: 'รายการนี้เป็นเซ็ต / คอมโบ' },
+  fSetToggleHint:  { en: 'Each option group below is one item slot in the set. The customer picks one choice per item; option prices add to the set price.', th: 'แต่ละกลุ่มตัวเลือกด้านล่างคือ 1 รายการในเซ็ต ลูกค้าเลือกได้ 1 อย่างต่อรายการ ราคาของตัวเลือกจะบวกเพิ่มเข้าราคาเซ็ต' },
+  fSetItemsTitle:  { en: 'Items in the set', th: 'รายการในเซ็ต' },
+  fSetItemsHint:   { en: 'Add each item slot — e.g. Main dish, Drink, Dessert — with its choices.', th: 'เพิ่มแต่ละรายการในเซ็ต — เช่น เมนูหลัก, เครื่องดื่ม, ของหวาน — พร้อมตัวเลือกของแต่ละรายการ' },
+  fSetItemName:    { en: 'Item name (e.g. Main dish)', th: 'ชื่อรายการ (เช่น เมนูหลัก)' },
+  fSetAddItem:     { en: 'Add item to set', th: 'เพิ่มรายการในเซ็ต' },
   fIngredients:      { en: 'Ingredients',     th: 'วัตถุดิบ' },
   fIngredientsHint:  { en: 'Pick what each serving uses and its unit (ml / g / shot…) — stock auto-cuts, precise to the ml, when orders are paid', th: 'เลือกวัตถุดิบและหน่วยที่ใช้ต่อ 1 ที่ (มล./ก./ช็อต…) — ระบบตัดสต๊อกอัตโนมัติละเอียดถึง มล. เมื่อชำระเงิน' },
   fCategoryName:     { en: 'Category Name',   th: 'ชื่อหมวดหมู่' },

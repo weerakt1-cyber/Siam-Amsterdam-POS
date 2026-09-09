@@ -53,6 +53,7 @@ export async function POST(req: NextRequest) {
       image:       body.image ? String(body.image) : undefined,
       sortOrder:   body.sortOrder != null ? Number(body.sortOrder) : undefined,
       variants:    Array.isArray(body.variants) ? body.variants : [],
+      isSet:       Boolean(body.isSet),
     }, storeId)
 
     return NextResponse.json({ item }, { status: 201 })

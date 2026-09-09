@@ -233,6 +233,10 @@ export type MenuItem = {
   image?: string          // data URL (prototype) or CDN URL (production)
   sortOrder?: number
   variants?: Variant[]
+  // Set / Combo: when true, this item is a set and each entry in `variants` is
+  // one item slot in the set (Main dish, Drink, …). The customer picks one
+  // option per slot; each option's priceAdjust adds to the set price.
+  isSet?: boolean
 }
 
 // ─── Menu ↔ Inventory linking ─────────────────────────────────────────────────
