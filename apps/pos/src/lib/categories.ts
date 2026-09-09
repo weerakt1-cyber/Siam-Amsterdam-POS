@@ -9,6 +9,8 @@
 // instant-first-paint cache: render last-known data immediately, then
 // fetchCategories() resolves with the authoritative list.
 
+import { authedFetch } from './supabase-browser'
+
 export type CatEntry = { value: string; label: string; color: string; icon?: string }
 
 export const DEFAULT_CATEGORIES: CatEntry[] = [
@@ -94,13 +96,23 @@ export async function fetchCategories(storeRef?: string): Promise<CatEntry[]> {
 
 // Persists the full ordered list to Supabase (source of truth for every device),
 // and updates the local cache + fires the same-device live-refresh event.
-export async function persistCategories(cats: CatEntry[]): Promise<void> {
+//
+// The save endpoint is staff-only and authenticates via the caller's Supabase
+// access token (Authorization: Bearer …), NOT a cookie — so we must send it with
+// authedFetch. A plain fetch() here has no token, gets 401, and the save is
+// silently dropped, which is exactly why edited categories weren't sticking.
+// Returns true only when the server actually accepted the write.
+export async function persistCategories(cats: CatEntry[]): Promise<boolean> {
   saveAllCategories(cats)
   try {
-    await fetch('/api/categories', {
+    const res = await authedFetch('/api/categories', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ categories: cats }),
     })
-  } catch { /* local cache is already updated; next fetchCategories() elsewhere will retry */ }
+    return res.ok
+  } catch {
+    // local cache is already updated; a later save/fetch will reconcile.
+    return false
+  }
 }
