@@ -213,12 +213,53 @@ function VariantEditor({
     )
   }
 
+  // Reorder slots/groups — the order here is exactly what QR and POS show, so
+  // moving an important slot up puts it first for the customer too.
+  function moveGroup(gid: string, dir: 'up' | 'down') {
+    const idx = variants.findIndex((v) => v.id === gid)
+    const to = dir === 'up' ? idx - 1 : idx + 1
+    if (idx < 0 || to < 0 || to >= variants.length) return
+    const next = [...variants]
+    ;[next[idx], next[to]] = [next[to], next[idx]]
+    onChange(next)
+  }
+
+  // Reorder the options inside a slot — the top option shows first for the customer.
+  function moveOption(gid: string, oid: string, dir: 'up' | 'down') {
+    onChange(
+      variants.map((v) => {
+        if (v.id !== gid) return v
+        const idx = v.options.findIndex((o) => o.id === oid)
+        const to = dir === 'up' ? idx - 1 : idx + 1
+        if (idx < 0 || to < 0 || to >= v.options.length) return v
+        const opts = [...v.options]
+        ;[opts[idx], opts[to]] = [opts[to], opts[idx]]
+        return { ...v, options: opts }
+      })
+    )
+  }
+
   return (
     <div className="flex flex-col gap-3">
-      {variants.map((v) => (
+      {variants.map((v, gi) => (
         <div key={v.id} className="bg-gray-100 border border-gray-200 rounded-xl p-4 flex flex-col gap-3">
           {/* Group header */}
           <div className="flex items-center gap-2">
+            {/* Reorder this slot — top slot shows first on QR / POS */}
+            <div className="flex flex-col shrink-0">
+              <button
+                onClick={() => moveGroup(v.id, 'up')}
+                disabled={gi === 0}
+                title="Move up"
+                className="w-6 h-4 rounded-t-md bg-gray-200 hover:bg-gray-300 text-gray-500 text-[10px] leading-none flex items-center justify-center disabled:opacity-30 transition"
+              >▲</button>
+              <button
+                onClick={() => moveGroup(v.id, 'down')}
+                disabled={gi === variants.length - 1}
+                title="Move down"
+                className="w-6 h-4 rounded-b-md bg-gray-200 hover:bg-gray-300 text-gray-500 text-[10px] leading-none flex items-center justify-center disabled:opacity-30 transition"
+              >▼</button>
+            </div>
             <input
               value={v.name}
               onChange={(e) => updateGroup(v.id, { name: e.target.value })}
@@ -251,9 +292,23 @@ function VariantEditor({
 
           {/* Options */}
           <div className="flex flex-col gap-2">
-            {v.options.map((opt) => (
+            {v.options.map((opt, oi) => (
               <div key={opt.id} className="flex items-center gap-2">
-                <span className="text-gray-400 text-sm shrink-0">◦</span>
+                {/* Reorder option — top option shows first on QR / POS */}
+                <div className="flex flex-col shrink-0">
+                  <button
+                    onClick={() => moveOption(v.id, opt.id, 'up')}
+                    disabled={oi === 0}
+                    title="Move up"
+                    className="w-5 h-3.5 rounded-t bg-gray-200 hover:bg-gray-300 text-gray-500 text-[9px] leading-none flex items-center justify-center disabled:opacity-30 transition"
+                  >▲</button>
+                  <button
+                    onClick={() => moveOption(v.id, opt.id, 'down')}
+                    disabled={oi === v.options.length - 1}
+                    title="Move down"
+                    className="w-5 h-3.5 rounded-b bg-gray-200 hover:bg-gray-300 text-gray-500 text-[9px] leading-none flex items-center justify-center disabled:opacity-30 transition"
+                  >▼</button>
+                </div>
                 <input
                   value={opt.name}
                   onChange={(e) => updateOption(v.id, opt.id, { name: e.target.value })}
