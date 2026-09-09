@@ -367,7 +367,7 @@ export default function CashPage() {
       )}
 
       {/* Header */}
-      <div className="px-5 pt-4 pb-3 bg-white border-b border-stone-200 shrink-0 flex items-center justify-between gap-3">
+      <div className="pl-16 pr-5 pt-4 pb-3 bg-white border-b border-stone-200 shrink-0 flex items-center justify-between gap-3">
         {/* Date nav */}
         <div className="flex items-center gap-3">
           <button onClick={() => shiftDate(-1)} className="w-8 h-8 rounded-lg bg-stone-100 hover:bg-stone-200 flex items-center justify-center text-stone-600 hover:text-stone-900 transition">‹</button>

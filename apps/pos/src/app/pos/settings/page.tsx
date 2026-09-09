@@ -1132,7 +1132,7 @@ export default function SettingsPage() {
       className="flex-1 flex flex-col overflow-hidden bg-gray-50 text-gray-900"
     >
       {/* Header */}
-      <div className="px-6 py-4 border-b border-gray-200 bg-white shrink-0 shadow-sm">
+      <div className="pl-16 pr-6 py-4 border-b border-gray-200 bg-white shrink-0 shadow-sm">
         <h1 className="text-xl font-bold text-gray-900">{tr('navSettings')}</h1>
         <p className="text-sm text-gray-400 mt-0.5">Business info, receipt, printer, and system configuration</p>
       </div>

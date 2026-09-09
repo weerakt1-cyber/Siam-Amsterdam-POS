@@ -248,7 +248,7 @@ export default function KitchenPage() {
   if (loading) {
     return (
       <div className="flex-1 bg-gray-950 text-white flex flex-col overflow-hidden">
-        <div className="flex items-center gap-3 px-4 py-3 border-b border-white/10 shrink-0">
+        <div className="flex items-center gap-3 pl-16 pr-4 py-3 border-b border-white/10 shrink-0">
           <div className="h-6 w-40 bg-white/10 rounded-lg animate-pulse" />
         </div>
         <div className="flex-1 grid grid-cols-2 md:grid-cols-3 gap-3 p-4">

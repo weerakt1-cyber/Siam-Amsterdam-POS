@@ -212,7 +212,7 @@ export default function ReservationsPage() {
   return (
     <div className="flex-1 flex flex-col overflow-hidden bg-[#FAF8F4]">
       {/* Top bar */}
-      <div className="flex items-center gap-3 px-4 py-3 border-b border-stone-200 shrink-0 bg-white">
+      <div className="flex items-center gap-3 pl-16 pr-4 py-3 border-b border-stone-200 shrink-0 bg-white">
         <span className="text-xl">📅</span>
         <h1 className="font-black text-base tracking-tight text-stone-900">{c.title}</h1>
         {pending.length > 0 && (

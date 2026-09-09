@@ -285,7 +285,7 @@ export default function MembersPage() {
       )}
 
       {/* Header */}
-      <div className="px-5 pt-4 pb-3 bg-white border-b border-gray-200 shrink-0 flex items-center justify-between">
+      <div className="pl-16 pr-5 pt-4 pb-3 bg-white border-b border-gray-200 shrink-0 flex items-center justify-between">
         <div>
           <h1 className="text-xl font-bold">{tr('navMembers')}</h1>
           <p className="text-xs text-gray-400 mt-0.5">{members.length} {tr('registeredMembers')}</p>
