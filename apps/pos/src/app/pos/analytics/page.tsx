@@ -396,7 +396,7 @@ export default function AnalyticsPage() {
   return (
     <div className="flex-1 flex flex-col overflow-hidden bg-stone-50 h-full">
       {/* Header */}
-      <div className="flex items-center justify-between px-5 py-3 border-b border-stone-200 bg-white shrink-0 shadow-sm">
+      <div className="flex items-center justify-between pl-16 pr-5 py-3 border-b border-stone-200 bg-white shrink-0 shadow-sm">
         <div className="flex items-center gap-3">
           <span className="text-lg">📊</span>
           <h1 className="text-base font-bold text-stone-900">{t('anTitle')}</h1>

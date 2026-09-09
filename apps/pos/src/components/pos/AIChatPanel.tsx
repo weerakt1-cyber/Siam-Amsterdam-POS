@@ -300,7 +300,7 @@ export default function AIChatPanel() {
       {/* ── Floating button ── */}
       <button
         onPointerDown={() => (open ? handleClose() : setOpen(true))}
-        className={`fixed top-2.5 right-3 sm:top-3 sm:right-4 z-[60] w-12 h-12 rounded-full shadow-xl flex items-center justify-center text-2xl transition-all active:scale-95 select-none overflow-hidden ${
+        className={`fixed top-2 left-2 sm:top-2.5 sm:left-16 z-[60] w-11 h-11 rounded-full shadow-xl flex items-center justify-center text-2xl transition-all active:scale-95 select-none overflow-hidden ${
           open ? 'bg-stone-800 text-white' : 'bg-black ring-1 ring-amber-500/40 hover:ring-amber-400'
         }`}
         title={AI_NAME}
@@ -313,10 +313,10 @@ export default function AIChatPanel() {
         <div
           className="fixed z-[59] flex flex-col bg-white rounded-2xl shadow-2xl border border-stone-200 overflow-hidden"
           style={{
-            top:       '4rem',
-            right:     '1rem',
-            width:     'min(calc(100vw - 2rem), 380px)',
-            maxHeight: 'calc(100dvh - 6rem)',
+            top:       '3.75rem',
+            left:      '0.75rem',
+            width:     'min(calc(100vw - 1.5rem), 380px)',
+            maxHeight: 'calc(100dvh - 5.5rem)',
           }}
         >
           {/* Header */}

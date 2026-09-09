@@ -539,7 +539,7 @@ export default function UsersPage() {
       <div className="flex-1 min-w-0 border-r border-gray-100 flex flex-col bg-white">
 
         {/* Staff header */}
-        <div className="px-4 py-3 flex items-center justify-between border-b border-gray-100">
+        <div className="pl-16 pr-4 py-3 flex items-center justify-between border-b border-gray-100">
           <p className="text-xs text-gray-400">{users.length} accounts</p>
           <div className="flex items-center gap-2">
             <InviteStaffButton />

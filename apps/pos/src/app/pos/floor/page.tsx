@@ -276,7 +276,7 @@ export default function FloorPage() {
     <div className="flex-1 flex flex-col overflow-hidden bg-stone-50 text-stone-900">
 
       {/* ── Toolbar ─────────────────────────────────────────────────────────── */}
-      <div className="px-4 py-3 bg-white border-b border-stone-200 flex items-center gap-3 shrink-0">
+      <div className="pl-16 pr-4 py-3 bg-white border-b border-stone-200 flex items-center gap-3 shrink-0">
         <h1 className="font-bold text-stone-900">{t('floorTitle')}</h1>
 
         {!editMode && (
