@@ -159,6 +159,9 @@ export default function POSPage() {
   const [memberPickerOpen, setMemberPickerOpen] = useState(false)
   const [couponPickerOpen, setCouponPickerOpen] = useState(false)
   const [memberSearch, setMemberSearch] = useState('')
+  const [newMemberMode, setNewMemberMode] = useState(false)   // add-member form open inside the picker
+  const [newMemberName, setNewMemberName] = useState('')
+  const [newMemberPhone, setNewMemberPhone] = useState('')
   const [members, setMembers] = useState<{ id: string; name: string; points: number; tier?: string; phone?: string }[]>(() => readCache('members') ?? [])
   const [couponCode, setCouponCode] = useState('')
   const [itemDiscountTarget, setItemDiscountTarget] = useState<string | null>(null)
@@ -497,6 +500,34 @@ export default function POSPage() {
     return false
   }
 
+  // Create a member on the fly from the picker (name required, phone optional),
+  // add them to the list + cache, and select them for this bill.
+  async function createNewMember() {
+    const name = newMemberName.trim()
+    if (!name) return
+    const phone = newMemberPhone.trim()
+    try {
+      const r = await authedFetch('/api/members', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name, phone: phone || undefined }),
+      })
+      if (!r.ok) { showToast((await r.json().catch(() => ({}))).error || t('memberAddFailed'), false); return }
+      const d = await r.json()
+      const m = d.member as { id: string; name: string; points?: number; tier?: string; phone?: string }
+      const mapped = { id: m.id, name: m.name, points: m.points ?? 0, tier: m.tier ?? 'bronze', phone: m.phone ?? phone }
+      setMembers(prev => {
+        const next = [mapped, ...prev.filter(x => x.id !== mapped.id)]
+        writeCache('members', next)
+        return next
+      })
+      setMemberName(mapped.name)
+      setPointsToRedeem(0)
+      setNewMemberMode(false); setNewMemberName(''); setNewMemberPhone('')
+      setMemberPickerOpen(false)
+    } catch { showToast(t('memberAddFailed'), false) }
+  }
+
   const mergedOrderIds = new Set(cart.filter(c => c.fromOrderId).map(c => c.fromOrderId!))
   // All open (unpaid) orders for this table — includes already-merged ones (for the modal)
   const allOpenTableOrders = orders.filter(o =>
@@ -776,8 +807,8 @@ export default function POSPage() {
               <h2 className="font-bold text-lg text-stone-900 flex items-center gap-2"><Ic src={PI.member} className="w-5 h-5 opacity-70" /> {t('memberPickTitle')}</h2>
               <button onClick={() => setMemberPickerOpen(false)} className="text-stone-400 hover:text-stone-700 text-3xl leading-none w-9 h-9 flex items-center justify-center">×</button>
             </div>
-            {/* Search by name or phone */}
-            <div className="px-5 pt-3 pb-2 shrink-0">
+            {/* Search by name or phone + New member */}
+            <div className="px-5 pt-3 pb-2 shrink-0 flex flex-col gap-2">
               <input
                 autoFocus
                 value={memberSearch}
@@ -786,6 +817,46 @@ export default function POSPage() {
                 inputMode="text"
                 className="w-full bg-stone-50 border border-stone-200 rounded-xl px-4 py-3 text-base text-stone-900 placeholder-stone-300 outline-none focus:border-violet-400 focus:bg-white transition"
               />
+              {!newMemberMode ? (
+                <button
+                  onClick={() => { setNewMemberMode(true); setNewMemberName(memberSearch.trim()); setNewMemberPhone('') }}
+                  className="w-full py-2.5 rounded-xl border-2 border-dashed border-violet-300 text-violet-600 font-bold text-sm hover:bg-violet-50 transition active:scale-[0.99]"
+                >
+                  {t('memberAddNew')}
+                </button>
+              ) : (
+                <div className="flex flex-col gap-2 rounded-xl border border-violet-200 bg-violet-50/50 p-3">
+                  <input
+                    autoFocus
+                    value={newMemberName}
+                    onChange={e => setNewMemberName(e.target.value)}
+                    placeholder={t('memberNamePh')}
+                    className="w-full bg-white border border-stone-200 rounded-lg px-3 py-2.5 text-base text-stone-900 placeholder-stone-300 outline-none focus:border-violet-400 transition"
+                  />
+                  <input
+                    value={newMemberPhone}
+                    onChange={e => setNewMemberPhone(e.target.value)}
+                    placeholder={t('memberPhonePh')}
+                    inputMode="tel"
+                    className="w-full bg-white border border-stone-200 rounded-lg px-3 py-2.5 text-base text-stone-900 placeholder-stone-300 outline-none focus:border-violet-400 transition"
+                  />
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => run('newmember', createNewMember)}
+                      disabled={!newMemberName.trim() || pending.newmember}
+                      className="flex-1 py-2.5 rounded-lg bg-violet-600 hover:bg-violet-500 text-white font-bold text-sm transition active:scale-95 disabled:opacity-40"
+                    >
+                      {pending.newmember ? '…' : t('memberAddSave')}
+                    </button>
+                    <button
+                      onClick={() => { setNewMemberMode(false); setNewMemberName(''); setNewMemberPhone('') }}
+                      className="px-4 py-2.5 rounded-lg bg-white border border-stone-200 text-stone-500 font-semibold text-sm hover:bg-stone-50 transition"
+                    >
+                      {t('cancel')}
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
             <div className="flex-1 min-h-0 overflow-y-auto px-3 pb-4 flex flex-col gap-1.5">
               {/* No member (clear) */}
@@ -1754,7 +1825,7 @@ export default function POSPage() {
             <div className="grid grid-cols-2 gap-2">
               {/* Member */}
               <button
-                onClick={() => { setMemberSearch(''); setMemberPickerOpen(true) }}
+                onClick={() => { setMemberSearch(''); setNewMemberMode(false); setMemberPickerOpen(true) }}
                 className={`flex items-center gap-2 rounded-xl px-3 py-2.5 text-sm font-semibold border transition active:scale-[0.98] text-left min-w-0 ${
                   memberName ? 'bg-violet-50 border-violet-200 text-violet-800' : 'bg-stone-50 border-stone-200 text-stone-600 hover:border-stone-300'
                 }`}
