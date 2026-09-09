@@ -70,52 +70,6 @@ function Ic({ src, color = ICON_AMBER, className = 'w-4 h-4' }: { src: string; c
   )
 }
 
-// Custom dropdown that can show a leading PNG icon — native <select>/<option>
-// can't render images, so the coupon + member pickers use this instead.
-function IconDropdown({
-  icon, placeholder, value, options, onPick,
-}: {
-  icon: string
-  placeholder: string
-  value: string                                   // label of current selection; '' = none
-  options: { value: string; label: string }[]
-  onPick: (value: string) => void
-}) {
-  const [open, setOpen] = useState(false)
-  return (
-    <div className="relative">
-      <button
-        type="button"
-        onClick={() => setOpen(o => !o)}
-        className="w-full flex items-center gap-2 bg-white border border-stone-200 rounded-xl px-3 py-2 text-sm text-stone-700 outline-none focus:border-stone-400 transition text-left"
-      >
-        <Ic src={icon} className="w-3.5 h-3.5 opacity-70" />
-        <span className={`flex-1 truncate ${value ? '' : 'text-stone-400'}`}>{value || placeholder}</span>
-        <span className={`text-[9px] text-stone-400 transition-transform ${open ? 'rotate-180' : ''}`}>▼</span>
-      </button>
-      {open && (
-        <>
-          <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
-          <div className="absolute left-0 right-0 bottom-full mb-1 z-50 bg-white rounded-xl shadow-xl border border-stone-200 overflow-hidden max-h-64 overflow-y-auto">
-            {options.map(o => (
-              <button
-                type="button"
-                key={o.value || '__none__'}
-                onClick={() => { onPick(o.value); setOpen(false) }}
-                className={`w-full text-left px-3 py-2 text-sm hover:bg-stone-50 transition truncate ${
-                  o.value === value ? 'bg-stone-50 font-semibold text-stone-900' : 'text-stone-700'
-                }`}
-              >
-                {o.label}
-              </button>
-            ))}
-          </div>
-        </>
-      )}
-    </div>
-  )
-}
-
 type CartItem = {
   menuId: string; name: string; qty: number; price: number
   variantLabel?: string
@@ -202,7 +156,10 @@ export default function POSPage() {
 
   const [search, setSearch] = useState('')
   const [memberName, setMemberName] = useState('')
-  const [members, setMembers] = useState<{ id: string; name: string; points: number; tier?: string }[]>(() => readCache('members') ?? [])
+  const [memberPickerOpen, setMemberPickerOpen] = useState(false)
+  const [couponPickerOpen, setCouponPickerOpen] = useState(false)
+  const [memberSearch, setMemberSearch] = useState('')
+  const [members, setMembers] = useState<{ id: string; name: string; points: number; tier?: string; phone?: string }[]>(() => readCache('members') ?? [])
   const [couponCode, setCouponCode] = useState('')
   const [itemDiscountTarget, setItemDiscountTarget] = useState<string | null>(null)
   const [itemDiscountValue,  setItemDiscountValue]  = useState('')
@@ -303,8 +260,8 @@ export default function POSPage() {
       .then((r) => r.json())
       .then((d) => {
         if (d.members?.length) {
-          const mapped = d.members.map((m: { id: string; name: string; points?: number; tier?: string }) => ({
-            id: m.id, name: m.name, points: m.points ?? 0, tier: m.tier ?? 'bronze',
+          const mapped = d.members.map((m: { id: string; name: string; points?: number; tier?: string; phone?: string }) => ({
+            id: m.id, name: m.name, points: m.points ?? 0, tier: m.tier ?? 'bronze', phone: m.phone ?? '',
           }))
           setMembers(mapped)
           writeCache('members', mapped)
@@ -809,6 +766,112 @@ export default function POSPage() {
           onClose={handleCheckoutClose}
           onComplete={handleCheckoutComplete}
         />
+      )}
+
+      {/* ── Member picker (full-screen, searchable by name or phone) ── */}
+      {memberPickerOpen && (
+        <div className="fixed inset-0 z-50 bg-black/60 flex items-end sm:items-center justify-center p-0 sm:p-4" onClick={() => setMemberPickerOpen(false)}>
+          <div className="bg-white w-full sm:max-w-md h-[85vh] sm:h-[80vh] rounded-t-3xl sm:rounded-3xl shadow-2xl flex flex-col overflow-hidden" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between px-5 py-4 border-b border-stone-100 shrink-0">
+              <h2 className="font-bold text-lg text-stone-900 flex items-center gap-2"><Ic src={PI.member} className="w-5 h-5 opacity-70" /> {t('memberPickTitle')}</h2>
+              <button onClick={() => setMemberPickerOpen(false)} className="text-stone-400 hover:text-stone-700 text-3xl leading-none w-9 h-9 flex items-center justify-center">×</button>
+            </div>
+            {/* Search by name or phone */}
+            <div className="px-5 pt-3 pb-2 shrink-0">
+              <input
+                autoFocus
+                value={memberSearch}
+                onChange={e => setMemberSearch(e.target.value)}
+                placeholder={t('memberSearchPh')}
+                inputMode="text"
+                className="w-full bg-stone-50 border border-stone-200 rounded-xl px-4 py-3 text-base text-stone-900 placeholder-stone-300 outline-none focus:border-violet-400 focus:bg-white transition"
+              />
+            </div>
+            <div className="flex-1 min-h-0 overflow-y-auto px-3 pb-4 flex flex-col gap-1.5">
+              {/* No member (clear) */}
+              <button
+                onClick={() => { setMemberName(''); setPointsToRedeem(0); setMemberPickerOpen(false) }}
+                className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl border transition active:scale-[0.99] text-left ${!memberName ? 'bg-stone-900 border-stone-900 text-white' : 'bg-white border-stone-200 text-stone-500 hover:border-stone-300'}`}
+              >
+                <span className="w-8 h-8 rounded-full bg-stone-200/60 grid place-items-center text-sm shrink-0">—</span>
+                <span className="flex-1 font-semibold">{t('noMember')}</span>
+              </button>
+              {(() => {
+                const q = memberSearch.trim().toLowerCase()
+                const list = members.filter(m =>
+                  !q || m.name.toLowerCase().includes(q) || (m.phone ?? '').toLowerCase().includes(q))
+                if (list.length === 0) return <p className="text-center text-sm text-stone-400 py-8">{t('noMembersFound')}</p>
+                return list.map(m => {
+                  const sel = m.name === memberName
+                  return (
+                    <button
+                      key={m.id}
+                      onClick={() => { setMemberName(m.name); setPointsToRedeem(0); setMemberPickerOpen(false) }}
+                      className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl border transition active:scale-[0.99] text-left ${sel ? 'bg-violet-600 border-violet-600 text-white' : 'bg-white border-stone-200 hover:border-violet-300'}`}
+                    >
+                      <span className={`w-9 h-9 rounded-full grid place-items-center font-bold text-sm shrink-0 ${sel ? 'bg-white/20 text-white' : 'bg-violet-100 text-violet-700'}`}>
+                        {m.name.charAt(0).toUpperCase()}
+                      </span>
+                      <span className="flex-1 min-w-0">
+                        <span className={`block font-bold truncate ${sel ? 'text-white' : 'text-stone-800'}`}>{m.name}</span>
+                        {m.phone && <span className={`block text-xs truncate ${sel ? 'text-white/80' : 'text-stone-400'}`}>{m.phone}</span>}
+                      </span>
+                      {m.points > 0 && (
+                        <span className={`text-xs font-bold shrink-0 ${sel ? 'text-white' : 'text-amber-600'}`}>{m.points} {t('memberPointsSuffix')}</span>
+                      )}
+                    </button>
+                  )
+                })
+              })()}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Coupon picker (full-screen) ── */}
+      {couponPickerOpen && (
+        <div className="fixed inset-0 z-50 bg-black/60 flex items-end sm:items-center justify-center p-0 sm:p-4" onClick={() => setCouponPickerOpen(false)}>
+          <div className="bg-white w-full sm:max-w-md h-[75vh] sm:h-[72vh] rounded-t-3xl sm:rounded-3xl shadow-2xl flex flex-col overflow-hidden" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between px-5 py-4 border-b border-stone-100 shrink-0">
+              <h2 className="font-bold text-lg text-stone-900 flex items-center gap-2"><Ic src={PI.coupon} className="w-5 h-5 opacity-70" /> {t('couponPickTitle')}</h2>
+              <button onClick={() => setCouponPickerOpen(false)} className="text-stone-400 hover:text-stone-700 text-3xl leading-none w-9 h-9 flex items-center justify-center">×</button>
+            </div>
+            <div className="flex-1 min-h-0 overflow-y-auto px-3 py-3 flex flex-col gap-1.5">
+              {/* Remove coupon */}
+              <button
+                onClick={() => { setAppliedCoupon(null); setCouponError(''); setCouponPickerOpen(false) }}
+                className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl border transition active:scale-[0.99] text-left ${!appliedCoupon ? 'bg-stone-900 border-stone-900 text-white' : 'bg-white border-stone-200 text-stone-500 hover:border-stone-300'}`}
+              >
+                <span className="w-8 h-8 rounded-full bg-stone-200/60 grid place-items-center text-sm shrink-0">—</span>
+                <span className="flex-1 font-semibold">{t('couponNone')}</span>
+              </button>
+              {coupons.length === 0 ? (
+                <p className="text-center text-sm text-stone-400 py-8">{t('noActiveCoupons')}</p>
+              ) : coupons.map(c => {
+                const sel = appliedCoupon?.code === c.code
+                return (
+                  <button
+                    key={c.id ?? c.code}
+                    onClick={() => { setCouponPickerOpen(false); run('coupon', () => applyCoupon(c.code)) }}
+                    disabled={pending.coupon}
+                    className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl border transition active:scale-[0.99] text-left disabled:opacity-50 ${sel ? 'bg-emerald-600 border-emerald-600 text-white' : 'bg-white border-stone-200 hover:border-emerald-300'}`}
+                  >
+                    <span className={`w-9 h-9 rounded-lg grid place-items-center shrink-0 ${sel ? 'bg-white/20' : 'bg-emerald-50'}`}>
+                      <Ic src={PI.coupon} className="w-4 h-4" />
+                    </span>
+                    <span className="flex-1 min-w-0">
+                      <span className={`block font-bold truncate ${sel ? 'text-white' : 'text-stone-800'}`}>{c.code}</span>
+                      <span className={`block text-xs truncate ${sel ? 'text-white/80' : 'text-stone-400'}`}>{c.name}</span>
+                    </span>
+                    <span className={`text-sm font-black shrink-0 ${sel ? 'text-white' : 'text-emerald-600'}`}>
+                      {c.type === 'percent' ? `${c.value}%` : `฿${c.value}`}
+                    </span>
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+        </div>
       )}
 
       {/* Split Bill modal */}
@@ -1685,43 +1748,38 @@ export default function POSPage() {
             )}
           </div>
 
-          {/* Member + Coupon — moved up out of the footer so the item list has more room */}
+          {/* Member + Coupon — tap to open a full-screen picker (easier on a tablet
+              than a tiny dropdown). */}
           <div className="px-4 py-2 border-b border-stone-100 bg-white shrink-0 flex flex-col gap-1.5">
             <div className="grid grid-cols-2 gap-2">
               {/* Member */}
-              <IconDropdown
-                icon={PI.member}
-                placeholder={t('noMember')}
-                value={memberName}
-                options={[
-                  { value: '', label: t('noMember') },
-                  ...members.map(m => ({ value: m.name, label: `${m.name} ${m.points > 0 ? `(${m.points} pts)` : ''}` })),
-                ]}
-                onPick={name => { setMemberName(name); setPointsToRedeem(0) }}
-              />
+              <button
+                onClick={() => { setMemberSearch(''); setMemberPickerOpen(true) }}
+                className={`flex items-center gap-2 rounded-xl px-3 py-2.5 text-sm font-semibold border transition active:scale-[0.98] text-left min-w-0 ${
+                  memberName ? 'bg-violet-50 border-violet-200 text-violet-800' : 'bg-stone-50 border-stone-200 text-stone-600 hover:border-stone-300'
+                }`}
+              >
+                <Ic src={PI.member} className="w-4 h-4 shrink-0 opacity-70" />
+                <span className="flex-1 truncate">{memberName || t('noMember')}</span>
+                {memberName
+                  ? <span onClick={e => { e.stopPropagation(); setMemberName(''); setPointsToRedeem(0) }} className="text-stone-400 hover:text-red-500 shrink-0">✕</span>
+                  : <span className="text-stone-300 shrink-0">▸</span>}
+              </button>
               {/* Coupon */}
-              {appliedCoupon ? (
-                <div className="flex items-center gap-1.5 bg-emerald-50 border border-emerald-200 rounded-xl px-3 py-2 min-w-0">
-                  <span className="flex items-center gap-1 text-emerald-700 text-xs flex-1 font-bold min-w-0 truncate">
-                    <Ic src={PI.coupon} className="w-3.5 h-3.5 shrink-0" /> <span className="truncate">{appliedCoupon.code} · -{baht(couponDiscountAmount)}</span>
-                  </span>
-                  <button
-                    onClick={() => setAppliedCoupon(null)}
-                    className="text-stone-400 hover:text-red-500 text-xs transition shrink-0"
-                  >✕</button>
-                </div>
-              ) : (
-                <IconDropdown
-                  icon={PI.coupon}
-                  placeholder={coupons.length > 0 ? t('selectCoupon') : t('noActiveCoupons')}
-                  value=""
-                  options={coupons.map(c => ({
-                    value: c.code,
-                    label: `${c.code} — ${c.name} (${c.type === 'percent' ? `${c.value}%` : `฿${c.value}`} off)`,
-                  }))}
-                  onPick={code => run('coupon', () => applyCoupon(code))}
-                />
-              )}
+              <button
+                onClick={() => setCouponPickerOpen(true)}
+                className={`flex items-center gap-2 rounded-xl px-3 py-2.5 text-sm font-semibold border transition active:scale-[0.98] text-left min-w-0 ${
+                  appliedCoupon ? 'bg-emerald-50 border-emerald-200 text-emerald-700' : 'bg-stone-50 border-stone-200 text-stone-600 hover:border-stone-300'
+                }`}
+              >
+                <Ic src={PI.coupon} className="w-4 h-4 shrink-0 opacity-70" />
+                <span className="flex-1 truncate">
+                  {appliedCoupon ? `${appliedCoupon.code} · -${baht(couponDiscountAmount)}` : (coupons.length > 0 ? t('selectCoupon') : t('noActiveCoupons'))}
+                </span>
+                {appliedCoupon
+                  ? <span onClick={e => { e.stopPropagation(); setAppliedCoupon(null) }} className="text-stone-400 hover:text-red-500 shrink-0">✕</span>
+                  : <span className="text-stone-300 shrink-0">▸</span>}
+              </button>
             </div>
             {couponError && <p className="text-xs text-red-500 px-1">{couponError}</p>}
           </div>
