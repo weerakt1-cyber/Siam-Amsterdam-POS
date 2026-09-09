@@ -566,6 +566,7 @@ const DICT = {
   itChangesSaved:    { en: 'Changes saved', th: 'บันทึกการเปลี่ยนแปลงแล้ว' },
   itSaveFailed:      { en: 'Save failed', th: 'บันทึกไม่สำเร็จ' },
   itDeleteFailed:    { en: 'Delete failed', th: 'ลบไม่สำเร็จ' },
+  itUnsavedConfirm:  { en: 'You have unsaved changes. Leave without saving?', th: 'คุณมีข้อมูลที่ยังไม่ได้บันทึก ต้องการออกโดยไม่บันทึกใช่หรือไม่?' },
   itAnalysisFailed:  { en: 'Analysis failed', th: 'วิเคราะห์ไม่สำเร็จ' },
   itAnalyzeMenuFail: { en: 'Failed to analyze menu', th: 'วิเคราะห์เมนูไม่สำเร็จ' },
   itApplyPriceFail:  { en: 'Failed to apply price', th: 'ปรับราคาไม่สำเร็จ' },

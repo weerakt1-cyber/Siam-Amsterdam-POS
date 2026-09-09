@@ -372,6 +372,7 @@ export default function ItemsPage() {
   const [search, setSearch] = useState('')
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [isCreating, setIsCreating] = useState(false)
+  const [dirty, setDirty] = useState(false)   // unsaved edits in the open form
   const [form, setForm] = useState<FormState>(emptyForm())
   const [isSaving, setIsSaving] = useState(false)
   const [isDeleting, setIsDeleting] = useState(false)
@@ -459,7 +460,18 @@ export default function ItemsPage() {
     setTimeout(() => setToast(null), 3000)
   }
 
+  // Guard against losing unsaved edits: any field/recipe change flips `dirty`,
+  // and every action that would replace the form (pick another item, New item,
+  // navigate/close the tab) asks to confirm first. Cleared on load and save.
+  const confirmDiscard = useCallback(() => {
+    if (!dirty) return true
+    return window.confirm(tr('itUnsavedConfirm'))
+  }, [dirty, tr])
+
   function selectItem(item: MenuItem) {
+    if (item.id === selectedId) return       // already open — no reload, no prompt
+    if (!confirmDiscard()) return
+    setDirty(false)
     setSelectedId(item.id)
     setIsCreating(false)
     setForm(itemToForm(item))
@@ -468,6 +480,8 @@ export default function ItemsPage() {
   }
 
   function startCreate() {
+    if (!confirmDiscard()) return
+    setDirty(false)
     setSelectedId(null)
     setIsCreating(true)
     setForm(emptyForm())
@@ -476,8 +490,24 @@ export default function ItemsPage() {
   }
 
   function setField<K extends keyof FormState>(key: K, val: FormState[K]) {
+    setDirty(true)
     setForm((prev) => ({ ...prev, [key]: val }))
   }
+
+  // setIngredients wrapper for USER edits (marks dirty). Loading a recipe from
+  // the server uses setIngredients directly so it never trips the guard.
+  function editIngredients(updater: (prev: FormIngredient[]) => FormIngredient[]) {
+    setDirty(true)
+    setIngredients(updater)
+  }
+
+  // Warn on tab close / refresh / hard navigation while there are unsaved edits.
+  useEffect(() => {
+    if (!dirty) return
+    const onBeforeUnload = (e: BeforeUnloadEvent) => { e.preventDefault(); e.returnValue = '' }
+    window.addEventListener('beforeunload', onBeforeUnload)
+    return () => window.removeEventListener('beforeunload', onBeforeUnload)
+  }, [dirty])
 
   async function handleImageUpload(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
@@ -579,6 +609,7 @@ export default function ItemsPage() {
         await fetchMenu()
         await fetchIngredients(selectedId)
       }
+      setDirty(false)   // saved — the open form now matches the server
     } catch (err) {
       showToast(err instanceof Error ? err.message : tr('itSaveFailed'), false)
     } finally {
@@ -596,6 +627,7 @@ export default function ItemsPage() {
       const r = await authedFetch(`/api/menu/${selectedId}`, { method: 'DELETE' })
       if (!r.ok) throw new Error((await r.json()).error)
       showToast(`"${item?.name}" deleted`)
+      setDirty(false)
       setSelectedId(null)
       setIsCreating(false)
       await fetchMenu()
@@ -1256,7 +1288,7 @@ export default function ItemsPage() {
                                 inputMode="decimal"
                                 value={ing.quantityPerServing}
                                 placeholder="0"
-                                onChange={e => setIngredients(prev => prev.map(i =>
+                                onChange={e => editIngredients(prev => prev.map(i =>
                                   i._key === ing._key
                                     ? { ...i, quantityPerServing: e.target.value === '' ? '' : (Number(e.target.value) || 0) }
                                     : i
@@ -1265,7 +1297,7 @@ export default function ItemsPage() {
                               />
                               <select
                                 value={ing.unit}
-                                onChange={e => setIngredients(prev => prev.map(i =>
+                                onChange={e => editIngredients(prev => prev.map(i =>
                                   i._key === ing._key ? { ...i, unit: e.target.value } : i
                                 ))}
                                 className="w-24 bg-white border border-gray-200 rounded-lg px-1.5 py-1 text-sm text-gray-900 outline-none focus:border-amber-500/60 shrink-0"
@@ -1275,7 +1307,7 @@ export default function ItemsPage() {
                                 ))}
                               </select>
                               <button
-                                onClick={() => setIngredients(prev => prev.filter(i => i._key !== ing._key))}
+                                onClick={() => editIngredients(prev => prev.filter(i => i._key !== ing._key))}
                                 className="w-6 h-6 rounded-md bg-slate-200 hover:bg-red-700/60 text-gray-500 hover:text-white flex items-center justify-center text-xs transition shrink-0"
                               >
                                 ×
@@ -1320,7 +1352,7 @@ export default function ItemsPage() {
                               key={i.id}
                               onMouseDown={e => e.preventDefault()}
                               onClick={() => {
-                                setIngredients(prev => [...prev, {
+                                editIngredients(prev => [...prev, {
                                   _key: `${i.id}-${prev.length}`,
                                   inventoryItemId: i.id,
                                   quantityPerServing: '',
