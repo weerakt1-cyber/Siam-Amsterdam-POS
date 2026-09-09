@@ -79,6 +79,7 @@ type FormState = {
   available: boolean
   image: string
   variants: Variant[]
+  isSet: boolean
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -87,7 +88,7 @@ function emptyForm(): FormState {
   return {
     name: '', nameTh: '', sku: '', description: '',
     category: 'cocktail', price: '', cost: '', unit: 'glass',
-    taxRate: '7', available: true, image: '', variants: [],
+    taxRate: '7', available: true, image: '', variants: [], isSet: false,
   }
 }
 
@@ -105,6 +106,7 @@ function itemToForm(item: MenuItem): FormState {
     available: item.available,
     image: item.image ?? '',
     variants: item.variants ? JSON.parse(JSON.stringify(item.variants)) : [],
+    isSet: !!item.isSet,
   }
 }
 
@@ -142,12 +144,19 @@ async function compressImage(file: File): Promise<string> {
 function VariantEditor({
   variants,
   onChange,
+  isSet = false,
+  groupLabel,
+  addLabel,
 }: {
   variants: Variant[]
   onChange: (v: Variant[]) => void
+  isSet?: boolean
+  groupLabel?: string   // placeholder for a group's name (a set calls it an "item")
+  addLabel?: string     // label for the add-group button
 }) {
   function addGroup() {
-    onChange([...variants, { id: uid(), name: 'Option group', required: false, options: [] }])
+    // A set's slots are required by default (the customer must choose one per item).
+    onChange([...variants, { id: uid(), name: isSet ? '' : 'Option group', required: isSet, options: [] }])
   }
 
   function removeGroup(gid: string) {
@@ -195,7 +204,7 @@ function VariantEditor({
             <input
               value={v.name}
               onChange={(e) => updateGroup(v.id, { name: e.target.value })}
-              placeholder="Group name (e.g. Size)"
+              placeholder={groupLabel ?? 'Group name (e.g. Size)'}
               className="flex-1 bg-gray-100 rounded-lg px-3 py-1.5 text-sm font-semibold text-gray-900 outline-none focus:ring-1 focus:ring-amber-500"
             />
             <label className="flex items-center gap-1.5 text-xs text-gray-500 cursor-pointer select-none shrink-0">
@@ -262,7 +271,7 @@ function VariantEditor({
         className="flex items-center gap-2 text-sm text-gray-500 hover:text-gray-700 border border-dashed border-gray-200 hover:border-amber-300 rounded-xl px-4 py-3 transition"
       >
         <span className="text-lg leading-none">+</span>
-        Add variant group
+        {addLabel ?? 'Add variant group'}
       </button>
     </div>
   )
@@ -503,6 +512,7 @@ export default function ItemsPage() {
       unit: form.unit,
       taxRate: Number(form.taxRate),
       available: form.available,
+      isSet: form.isSet,
       image: form.image || undefined,
       variants: form.variants,
     }
@@ -1151,17 +1161,37 @@ export default function ItemsPage() {
                   )}
                 </section>
 
-                {/* ── Section: Variants / Selections ── */}
+                {/* ── Section: Variants / Selections (also the Set/Combo builder) ── */}
                 <section className="flex flex-col gap-4">
+                  {/* Set / Combo toggle: a set is a menu item whose option groups
+                      below each represent one item slot in the combo. */}
+                  <label className="flex items-start gap-3 rounded-xl border border-gray-200 bg-gray-50 px-3 py-2.5 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={form.isSet}
+                      onChange={(e) => setField('isSet', e.target.checked)}
+                      className="mt-0.5 w-4 h-4 accent-amber-500"
+                    />
+                    <span className="min-w-0">
+                      <span className="text-sm font-bold text-gray-900">{tr('fSetToggle')}</span>
+                      <span className="block text-xs text-gray-400 mt-0.5">{tr('fSetToggleHint')}</span>
+                    </span>
+                  </label>
+
                   <div>
-                    <h3 className="text-xs font-bold text-gray-400 uppercase tracking-widest">{tr('fSelectionsVariants')}</h3>
+                    <h3 className="text-xs font-bold text-gray-400 uppercase tracking-widest">
+                      {form.isSet ? tr('fSetItemsTitle') : tr('fSelectionsVariants')}
+                    </h3>
                     <p className="text-xs text-gray-400 mt-1">
-                      Add modifier groups — e.g. Size (S/M/L), Ice level, Spirit choice
+                      {form.isSet ? tr('fSetItemsHint') : 'Add modifier groups — e.g. Size (S/M/L), Ice level, Spirit choice'}
                     </p>
                   </div>
                   <VariantEditor
                     variants={form.variants}
                     onChange={(v) => setField('variants', v)}
+                    isSet={form.isSet}
+                    groupLabel={form.isSet ? tr('fSetItemName') : undefined}
+                    addLabel={form.isSet ? tr('fSetAddItem') : undefined}
                   />
                 </section>
 

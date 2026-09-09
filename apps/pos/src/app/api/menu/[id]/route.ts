@@ -27,6 +27,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       ...(body.image       !== undefined && { image:       body.image || undefined }),
       ...(body.sortOrder   !== undefined && { sortOrder:   Number(body.sortOrder) }),
       ...(body.variants    !== undefined && { variants:    body.variants }),
+      ...(body.isSet       !== undefined && { isSet:       Boolean(body.isSet) }),
     }, storeId)
 
     if (!updated) return NextResponse.json({ error: 'Item not found' }, { status: 404 })

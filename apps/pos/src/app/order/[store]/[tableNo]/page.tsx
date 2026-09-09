@@ -351,9 +351,11 @@ export default function OrderPage({ params }: { params: Promise<{ store: string;
     let priceAdjust = 0
     variantItem.variants?.forEach(v => {
       const opt = v.options.find(o => o.id === variantSels[v.id])
-      if (opt) { labels.push(opt.name); priceAdjust += opt.priceAdjust }
+      // A set spells out each slot ("Main: Fried rice · Drink: Coke") so the
+      // kitchen ticket is unambiguous; a plain item just lists the choices.
+      if (opt) { labels.push(variantItem.isSet ? `${v.name}: ${opt.name}` : opt.name); priceAdjust += opt.priceAdjust }
     })
-    addItem(variantItem, labels.join(', ') || undefined, priceAdjust)
+    addItem(variantItem, labels.join(variantItem.isSet ? ' · ' : ', ') || undefined, priceAdjust)
     setVariantItem(null); setVariantSels({})
   }
 
@@ -864,7 +866,11 @@ export default function OrderPage({ params }: { params: Promise<{ store: string;
                       {inCartQty}
                     </span>
                   )}
-                  {hasVariants && (
+                  {item.isSet ? (
+                    <span className="absolute top-2 left-2 bg-amber-500 text-white text-[9px] font-black uppercase tracking-wide px-1.5 py-0.5 rounded-full shadow-sm">
+                      {t('setBadge')}
+                    </span>
+                  ) : hasVariants && (
                     <span className="absolute top-2 left-2 bg-black/40 text-white text-[9px] font-bold px-1.5 py-0.5 rounded-full">
                       options
                     </span>
@@ -1104,37 +1110,50 @@ export default function OrderPage({ params }: { params: Promise<{ store: string;
           <div className="absolute inset-0 bg-black/50" />
           <div className="relative bg-white rounded-3xl w-full max-w-sm overflow-hidden shadow-2xl" onClick={e => e.stopPropagation()}>
             <div className="px-5 py-4 border-b border-gray-100 flex items-start justify-between gap-3">
-              <div>
-                <h3 className="font-black text-gray-900">{variantItem.name}</h3>
-                <p className="text-xs text-gray-400 mt-0.5">{t('basePriceLabel')} {baht(variantItem.price)}</p>
+              <div className="min-w-0">
+                <div className="flex items-center gap-2">
+                  {variantItem.isSet && (
+                    <span className="text-[10px] font-black uppercase tracking-wide bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded">{t('setBadge')}</span>
+                  )}
+                  <h3 className="font-black text-gray-900 truncate">{variantItem.name}</h3>
+                </div>
+                <p className="text-xs text-gray-400 mt-0.5">
+                  {variantItem.isSet ? t('setChooseHint') : `${t('basePriceLabel')} ${baht(variantItem.price)}`}
+                </p>
               </div>
               <button onClick={() => setVariantItem(null)} className="text-gray-400 text-xl w-7 h-7 flex items-center justify-center shrink-0">×</button>
             </div>
-            <div className="p-5 flex flex-col gap-4 max-h-[50vh] overflow-y-auto">
+            {/* Delivery-app style: every option is its own full-width row with a
+                radio dot, so choosing per item in the set is quick and clear. */}
+            <div className="p-4 flex flex-col gap-4 max-h-[55vh] overflow-y-auto bg-gray-50">
               {variantItem.variants?.map(v => (
                 <div key={v.id}>
-                  <p className="text-xs font-bold text-gray-400 uppercase tracking-wide mb-2">
-                    {v.name}{v.required && <span className="text-amber-500 ml-1 normal-case font-normal">{t('requiredTag')}</span>}
+                  <p className="text-xs font-bold text-gray-500 uppercase tracking-wide mb-2 flex items-center gap-1.5">
+                    {v.name}{v.required && <span className="text-amber-500 normal-case font-normal">{t('requiredTag')}</span>}
                   </p>
-                  <div className="grid grid-cols-2 gap-2">
-                    {v.options.map(opt => (
-                      <button
-                        key={opt.id}
-                        onClick={() => setVariantSels(s => ({ ...s, [v.id]: opt.id }))}
-                        className={`py-2.5 px-3 rounded-xl text-sm font-semibold border-2 transition active:scale-95 text-left ${
-                          variantSels[v.id] === opt.id
-                            ? 'bg-gray-900 text-white border-gray-900'
-                            : 'bg-white text-gray-700 border-gray-200 hover:border-gray-400'
-                        }`}
-                      >
-                        {opt.name}
-                        {opt.priceAdjust !== 0 && (
-                          <span className="block text-xs opacity-60 mt-0.5">
-                            {opt.priceAdjust > 0 ? '+' : ''}{baht(opt.priceAdjust)}
+                  <div className="flex flex-col gap-1.5">
+                    {v.options.map(opt => {
+                      const sel = variantSels[v.id] === opt.id
+                      return (
+                        <button
+                          key={opt.id}
+                          onClick={() => setVariantSels(s => ({ ...s, [v.id]: opt.id }))}
+                          className={`w-full flex items-center gap-3 px-3.5 py-3 rounded-xl border-2 transition active:scale-[0.99] text-left ${
+                            sel ? 'bg-gray-900 border-gray-900' : 'bg-white border-gray-200 hover:border-gray-300'
+                          }`}
+                        >
+                          <span className={`w-5 h-5 rounded-full border-2 grid place-items-center shrink-0 ${sel ? 'border-white' : 'border-gray-300'}`}>
+                            {sel && <span className="w-2.5 h-2.5 rounded-full bg-white" />}
                           </span>
-                        )}
-                      </button>
-                    ))}
+                          <span className={`flex-1 text-sm font-semibold ${sel ? 'text-white' : 'text-gray-800'}`}>{opt.name}</span>
+                          {opt.priceAdjust !== 0 && (
+                            <span className={`text-sm font-bold shrink-0 ${sel ? 'text-white/90' : 'text-gray-500'}`}>
+                              {opt.priceAdjust > 0 ? '+' : ''}{baht(opt.priceAdjust)}
+                            </span>
+                          )}
+                        </button>
+                      )
+                    })}
                   </div>
                 </div>
               ))}
@@ -1143,13 +1162,22 @@ export default function OrderPage({ params }: { params: Promise<{ store: string;
               {variantItem.variants?.some(v => v.required && !variantSels[v.id]) && (
                 <p className="text-xs text-amber-500 text-center mb-2">{t('selectAllRequired')}</p>
               )}
-              <button
-                onClick={confirmVariant}
-                disabled={variantItem.variants?.some(v => v.required && !variantSels[v.id])}
-                className="w-full py-3 rounded-xl bg-gray-900 text-white font-bold transition active:scale-95 disabled:opacity-30 disabled:cursor-not-allowed"
-              >
-                {t('addToOrder')}
-              </button>
+              {(() => {
+                const adj = variantItem.variants?.reduce((s, v) => {
+                  const o = v.options.find(o => o.id === variantSels[v.id]); return s + (o?.priceAdjust ?? 0)
+                }, 0) ?? 0
+                const total = variantItem.price + adj
+                return (
+                  <button
+                    onClick={confirmVariant}
+                    disabled={variantItem.variants?.some(v => v.required && !variantSels[v.id])}
+                    className="w-full py-3.5 rounded-xl bg-gray-900 text-white font-bold transition active:scale-95 disabled:opacity-30 disabled:cursor-not-allowed flex items-center justify-between px-5"
+                  >
+                    <span>{t('addToOrder')}</span>
+                    <span className="tabular-nums">{baht(total)}</span>
+                  </button>
+                )
+              })()}
             </div>
           </div>
         </div>

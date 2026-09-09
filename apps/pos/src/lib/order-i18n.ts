@@ -28,6 +28,7 @@ export type OrderStringKey =
   | 'placeOrder' | 'placingOrder' | 'staffWillBring' | 'each'
   | 'checkYourOrder' | 'makeSureCorrect' | 'noteLabel' | 'confirmOrder' | 'goBack'
   | 'basePriceLabel' | 'requiredTag' | 'selectAllRequired' | 'addToOrder'
+  | 'setBadge' | 'setChooseHint'
   | 'orderStatus' | 'orderNum' | 'cancelled' | 'items'
   | 'orderReceived' | 'preparing' | 'ready' | 'delivered'
   | 'yourOrderReady' | 'staffBringShortly' | 'orderMore' | 'refreshing'
@@ -86,6 +87,8 @@ export const STRINGS: Record<Lang, Record<OrderStringKey, string>> = {
     requiredTag:        '*required',
     selectAllRequired:  'Please select all required options *',
     addToOrder:         'Add to Order →',
+    setBadge:           'Set',
+    setChooseHint:      'Choose one option for each item',
     orderStatus:        'Order Status',
     orderNum:           'Order',
     cancelled:          'Cancelled',
@@ -162,6 +165,8 @@ export const STRINGS: Record<Lang, Record<OrderStringKey, string>> = {
     requiredTag:        '*обязательно',
     selectAllRequired:  'Пожалуйста, выберите все обязательные опции *',
     addToOrder:         'Добавить в заказ →',
+    setBadge:           'Сет',
+    setChooseHint:      'Выберите один вариант для каждого блюда',
     orderStatus:        'Статус заказа',
     orderNum:           'Заказ',
     cancelled:          'Отменён',
@@ -238,6 +243,8 @@ export const STRINGS: Record<Lang, Record<OrderStringKey, string>> = {
     requiredTag:        '*必选',
     selectAllRequired:  '请选择所有必选项 *',
     addToOrder:         '加入订单 →',
+    setBadge:           '套餐',
+    setChooseHint:      '每项请选择一个选项',
     orderStatus:        '订单状态',
     orderNum:           '订单',
     cancelled:          '已取消',

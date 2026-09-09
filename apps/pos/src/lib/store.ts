@@ -44,6 +44,7 @@ function mapMenuItem(row: Record<string, unknown>): MenuItem {
     image:       row.image as string | undefined,
     sortOrder:   row.sort_order != null ? Number(row.sort_order) : undefined,
     variants:    (row.variants as Variant[] | null) ?? [],
+    isSet:       Boolean(row.is_set),
   }
 }
 
@@ -286,6 +287,7 @@ export async function createMenuItem(data: Omit<MenuItem, 'id'>, storeId?: strin
       image:       data.image ?? null,
       sort_order:  data.sortOrder ?? 0,
       variants:    data.variants ?? [],
+      is_set:      data.isSet ?? false,
     })
     .select()
     .single()
@@ -309,6 +311,7 @@ export async function updateMenuItem(id: string, data: Partial<Omit<MenuItem, 'i
   if (data.image       !== undefined) update.image       = data.image ?? null
   if (data.sortOrder   !== undefined) update.sort_order  = data.sortOrder
   if (data.variants    !== undefined) update.variants    = data.variants
+  if (data.isSet       !== undefined) update.is_set       = data.isSet
   update.updated_at = now()
 
   const { data: row, error } = await supabase
