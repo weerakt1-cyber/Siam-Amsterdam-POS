@@ -213,7 +213,9 @@ export default function InventoryPage() {
         unit: form.unit,
         category: form.category,
         currentStock: Number(form.currentStock) || 0,
-        lowStockThreshold: Number(form.lowStockThreshold) || 5,
+        // Honor whatever threshold the shop sets — including 0 (which effectively
+        // disables the low-stock alert). Never force a minimum of 5.
+        lowStockThreshold: Number.isFinite(Number(form.lowStockThreshold)) ? Number(form.lowStockThreshold) : 0,
         costPerUnit: form.costPerUnit ? Number(form.costPerUnit) : undefined,
         contentAmount: form.contentAmount ? Number(form.contentAmount) : null,
         contentUnit: form.contentAmount ? form.contentUnit : null,
@@ -605,7 +607,7 @@ export default function InventoryPage() {
                     onClick={() => { setNumPadVal(form.lowStockThreshold); setNumPadTarget('threshold') }}
                     className="w-full bg-gray-100 border border-gray-200 rounded-xl px-3 py-2.5 text-sm text-gray-900 text-left hover:border-amber-500/40 transition"
                   >
-                    {form.lowStockThreshold || '5'}
+                    {form.lowStockThreshold || '0'}
                   </button>
                 </div>
               </div>
