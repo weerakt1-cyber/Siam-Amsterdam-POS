@@ -96,6 +96,8 @@ const DICT = {
   setStampAutoHint:  { en: 'Give members stamps automatically when a bill is paid (otherwise staff add them by hand on the Members page).', th: 'แจกแสตมป์ให้สมาชิกอัตโนมัติเมื่อจ่ายบิล (ถ้าปิด พนักงานกดเพิ่มเองที่หน้า Members)' },
   setBahtPerStamp:   { en: '฿ per 1 stamp',   th: 'กี่บาท = 1 ดวง' },
   setBahtPerStampHint: { en: 'e.g. 200 → ฿200 spent = 1 stamp', th: 'เช่น 200 → ใช้จ่าย ฿200 = 1 ดวง' },
+  setStampCardSize:  { en: 'Stamps per card', th: 'จำนวนดวงต่อการ์ด' },
+  setStampCardSizeHint: { en: 'A full card = a reward (e.g. 10)', th: 'ครบการ์ด = 1 รางวัล (เช่น 10)' },
   printCheckBill:  { en: 'Print check bill', th: 'พิมพ์ใบเช็คบิล' },
   splitBill:       { en: 'Split Bill',      th: 'แยกบิล' },
   openTickets:     { en: 'Open Tickets',    th: 'บิลที่เปิดอยู่' },

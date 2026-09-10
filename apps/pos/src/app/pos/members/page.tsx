@@ -6,6 +6,7 @@ import { useState, useEffect, useCallback } from 'react'
 import type { Member, Order } from '@/lib/types'
 import NumPad from '@/components/pos/NumPad'
 import { getTier, getPointsToNextTier, TIERS } from '@/lib/loyalty'
+import { loadBarSettings } from '@/lib/printer'
 import { usePosLang } from '@/lib/pos-i18n'
 import { SkeletonList } from '@/components/pos/Skeleton'
 
@@ -67,8 +68,8 @@ function TierPill({ tier, size = 'sm' }: { tier: string; size?: 'xs' | 'sm' }) {
 
 // ─── Stamp Card ───────────────────────────────────────────────────────────────
 
-function StampCard({ stamps }: { stamps: number }) {
-  const TOTAL = 10
+function StampCard({ stamps, total = 10 }: { stamps: number; total?: number }) {
+  const TOTAL = total
   const filled = Math.min(stamps, TOTAL)
   return (
     <div className="bg-white border border-gray-200 rounded-2xl p-4">
@@ -106,6 +107,12 @@ export default function MembersPage() {
   const [members, setMembers] = useState<Member[]>(() => readCache<Member[]>('members_full') ?? [])
   const [orders, setOrders] = useState<Order[]>(() => readCache<Order[]>('members_orders') ?? [])
   const [search, setSearch] = useState('')
+  // Stamps per card — configurable in Settings (localStorage cache; default 10).
+  const [cardSize, setCardSize] = useState(10)
+  useEffect(() => {
+    const n = loadBarSettings().stampCardSize
+    if (typeof n === 'number' && n >= 2) setCardSize(Math.floor(n))
+  }, [])
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [isCreating, setIsCreating] = useState(false)
   const [form, setForm] = useState(emptyForm())
@@ -217,21 +224,21 @@ export default function MembersPage() {
     if (!selectedId) return
     const m = members.find((x) => x.id === selectedId)
     if (!m) return
-    const newStamps = (m.stamps + 1) % 10
+    const newStamps = (m.stamps + 1) % cardSize
     const newEarned = m.stampsEarned + 1
     await authedFetch(`/api/members/${selectedId}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ stamps: newStamps, stampsEarned: newEarned }),
     })
-    showToast(newStamps === 0 ? '🎉 Stamp card complete! Reward earned.' : `Stamp added (${newStamps}/10)`)
+    showToast(newStamps === 0 ? '🎉 Stamp card complete! Reward earned.' : `Stamp added (${newStamps}/${cardSize})`)
     await fetchAll()
   }
 
   async function handleRedeemStamps() {
     if (!selectedId) return
     const m = members.find((x) => x.id === selectedId)
-    if (!m || m.stamps < 10) return
+    if (!m || m.stamps < cardSize) return
     await authedFetch(`/api/members/${selectedId}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
@@ -504,7 +511,7 @@ export default function MembersPage() {
             {/* ── Stamp card ── */}
             {!isCreating && selected && (
               <div>
-                <StampCard stamps={selected.stamps} />
+                <StampCard stamps={selected.stamps} total={cardSize} />
                 <div className="flex gap-2 mt-2">
                   <button
                     onClick={handleAddStamp}
@@ -512,7 +519,7 @@ export default function MembersPage() {
                   >
                     + Stamp (visit)
                   </button>
-                  {selected.stamps >= 10 && (
+                  {selected.stamps >= cardSize && (
                     <button
                       onClick={handleRedeemStamps}
                       className="flex-1 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-sm transition active:scale-95"

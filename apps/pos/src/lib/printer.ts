@@ -38,6 +38,7 @@ export type BarSettings = {
   loyaltyBahtPerPoint?:   number    // ฿ spent to earn 1 base point (before tier multiplier). Default 10.
   stampAuto?:             boolean   // auto-add visit stamp(s) on a paid order. Default off (staff add manually).
   stampBahtPerStamp?:     number    // ฿ spent to earn 1 stamp when stampAuto is on. Default 200.
+  stampCardSize?:         number    // stamps that fill one loyalty card (a full card = a reward). Default 10.
 }
 
 export type PrinterDevice = {
@@ -69,6 +70,7 @@ export const DEFAULT_BAR_SETTINGS: BarSettings = {
   loyaltyBahtPerPoint:    10,
   stampAuto:              false,
   stampBahtPerStamp:      200,
+  stampCardSize:          10,
 }
 
 const LS_KEY = 'pos_bar_settings'
