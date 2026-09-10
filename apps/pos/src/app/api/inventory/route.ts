@@ -29,7 +29,7 @@ export async function POST(req: NextRequest) {
       unit,
       category,
       currentStock:       Number(currentStock) || 0,
-      lowStockThreshold:  Number(lowStockThreshold) || 5,
+      lowStockThreshold:  Number.isFinite(Number(lowStockThreshold)) ? Number(lowStockThreshold) : 5,
       costPerUnit:        costPerUnit ? Number(costPerUnit) : undefined,
       contentAmount:      contentAmount ? Number(contentAmount) : undefined,
       contentUnit:        contentUnit || undefined,
